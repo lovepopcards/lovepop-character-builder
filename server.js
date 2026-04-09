@@ -159,6 +159,17 @@ app.post('/api/ai/generate', uploadMem.single('image'), async (req, res) => {
   }
 });
 
+// Diagnostic — shows where the DB is being stored
+app.get('/api/debug/db-path', (req, res) => {
+  const dbPath = process.env.DB_PATH || path.join(__dirname, 'characters.db');
+  res.json({
+    db_path: dbPath,
+    db_path_source: process.env.DB_PATH ? 'env var (good — persistent)' : 'local filesystem (bad — will be wiped on redeploy)',
+    exists: fs.existsSync(dbPath),
+    env_DB_PATH: process.env.DB_PATH || '(not set)',
+  });
+});
+
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
