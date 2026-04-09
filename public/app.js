@@ -2,39 +2,64 @@
    Lovepop Character Builder — Frontend App
    ============================================================ */
 
-const API = '/api/characters';
+const API      = '/api/characters';
+const LANDS_API = '/api/lands';
+
 let characters = [];
+let lands = [];
 let currentView = 'catalog';
 let displayMode = 'tile';
+let landsDisplayMode = 'tile';
 let activeDetailId = null;
-let editorMode = 'create'; // 'create' | 'edit'
+let activeLandDetailId = null;
+let editorMode = 'create';
 let editorCharId = null;
-let aiGeneratedData = {};
+let landEditorMode = 'create';
+let landEditorId = null;
 let aiImageFile = null;
+let landAiImageFile = null;
+let aiGeneratedData = {};
+let landAiGeneratedData = {};
 
-const FIELD_META = [
-  { key: 'name',               label: 'Name',                 inputId: 'f-name' },
-  { key: 'species',            label: 'Species',              inputId: 'f-species' },
-  { key: 'role',               label: 'Role',                 inputId: 'f-role' },
-  { key: 'backstory',          label: 'Backstory',            inputId: 'f-backstory' },
-  { key: 'personality',        label: 'Personality',          inputId: 'f-personality' },
-  { key: 'key_passions',       label: 'Key Passions',         inputId: 'f-key-passions' },
-  { key: 'what_they_care_about', label: 'What They Care About', inputId: 'f-what-they-care-about' },
-  { key: 'tone_and_voice',     label: 'Tone & Voice',         inputId: 'f-tone-and-voice' },
+const CHAR_FIELD_META = [
+  { key: 'name',                 label: 'Name',                   inputId: 'f-name' },
+  { key: 'species',              label: 'Species',                inputId: 'f-species' },
+  { key: 'role',                 label: 'Role',                   inputId: 'f-role' },
+  { key: 'backstory',            label: 'Backstory',              inputId: 'f-backstory' },
+  { key: 'personality',          label: 'Personality',            inputId: 'f-personality' },
+  { key: 'key_passions',         label: 'Key Passions',           inputId: 'f-key-passions' },
+  { key: 'what_they_care_about', label: 'What They Care About',   inputId: 'f-what-they-care-about' },
+  { key: 'tone_and_voice',       label: 'Tone & Voice',           inputId: 'f-tone-and-voice' },
+];
+
+const LAND_FIELD_META = [
+  { key: 'name',               label: 'Name',              inputId: 'fl-name' },
+  { key: 'description',        label: 'Description',       inputId: 'fl-description' },
+  { key: 'visual_style',       label: 'Visual Style',      inputId: 'fl-visual-style' },
+  { key: 'color_palette',      label: 'Color Palette',     inputId: 'fl-color-palette' },
+  { key: 'themes_and_content', label: 'Themes & Content',  inputId: 'fl-themes-and-content' },
 ];
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   bindNav();
   bindCatalog();
-  bindBuild();
   bindEditor();
   bindAIPanel();
+  bindLands();
+  bindLandEditor();
+  bindLandAIPanel();
   bindDetailModal();
+  bindLandDetailModal();
   bindSettings();
-  loadCharacters();
+  loadAll();
   checkApiKeyStatus();
 });
+
+// ── Load everything ───────────────────────────────────────────
+async function loadAll() {
+  await Promise.all([loadCharacters(), loadLands()]);
+}
 
 // ── Navigation ────────────────────────────────────────────────
 function bindNav() {
@@ -44,37 +69,14 @@ function bindNav() {
 }
 
 function switchView(view) {
-  if (view === currentView) return;
   currentView = view;
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
-  if (view === 'build')    renderBuildRecent();
   if (view === 'settings') loadSettings();
 }
 
-function openEditorView(mode, charId = null) {
-  editorMode = mode;
-  editorCharId = charId;
-  aiGeneratedData = {};
-  aiImageFile = null;
-  clearAIPanel();
-
-  if (mode === 'edit' && charId) {
-    const char = characters.find(c => c.id === charId);
-    if (!char) return;
-    document.getElementById('editor-title').textContent = char.name;
-    populateEditorForm(char);
-  } else {
-    document.getElementById('editor-title').textContent = 'New Character';
-    clearEditorForm();
-  }
-
-  document.getElementById('editor-save-status').textContent = '';
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-editor').classList.add('active');
-  currentView = 'editor';
-  window.scrollTo(0, 0);
+function goBack(dest) {
+  switchView(dest);
 }
 
 // ── Characters Data ───────────────────────────────────────────
@@ -83,29 +85,21 @@ async function loadCharacters() {
     const res = await fetch(API);
     characters = await res.json();
     renderCatalog();
-    renderBuildRecent();
-  } catch (err) { console.error('Load error:', err); }
+  } catch (err) { console.error('Load chars error:', err); }
 }
 
 async function saveCharacter(data) {
   if (editorMode === 'edit' && editorCharId) {
-    const res = await fetch(`${API}/${editorCharId}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+    const res = await fetch(`${API}/${editorCharId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (!res.ok) throw new Error('Update failed');
     return res.json();
-  } else {
-    const res = await fetch(API, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error('Create failed');
-    return res.json();
   }
+  const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Create failed');
+  return res.json();
 }
 
-// ── Catalog ───────────────────────────────────────────────────
+// ── Catalog (Characters) ──────────────────────────────────────
 function bindCatalog() {
   document.getElementById('btn-tile-view').addEventListener('click', () => setDisplayMode('tile'));
   document.getElementById('btn-list-view').addEventListener('click', () => setDisplayMode('list'));
@@ -134,7 +128,7 @@ function renderTileView() {
   Array.from(grid.children).forEach(el => { if (el.id !== 'catalog-empty') el.remove(); });
   if (!characters.length) { empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
-  characters.forEach(char => grid.appendChild(buildTile(char)));
+  characters.forEach(char => grid.appendChild(buildCharTile(char)));
 }
 
 function renderListView() {
@@ -146,10 +140,7 @@ function renderListView() {
   characters.forEach(char => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>
-        <div class="list-char-name">${esc(char.name)}</div>
-        ${char.species ? `<div class="list-char-sub">${esc(char.species)}</div>` : ''}
-      </td>
+      <td><div class="list-char-name">${esc(char.name)}</div>${char.species ? `<div class="list-char-sub">${esc(char.species)}</div>` : ''}</td>
       <td><span class="list-meta">${esc(char.role || '—')}</span></td>
       <td><span class="status-badge status-${char.status}">${cap(char.status)}</span></td>
       <td><span class="list-meta">${esc(char.first_appeared || '—')}</span></td>
@@ -161,205 +152,153 @@ function renderListView() {
   });
 }
 
-function buildTile(char) {
+function buildCharTile(char) {
   const tile = document.createElement('div');
   tile.className = 'character-tile';
   const imgHtml = char.images && char.images.length
     ? `<img src="${esc(char.images[0])}" alt="${esc(char.name)}" loading="lazy" />`
     : `<div class="tile-image-placeholder">✨</div>`;
   tile.innerHTML = `
-    <div class="tile-image">
-      ${imgHtml}
-      <span class="tile-status-badge status-badge status-${char.status}">${cap(char.status)}</span>
-    </div>
+    <div class="tile-image">${imgHtml}<span class="tile-status-badge status-badge status-${char.status}">${cap(char.status)}</span></div>
     <div class="tile-body">
       <div class="tile-name">${esc(char.name)}</div>
       ${char.species || char.role ? `<div class="tile-sub">${esc([char.species, char.role].filter(Boolean).join(' · '))}</div>` : ''}
-    </div>
-  `;
+    </div>`;
   tile.addEventListener('click', () => openDetailModal(char.id));
   return tile;
 }
 
-// ── Build ─────────────────────────────────────────────────────
-function bindBuild() {
-  document.getElementById('build-new-btn').addEventListener('click', () => openEditorView('create'));
+// ── Character Editor ──────────────────────────────────────────
+function openEditorView(mode, charId = null) {
+  editorMode = mode;
+  editorCharId = charId;
+  aiGeneratedData = {};
+  aiImageFile = null;
+  clearAIPanel();
+  if (mode === 'edit' && charId) {
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+    document.getElementById('editor-title').textContent = char.name;
+    CHAR_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = char[f.key] || ''; });
+    document.getElementById('f-status').value = char.status || 'active';
+    document.getElementById('f-first-appeared').value = char.first_appeared || '';
+  } else {
+    document.getElementById('editor-title').textContent = 'New Character';
+    CHAR_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
+    document.getElementById('f-status').value = 'active';
+    document.getElementById('f-first-appeared').value = '';
+  }
+  document.getElementById('editor-save-status').textContent = '';
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-editor').classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  currentView = 'editor';
+  window.scrollTo(0, 0);
 }
 
-function renderBuildRecent() {
-  const section = document.getElementById('build-recent-section');
-  const grid = document.getElementById('build-recent-grid');
-  grid.innerHTML = '';
-  const recent = characters.slice(0, 6);
-  if (!recent.length) { section.classList.remove('visible'); return; }
-  section.classList.add('visible');
-  recent.forEach(char => grid.appendChild(buildTile(char)));
-}
-
-// ── Editor ────────────────────────────────────────────────────
 function bindEditor() {
-  document.getElementById('editor-back-btn').addEventListener('click', () => {
-    const dest = editorMode === 'edit' ? 'catalog' : 'catalog';
-    switchView(dest);
-    // Re-activate the catalog tab visually
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === dest));
-  });
-  document.getElementById('editor-cancel-btn').addEventListener('click', () => {
-    switchView('catalog');
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'catalog'));
-  });
+  document.getElementById('editor-back-btn').addEventListener('click', () => goBack('catalog'));
+  document.getElementById('editor-cancel-btn').addEventListener('click', () => goBack('catalog'));
   document.getElementById('editor-save-btn').addEventListener('click', handleEditorSave);
 }
 
-function clearEditorForm() {
-  FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
-  document.getElementById('f-status').value = 'active';
-  document.getElementById('f-first-appeared').value = '';
-}
-
-function populateEditorForm(char) {
-  FIELD_META.forEach(f => {
-    const el = document.getElementById(f.inputId);
-    if (el) el.value = char[f.key] || '';
-  });
-  document.getElementById('f-status').value = char.status || 'active';
-  document.getElementById('f-first-appeared').value = char.first_appeared || '';
-}
-
-function readEditorForm() {
+async function handleEditorSave() {
   const data = {};
-  FIELD_META.forEach(f => {
-    const el = document.getElementById(f.inputId);
-    if (el) data[f.key] = el.value.trim();
-  });
+  CHAR_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) data[f.key] = el.value.trim(); });
   data.status = document.getElementById('f-status').value;
   data.first_appeared = document.getElementById('f-first-appeared').value.trim();
-  return data;
-}
 
-async function handleEditorSave() {
-  const data = readEditorForm();
   if (!data.name) {
-    document.getElementById('f-name').focus();
-    document.getElementById('f-name').style.borderColor = 'var(--coral)';
-    setTimeout(() => document.getElementById('f-name').style.borderColor = '', 1500);
+    const el = document.getElementById('f-name');
+    el.focus(); el.style.borderColor = 'var(--coral)';
+    setTimeout(() => el.style.borderColor = '', 1500);
     return;
   }
 
   const btn = document.getElementById('editor-save-btn');
-  const status = document.getElementById('editor-save-status');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
     let saved = await saveCharacter(data);
-
-    // If a new image was dropped into the AI panel, upload it as the primary image
-    // (only on create, or on edit if no images exist yet)
     if (aiImageFile && (editorMode === 'create' || !saved.images || saved.images.length === 0)) {
       btn.textContent = 'Uploading image…';
-      const formData = new FormData();
-      formData.append('image', aiImageFile);
-      const imgRes = await fetch(`/api/characters/${saved.id}/images`, {
-        method: 'POST', body: formData,
-      });
+      const fd = new FormData();
+      fd.append('image', aiImageFile);
+      const imgRes = await fetch(`${API}/${saved.id}/images`, { method: 'POST', body: fd });
       if (imgRes.ok) saved = await imgRes.json();
     }
-
     if (editorMode === 'edit') {
       characters = characters.map(c => c.id === saved.id ? saved : c);
     } else {
       characters.unshift(saved);
     }
     renderCatalog();
-    renderBuildRecent();
-    status.textContent = '✓ Saved';
-    setTimeout(() => {
-      switchView('catalog');
-      document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'catalog'));
-    }, 600);
+    document.getElementById('editor-save-status').textContent = '✓ Saved';
+    setTimeout(() => { switchView('catalog'); }, 600);
   } catch (err) {
     alert('Save failed: ' + err.message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Save Character';
+    btn.disabled = false; btn.textContent = 'Save Character';
   }
 }
 
-// ── AI Panel ──────────────────────────────────────────────────
+// ── AI Panel (Characters) ─────────────────────────────────────
 function bindAIPanel() {
   const zone = document.getElementById('ai-image-zone');
   const input = document.getElementById('ai-image-input');
-  const placeholder = document.getElementById('ai-image-placeholder');
-  const preview = document.getElementById('ai-image-preview');
   const clearBtn = document.getElementById('ai-image-clear');
 
-  // Click to upload
-  zone.addEventListener('click', (e) => {
-    if (e.target === clearBtn || clearBtn.contains(e.target)) return;
-    input.click();
-  });
-
-  // File selected
-  input.addEventListener('change', () => {
-    if (input.files[0]) setAIImage(input.files[0]);
-  });
-
-  // Drag & drop
+  zone.addEventListener('click', (e) => { if (e.target === clearBtn || clearBtn.contains(e.target)) return; input.click(); });
+  input.addEventListener('change', () => { if (input.files[0]) setAIImage(input.files[0], 'char'); });
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) setAIImage(file);
-  });
+  zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) setAIImage(f, 'char'); });
+  clearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearAIImage('char'); });
 
-  // Clear image
-  clearBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    clearAIImage();
-  });
-
-  // Generate
   document.getElementById('ai-generate-btn').addEventListener('click', handleAIGenerate);
-
-  // Apply all
-  document.getElementById('ai-apply-all-btn').addEventListener('click', applyAllAIFields);
-
-  // Goto settings link
-  document.getElementById('ai-goto-settings').addEventListener('click', (e) => {
-    e.preventDefault();
-    switchView('settings');
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === 'settings'));
-    loadSettings();
-  });
+  document.getElementById('ai-apply-all-btn').addEventListener('click', () => applyAllAI(CHAR_FIELD_META, aiGeneratedData));
+  document.getElementById('ai-goto-settings').addEventListener('click', (e) => { e.preventDefault(); switchView('settings'); loadSettings(); });
 }
 
-function setAIImage(file) {
-  aiImageFile = file;
-  const preview = document.getElementById('ai-image-preview');
-  const placeholder = document.getElementById('ai-image-placeholder');
-  const clearBtn = document.getElementById('ai-image-clear');
+function setAIImage(file, type) {
+  if (type === 'char') {
+    aiImageFile = file;
+    showAIImagePreview(file, 'ai-image-preview', 'ai-image-placeholder', 'ai-image-clear');
+  } else {
+    landAiImageFile = file;
+    showAIImagePreview(file, 'land-ai-image-preview', 'land-ai-image-placeholder', 'land-ai-image-clear');
+  }
+}
+
+function showAIImagePreview(file, previewId, placeholderId, clearId) {
   const reader = new FileReader();
   reader.onload = (e) => {
-    preview.src = e.target.result;
-    preview.classList.remove('hidden');
-    placeholder.classList.add('hidden');
-    clearBtn.classList.remove('hidden');
+    document.getElementById(previewId).src = e.target.result;
+    document.getElementById(previewId).classList.remove('hidden');
+    document.getElementById(placeholderId).classList.add('hidden');
+    document.getElementById(clearId).classList.remove('hidden');
   };
   reader.readAsDataURL(file);
 }
 
-function clearAIImage() {
-  aiImageFile = null;
-  document.getElementById('ai-image-preview').classList.add('hidden');
-  document.getElementById('ai-image-placeholder').classList.remove('hidden');
-  document.getElementById('ai-image-clear').classList.add('hidden');
-  document.getElementById('ai-image-input').value = '';
+function clearAIImage(type) {
+  if (type === 'char') {
+    aiImageFile = null;
+    document.getElementById('ai-image-preview').classList.add('hidden');
+    document.getElementById('ai-image-placeholder').classList.remove('hidden');
+    document.getElementById('ai-image-clear').classList.add('hidden');
+    document.getElementById('ai-image-input').value = '';
+  } else {
+    landAiImageFile = null;
+    document.getElementById('land-ai-image-preview').classList.add('hidden');
+    document.getElementById('land-ai-image-placeholder').classList.remove('hidden');
+    document.getElementById('land-ai-image-clear').classList.add('hidden');
+    document.getElementById('land-ai-image-input').value = '';
+  }
 }
 
 function clearAIPanel() {
-  clearAIImage();
+  clearAIImage('char');
   document.getElementById('ai-description').value = '';
   document.getElementById('ai-results').classList.add('hidden');
   document.getElementById('ai-result-cards').innerHTML = '';
@@ -367,32 +306,40 @@ function clearAIPanel() {
 
 async function handleAIGenerate() {
   const description = document.getElementById('ai-description').value.trim();
-  if (!aiImageFile && !description) {
-    document.getElementById('ai-description').focus();
-    return;
-  }
+  if (!aiImageFile && !description) { document.getElementById('ai-description').focus(); return; }
+  await runAIGenerate({
+    endpoint: '/api/ai/generate',
+    imageFile: aiImageFile,
+    description,
+    fieldMeta: CHAR_FIELD_META,
+    generateBtnId: 'ai-generate-btn',
+    resultsId: 'ai-results',
+    cardsId: 'ai-result-cards',
+    storeIn: (data) => { aiGeneratedData = data; },
+  });
+}
 
-  const btn = document.getElementById('ai-generate-btn');
-  const resultsEl = document.getElementById('ai-results');
-  const cardsEl = document.getElementById('ai-result-cards');
+async function runAIGenerate({ endpoint, imageFile, description, fieldMeta, generateBtnId, resultsId, cardsId, storeIn }) {
+  const btn = document.getElementById(generateBtnId);
+  const resultsEl = document.getElementById(resultsId);
+  const cardsEl = document.getElementById(cardsId);
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Generating…';
   resultsEl.classList.remove('hidden');
-  cardsEl.innerHTML = `<div class="ai-loading"><div class="spinner"></div><div>Generating character profile…</div></div>`;
+  cardsEl.innerHTML = `<div class="ai-loading"><div class="spinner"></div><div>Generating profile…</div></div>`;
 
   try {
-    const formData = new FormData();
-    if (aiImageFile) formData.append('image', aiImageFile);
-    if (description) formData.append('description', description);
+    const fd = new FormData();
+    if (imageFile) fd.append('image', imageFile);
+    if (description) fd.append('description', description);
 
-    const res = await fetch('/api/ai/generate', { method: 'POST', body: formData });
+    const res = await fetch(endpoint, { method: 'POST', body: fd });
     const data = await res.json();
-
     if (!res.ok) throw new Error(data.error || 'Generation failed');
 
-    aiGeneratedData = data;
-    renderAIResults(data);
+    storeIn(data);
+    renderAIResultCards(data, fieldMeta, cardsEl);
   } catch (err) {
     cardsEl.innerHTML = `<div class="ai-loading" style="color:var(--red)">⚠️ ${esc(err.message)}</div>`;
   } finally {
@@ -401,11 +348,9 @@ async function handleAIGenerate() {
   }
 }
 
-function renderAIResults(data) {
-  const cardsEl = document.getElementById('ai-result-cards');
+function renderAIResultCards(data, fieldMeta, cardsEl) {
   cardsEl.innerHTML = '';
-
-  FIELD_META.forEach(f => {
+  fieldMeta.forEach(f => {
     const value = data[f.key];
     if (!value) return;
     const card = document.createElement('div');
@@ -415,17 +360,14 @@ function renderAIResults(data) {
         <span class="ai-result-card-label">${f.label}</span>
         <button class="btn-apply-field" data-field="${f.key}">Apply →</button>
       </div>
-      <div class="ai-result-card-body">${esc(value)}</div>
-    `;
-    card.querySelector('.btn-apply-field').addEventListener('click', () => applyAIField(f.key, value));
+      <div class="ai-result-card-body">${esc(value)}</div>`;
+    card.querySelector('.btn-apply-field').addEventListener('click', () => applyAIField(f, value));
     cardsEl.appendChild(card);
   });
 }
 
-function applyAIField(key, value) {
-  const meta = FIELD_META.find(f => f.key === key);
-  if (!meta) return;
-  const el = document.getElementById(meta.inputId);
+function applyAIField(fieldMeta, value) {
+  const el = document.getElementById(fieldMeta.inputId);
   if (el) {
     el.value = value;
     el.style.borderColor = 'var(--green)';
@@ -433,34 +375,228 @@ function applyAIField(key, value) {
   }
 }
 
-function applyAllAIFields() {
-  FIELD_META.forEach(f => {
-    if (aiGeneratedData[f.key]) applyAIField(f.key, aiGeneratedData[f.key]);
-  });
+function applyAllAI(fieldMeta, data) {
+  fieldMeta.forEach(f => { if (data[f.key]) applyAIField(f, data[f.key]); });
 }
 
 async function checkApiKeyStatus() {
   try {
     const res = await fetch('/api/settings/api-key-status');
     const { configured } = await res.json();
-    const warning = document.getElementById('ai-key-warning');
-    if (!configured) warning.classList.remove('hidden');
-    else warning.classList.add('hidden');
+    ['ai-key-warning', 'land-ai-key-warning'].forEach(id => {
+      document.getElementById(id).classList.toggle('hidden', configured);
+    });
   } catch {}
 }
 
-// ── Detail Modal ──────────────────────────────────────────────
+// ── Lands Data ────────────────────────────────────────────────
+async function loadLands() {
+  try {
+    const res = await fetch(LANDS_API);
+    lands = await res.json();
+    renderLands();
+  } catch (err) { console.error('Load lands error:', err); }
+}
+
+async function saveLand(data) {
+  if (landEditorMode === 'edit' && landEditorId) {
+    const res = await fetch(`${LANDS_API}/${landEditorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!res.ok) throw new Error('Update failed');
+    return res.json();
+  }
+  const res = await fetch(LANDS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Create failed');
+  return res.json();
+}
+
+// ── Lands Catalog ─────────────────────────────────────────────
+function bindLands() {
+  document.getElementById('btn-lands-tile-view').addEventListener('click', () => setLandsDisplayMode('tile'));
+  document.getElementById('btn-lands-list-view').addEventListener('click', () => setLandsDisplayMode('list'));
+  document.getElementById('lands-new-btn').addEventListener('click', () => openLandEditorView('create'));
+  document.getElementById('lands-empty-new-btn').addEventListener('click', () => openLandEditorView('create'));
+}
+
+function setLandsDisplayMode(mode) {
+  landsDisplayMode = mode;
+  document.getElementById('btn-lands-tile-view').classList.toggle('active', mode === 'tile');
+  document.getElementById('btn-lands-list-view').classList.toggle('active', mode === 'list');
+  document.getElementById('lands-tile-view').classList.toggle('hidden', mode !== 'tile');
+  document.getElementById('lands-list-view').classList.toggle('hidden', mode !== 'list');
+}
+
+function renderLands() {
+  const n = lands.length;
+  document.getElementById('lands-count').textContent = `${n} land${n !== 1 ? 's' : ''}`;
+  renderLandsTileView();
+  renderLandsListView();
+}
+
+function renderLandsTileView() {
+  const grid = document.getElementById('lands-tile-view');
+  const empty = document.getElementById('lands-empty');
+  Array.from(grid.children).forEach(el => { if (el.id !== 'lands-empty') el.remove(); });
+  if (!lands.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  lands.forEach(land => grid.appendChild(buildLandTile(land)));
+}
+
+function renderLandsListView() {
+  const tbody = document.getElementById('lands-list-body');
+  const empty = document.getElementById('lands-list-empty');
+  tbody.innerHTML = '';
+  if (!lands.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  lands.forEach(land => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="list-char-name">${esc(land.name)}</div></td>
+      <td><span class="list-meta">${esc(land.visual_style ? land.visual_style.substring(0, 60) + (land.visual_style.length > 60 ? '…' : '') : '—')}</span></td>
+      <td><span class="status-badge status-${land.status}">${cap(land.status)}</span></td>
+      <td><span class="list-meta">${fmtDate(land.created_at)}</span></td>
+      <td style="text-align:right"><button class="btn-secondary" style="font-size:11px;padding:4px 10px">View →</button></td>
+    `;
+    tr.addEventListener('click', () => openLandDetailModal(land.id));
+    tbody.appendChild(tr);
+  });
+}
+
+function buildLandTile(land) {
+  const tile = document.createElement('div');
+  tile.className = 'character-tile';
+  const imgHtml = land.images && land.images.length
+    ? `<img src="${esc(land.images[0])}" alt="${esc(land.name)}" loading="lazy" />`
+    : `<div class="tile-image-placeholder">🗺</div>`;
+  tile.innerHTML = `
+    <div class="tile-image">${imgHtml}<span class="tile-status-badge status-badge status-${land.status}">${cap(land.status)}</span></div>
+    <div class="tile-body">
+      <div class="tile-name">${esc(land.name)}</div>
+      ${land.visual_style ? `<div class="tile-sub">${esc(land.visual_style.substring(0, 80))}</div>` : ''}
+    </div>`;
+  tile.addEventListener('click', () => openLandDetailModal(land.id));
+  return tile;
+}
+
+// ── Land Editor ───────────────────────────────────────────────
+function openLandEditorView(mode, landId = null) {
+  landEditorMode = mode;
+  landEditorId = landId;
+  landAiGeneratedData = {};
+  landAiImageFile = null;
+  clearLandAIPanel();
+
+  if (mode === 'edit' && landId) {
+    const land = lands.find(l => l.id === landId);
+    if (!land) return;
+    document.getElementById('land-editor-title').textContent = land.name;
+    LAND_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = land[f.key] || ''; });
+    document.getElementById('fl-status').value = land.status || 'active';
+  } else {
+    document.getElementById('land-editor-title').textContent = 'New Land';
+    LAND_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
+    document.getElementById('fl-status').value = 'active';
+  }
+
+  document.getElementById('land-editor-save-status').textContent = '';
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-land-editor').classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  currentView = 'land-editor';
+  window.scrollTo(0, 0);
+}
+
+function bindLandEditor() {
+  document.getElementById('land-editor-back-btn').addEventListener('click', () => goBack('lands'));
+  document.getElementById('land-editor-cancel-btn').addEventListener('click', () => goBack('lands'));
+  document.getElementById('land-editor-save-btn').addEventListener('click', handleLandEditorSave);
+}
+
+async function handleLandEditorSave() {
+  const data = {};
+  LAND_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) data[f.key] = el.value.trim(); });
+  data.status = document.getElementById('fl-status').value;
+
+  if (!data.name) {
+    const el = document.getElementById('fl-name');
+    el.focus(); el.style.borderColor = 'var(--coral)';
+    setTimeout(() => el.style.borderColor = '', 1500);
+    return;
+  }
+
+  const btn = document.getElementById('land-editor-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    let saved = await saveLand(data);
+    if (landAiImageFile && (landEditorMode === 'create' || !saved.images || saved.images.length === 0)) {
+      btn.textContent = 'Uploading image…';
+      const fd = new FormData();
+      fd.append('image', landAiImageFile);
+      const imgRes = await fetch(`${LANDS_API}/${saved.id}/images`, { method: 'POST', body: fd });
+      if (imgRes.ok) saved = await imgRes.json();
+    }
+    if (landEditorMode === 'edit') {
+      lands = lands.map(l => l.id === saved.id ? saved : l);
+    } else {
+      lands.unshift(saved);
+    }
+    renderLands();
+    document.getElementById('land-editor-save-status').textContent = '✓ Saved';
+    setTimeout(() => { switchView('lands'); }, 600);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Land';
+  }
+}
+
+// ── Land AI Panel ─────────────────────────────────────────────
+function bindLandAIPanel() {
+  const zone = document.getElementById('land-ai-image-zone');
+  const input = document.getElementById('land-ai-image-input');
+  const clearBtn = document.getElementById('land-ai-image-clear');
+
+  zone.addEventListener('click', (e) => { if (e.target === clearBtn || clearBtn.contains(e.target)) return; input.click(); });
+  input.addEventListener('change', () => { if (input.files[0]) setAIImage(input.files[0], 'land'); });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', (e) => { e.preventDefault(); zone.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) setAIImage(f, 'land'); });
+  clearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearAIImage('land'); });
+
+  document.getElementById('land-ai-generate-btn').addEventListener('click', handleLandAIGenerate);
+  document.getElementById('land-ai-apply-all-btn').addEventListener('click', () => applyAllAI(LAND_FIELD_META, landAiGeneratedData));
+  document.getElementById('land-ai-goto-settings').addEventListener('click', (e) => { e.preventDefault(); switchView('settings'); loadSettings(); });
+}
+
+function clearLandAIPanel() {
+  clearAIImage('land');
+  document.getElementById('land-ai-description').value = '';
+  document.getElementById('land-ai-results').classList.add('hidden');
+  document.getElementById('land-ai-result-cards').innerHTML = '';
+}
+
+async function handleLandAIGenerate() {
+  const description = document.getElementById('land-ai-description').value.trim();
+  if (!landAiImageFile && !description) { document.getElementById('land-ai-description').focus(); return; }
+  await runAIGenerate({
+    endpoint: '/api/ai/generate-land',
+    imageFile: landAiImageFile,
+    description,
+    fieldMeta: LAND_FIELD_META,
+    generateBtnId: 'land-ai-generate-btn',
+    resultsId: 'land-ai-results',
+    cardsId: 'land-ai-result-cards',
+    storeIn: (data) => { landAiGeneratedData = data; },
+  });
+}
+
+// ── Character Detail Modal ────────────────────────────────────
 function bindDetailModal() {
   document.getElementById('detail-close-btn').addEventListener('click', closeDetailModal);
   document.getElementById('detail-close-btn2').addEventListener('click', closeDetailModal);
-  document.getElementById('detail-delete-btn').addEventListener('click', handleDelete);
-  document.getElementById('detail-edit-btn').addEventListener('click', () => {
-    closeDetailModal();
-    openEditorView('edit', activeDetailId);
-  });
-  document.getElementById('modal-detail').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeDetailModal();
-  });
+  document.getElementById('detail-delete-btn').addEventListener('click', handleDeleteChar);
+  document.getElementById('detail-edit-btn').addEventListener('click', () => { closeDetailModal(); openEditorView('edit', activeDetailId); });
+  document.getElementById('modal-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetailModal(); });
 }
 
 function openDetailModal(id) {
@@ -470,26 +606,15 @@ function openDetailModal(id) {
 
   document.getElementById('detail-name').textContent = char.name;
   document.getElementById('detail-meta').textContent = [char.species, char.role].filter(Boolean).join(' · ');
-
-  const setText = (elId, val) => {
-    document.getElementById(elId).textContent = val || '—';
-  };
-  setText('detail-backstory', char.backstory);
-  setText('detail-personality', char.personality);
-  setText('detail-key-passions', char.key_passions);
-  setText('detail-what-they-care-about', char.what_they_care_about);
-  setText('detail-tone-and-voice', char.tone_and_voice);
-  setText('detail-first-appeared', char.first_appeared);
-
-  document.getElementById('detail-status').innerHTML =
-    `<span class="status-badge status-${char.status}">${cap(char.status)}</span>`;
+  ['backstory','personality','key_passions','what_they_care_about','tone_and_voice','first_appeared'].forEach(f => {
+    document.getElementById(`detail-${f.replace(/_/g,'-')}`).textContent = char[f] || '—';
+  });
+  document.getElementById('detail-status').innerHTML = `<span class="status-badge status-${char.status}">${cap(char.status)}</span>`;
 
   const imgEl = document.getElementById('detail-images');
-  if (char.images && char.images.length) {
-    imgEl.innerHTML = char.images.map(src => `<img src="${esc(src)}" alt="${esc(char.name)}" />`).join('');
-  } else {
-    imgEl.innerHTML = `<div class="image-placeholder"><div class="image-placeholder-icon">🖼</div><div class="image-placeholder-text">No images yet</div></div>`;
-  }
+  imgEl.innerHTML = char.images && char.images.length
+    ? char.images.map(s => `<img src="${esc(s)}" alt="${esc(char.name)}" />`).join('')
+    : `<div class="image-placeholder"><div class="image-placeholder-icon">🖼</div><div class="image-placeholder-text">No images yet</div></div>`;
 
   document.getElementById('modal-detail').classList.remove('hidden');
 }
@@ -499,7 +624,7 @@ function closeDetailModal() {
   activeDetailId = null;
 }
 
-async function handleDelete() {
+async function handleDeleteChar() {
   const char = characters.find(c => c.id === activeDetailId);
   if (!char || !confirm(`Delete "${char.name}"? This cannot be undone.`)) return;
   try {
@@ -507,7 +632,51 @@ async function handleDelete() {
     characters = characters.filter(c => c.id !== activeDetailId);
     closeDetailModal();
     renderCatalog();
-    renderBuildRecent();
+  } catch (err) { alert('Delete failed: ' + err.message); }
+}
+
+// ── Land Detail Modal ─────────────────────────────────────────
+function bindLandDetailModal() {
+  document.getElementById('land-detail-close-btn').addEventListener('click', closeLandDetailModal);
+  document.getElementById('land-detail-close-btn2').addEventListener('click', closeLandDetailModal);
+  document.getElementById('land-detail-delete-btn').addEventListener('click', handleDeleteLand);
+  document.getElementById('land-detail-edit-btn').addEventListener('click', () => { closeLandDetailModal(); openLandEditorView('edit', activeLandDetailId); });
+  document.getElementById('modal-land-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeLandDetailModal(); });
+}
+
+function openLandDetailModal(id) {
+  const land = lands.find(l => l.id === id);
+  if (!land) return;
+  activeLandDetailId = id;
+
+  document.getElementById('land-detail-name').textContent = land.name;
+  document.getElementById('land-detail-meta').textContent = land.visual_style ? land.visual_style.substring(0, 80) : '';
+  ['description','visual_style','color_palette','themes_and_content'].forEach(f => {
+    document.getElementById(`land-detail-${f.replace(/_/g,'-')}`).textContent = land[f] || '—';
+  });
+  document.getElementById('land-detail-status').innerHTML = `<span class="status-badge status-${land.status}">${cap(land.status)}</span>`;
+
+  const imgEl = document.getElementById('land-detail-images');
+  imgEl.innerHTML = land.images && land.images.length
+    ? land.images.map(s => `<img src="${esc(s)}" alt="${esc(land.name)}" />`).join('')
+    : `<div class="image-placeholder"><div class="image-placeholder-icon">🖼</div><div class="image-placeholder-text">No images yet</div></div>`;
+
+  document.getElementById('modal-land-detail').classList.remove('hidden');
+}
+
+function closeLandDetailModal() {
+  document.getElementById('modal-land-detail').classList.add('hidden');
+  activeLandDetailId = null;
+}
+
+async function handleDeleteLand() {
+  const land = lands.find(l => l.id === activeLandDetailId);
+  if (!land || !confirm(`Delete "${land.name}"? This cannot be undone.`)) return;
+  try {
+    await fetch(`${LANDS_API}/${activeLandDetailId}`, { method: 'DELETE' });
+    lands = lands.filter(l => l.id !== activeLandDetailId);
+    closeLandDetailModal();
+    renderLands();
   } catch (err) { alert('Delete failed: ' + err.message); }
 }
 
@@ -519,59 +688,58 @@ function bindSettings() {
 async function loadSettings() {
   try {
     const res = await fetch('/api/settings');
-    const settings = await res.json();
-
-    setVal('s-system-prompt', settings.ai_system_prompt);
-    setVal('s-model', settings.ai_model);
-    setVal('s-instruction-name', settings.ai_instruction_name);
-    setVal('s-instruction-species', settings.ai_instruction_species);
-    setVal('s-instruction-role', settings.ai_instruction_role);
-    setVal('s-instruction-backstory', settings.ai_instruction_backstory);
-    setVal('s-instruction-personality', settings.ai_instruction_personality);
-    setVal('s-instruction-key-passions', settings.ai_instruction_key_passions);
-    setVal('s-instruction-what-they-care-about', settings.ai_instruction_what_they_care_about);
-    setVal('s-instruction-tone-and-voice', settings.ai_instruction_tone_and_voice);
+    const s = await res.json();
+    setVal('s-system-prompt', s.ai_system_prompt);
+    setVal('s-model', s.ai_model);
+    setVal('s-instruction-name', s.ai_instruction_name);
+    setVal('s-instruction-species', s.ai_instruction_species);
+    setVal('s-instruction-role', s.ai_instruction_role);
+    setVal('s-instruction-backstory', s.ai_instruction_backstory);
+    setVal('s-instruction-personality', s.ai_instruction_personality);
+    setVal('s-instruction-key-passions', s.ai_instruction_key_passions);
+    setVal('s-instruction-what-they-care-about', s.ai_instruction_what_they_care_about);
+    setVal('s-instruction-tone-and-voice', s.ai_instruction_tone_and_voice);
+    setVal('s-land-instruction-name', s.ai_land_instruction_name);
+    setVal('s-land-instruction-description', s.ai_land_instruction_description);
+    setVal('s-land-instruction-visual-style', s.ai_land_instruction_visual_style);
+    setVal('s-land-instruction-color-palette', s.ai_land_instruction_color_palette);
+    setVal('s-land-instruction-themes-and-content', s.ai_land_instruction_themes_and_content);
 
     const badge = document.getElementById('api-key-status-badge');
-    if (settings.api_key_configured) {
-      badge.className = 'api-key-badge configured';
-      badge.textContent = '✓ API Key Configured';
-    } else {
-      badge.className = 'api-key-badge missing';
-      badge.textContent = '✗ API Key Not Set';
-    }
+    badge.className = s.api_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
+    badge.textContent = s.api_key_configured ? '✓ API Key Configured' : '✗ API Key Not Set';
   } catch (err) { console.error('Settings load error:', err); }
 }
 
 async function handleSettingsSave() {
   const data = {
-    ai_system_prompt:                    getVal('s-system-prompt'),
-    ai_model:                            getVal('s-model'),
-    ai_instruction_name:                 getVal('s-instruction-name'),
-    ai_instruction_species:              getVal('s-instruction-species'),
-    ai_instruction_role:                 getVal('s-instruction-role'),
-    ai_instruction_backstory:            getVal('s-instruction-backstory'),
-    ai_instruction_personality:          getVal('s-instruction-personality'),
-    ai_instruction_key_passions:         getVal('s-instruction-key-passions'),
+    ai_system_prompt: getVal('s-system-prompt'),
+    ai_model: getVal('s-model'),
+    ai_instruction_name: getVal('s-instruction-name'),
+    ai_instruction_species: getVal('s-instruction-species'),
+    ai_instruction_role: getVal('s-instruction-role'),
+    ai_instruction_backstory: getVal('s-instruction-backstory'),
+    ai_instruction_personality: getVal('s-instruction-personality'),
+    ai_instruction_key_passions: getVal('s-instruction-key-passions'),
     ai_instruction_what_they_care_about: getVal('s-instruction-what-they-care-about'),
-    ai_instruction_tone_and_voice:       getVal('s-instruction-tone-and-voice'),
+    ai_instruction_tone_and_voice: getVal('s-instruction-tone-and-voice'),
+    ai_land_instruction_name: getVal('s-land-instruction-name'),
+    ai_land_instruction_description: getVal('s-land-instruction-description'),
+    ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
+    ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
+    ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
   };
-
   const apiKey = getVal('s-api-key');
   if (apiKey) data.anthropic_api_key = apiKey;
 
   const btn = document.getElementById('settings-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
-
   try {
-    await fetch('/api/settings', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    btn.textContent = '✓ Saved';
+    await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     document.getElementById('s-api-key').value = '';
     await loadSettings();
     await checkApiKeyStatus();
+    btn.textContent = '✓ Saved';
     setTimeout(() => { btn.textContent = 'Save Settings'; btn.disabled = false; }, 1500);
   } catch (err) {
     alert('Save failed: ' + err.message);

@@ -20,6 +20,7 @@
       </div>
       <nav class="header-nav">
         <button class="nav-tab active" data-view="catalog">Lovepop Characters</button>
+        <button class="nav-tab" data-view="lands">Lovepop Lands</button>
         <button class="nav-tab" data-view="settings">Settings</button>
       </nav>
     </div>
@@ -31,11 +32,11 @@
   <!-- ═══ MAIN ══════════════════════════════════════════════════ -->
   <main class="app-main">
 
-    <!-- ─── CATALOG VIEW ──────────────────────────────────────── -->
+    <!-- ─── CHARACTERS VIEW ───────────────────────────────────── -->
     <div id="view-catalog" class="view active">
       <div class="view-toolbar">
         <div class="toolbar-left">
-          <h1 class="view-title">Character Catalog</h1>
+          <h1 class="view-title">Lovepop Characters</h1>
           <span id="catalog-count" class="count-badge">0 characters</span>
         </div>
         <div class="toolbar-right">
@@ -50,8 +51,6 @@
           <button class="btn-primary" id="catalog-new-btn">+ New Character</button>
         </div>
       </div>
-
-      <!-- Tile View -->
       <div id="tile-view" class="character-grid">
         <div class="empty-state" id="catalog-empty">
           <div class="empty-icon">✨</div>
@@ -60,20 +59,9 @@
           <button class="btn-primary" id="empty-new-btn">+ Create New Character</button>
         </div>
       </div>
-
-      <!-- List View -->
       <div id="list-view" class="character-list hidden">
         <table class="list-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Species / Role</th>
-              <th>Status</th>
-              <th>First Appeared</th>
-              <th>Created</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr><th>Name</th><th>Species / Role</th><th>Status</th><th>First Appeared</th><th>Created</th><th></th></tr></thead>
           <tbody id="list-body"></tbody>
         </table>
         <div class="empty-state hidden" id="list-empty">
@@ -84,28 +72,47 @@
       </div>
     </div>
 
-    <!-- ─── BUILD VIEW ────────────────────────────────────────── -->
-    <div id="view-build" class="view">
+    <!-- ─── LANDS VIEW ────────────────────────────────────────── -->
+    <div id="view-lands" class="view">
       <div class="view-toolbar">
         <div class="toolbar-left">
-          <h1 class="view-title">Character Builder</h1>
+          <h1 class="view-title">Lovepop Lands</h1>
+          <span id="lands-count" class="count-badge">0 lands</span>
+        </div>
+        <div class="toolbar-right">
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="btn-lands-tile-view" title="Tile view">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+            </button>
+            <button class="toggle-btn" id="btn-lands-list-view" title="List view">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1.25" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <button class="btn-primary" id="lands-new-btn">+ New Land</button>
         </div>
       </div>
-      <div class="build-hero">
-        <div class="build-hero-content">
-          <div class="build-hero-icon">🌟</div>
-          <h2 class="build-hero-title">Bring a Lovepop Character to Life</h2>
-          <p class="build-hero-sub">Drop in a photo and description, and let AI generate a rich character profile — then refine it until it's just right.</p>
-          <button class="btn-primary btn-large" id="build-new-btn">+ Create New Character</button>
+      <div id="lands-tile-view" class="character-grid">
+        <div class="empty-state" id="lands-empty">
+          <div class="empty-icon">🗺</div>
+          <div class="empty-title">No lands yet</div>
+          <div class="empty-sub">Create your first Lovepop Land to get started.</div>
+          <button class="btn-primary" id="lands-empty-new-btn">+ Create New Land</button>
         </div>
       </div>
-      <div class="build-recent-section" id="build-recent-section">
-        <h3 class="section-label">Recently Created</h3>
-        <div class="character-grid small" id="build-recent-grid"></div>
+      <div id="lands-list-view" class="character-list hidden">
+        <table class="list-table">
+          <thead><tr><th>Name</th><th>Visual Style</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody id="lands-list-body"></tbody>
+        </table>
+        <div class="empty-state hidden" id="lands-list-empty">
+          <div class="empty-icon">🗺</div>
+          <div class="empty-title">No lands yet</div>
+          <div class="empty-sub">Create your first Lovepop Land to get started.</div>
+        </div>
       </div>
     </div>
 
-    <!-- ─── EDITOR VIEW ───────────────────────────────────────── -->
+    <!-- ─── CHARACTER EDITOR ──────────────────────────────────── -->
     <div id="view-editor" class="view">
       <div class="editor-header">
         <div class="editor-header-left">
@@ -118,17 +125,12 @@
           <button class="btn-primary" id="editor-save-btn">Save Character</button>
         </div>
       </div>
-
       <div class="editor-layout">
-
-        <!-- ── AI Panel ────────────────────────────────────────── -->
         <aside class="ai-panel">
           <div class="ai-panel-header">
             <span class="ai-panel-title">✨ AI Generator</span>
             <span class="ai-panel-sub">Drop an image + description to auto-fill fields</span>
           </div>
-
-          <!-- Image drop zone -->
           <div class="ai-image-zone" id="ai-image-zone">
             <input type="file" id="ai-image-input" accept="image/*" style="display:none" />
             <div class="ai-image-placeholder" id="ai-image-placeholder">
@@ -139,23 +141,17 @@
             <img id="ai-image-preview" class="ai-image-preview hidden" alt="Character reference" />
             <button class="ai-image-clear hidden" id="ai-image-clear">✕ Remove</button>
           </div>
-
-          <!-- Description input -->
           <div class="ai-desc-section">
             <label class="form-label">Character description / notes</label>
             <textarea id="ai-description" class="form-textarea" rows="5"
               placeholder="Paste any notes, backstory ideas, personality traits, or describe what you see in the image…"></textarea>
           </div>
-
-          <!-- Generate button -->
           <button class="btn-ai-generate" id="ai-generate-btn">
             <span class="btn-ai-icon">✨</span> Generate with AI
           </button>
           <div id="ai-key-warning" class="ai-key-warning hidden">
             ⚠️ No API key configured. <a href="#" id="ai-goto-settings">Add it in Settings →</a>
           </div>
-
-          <!-- Results -->
           <div id="ai-results" class="ai-results hidden">
             <div class="ai-results-header">
               <span class="ai-results-title">AI Suggestions</span>
@@ -164,8 +160,6 @@
             <div id="ai-result-cards"></div>
           </div>
         </aside>
-
-        <!-- ── Character Form ───────────────────────────────────── -->
         <div class="editor-form">
           <div class="form-section">
             <div class="form-section-title">Identity</div>
@@ -184,36 +178,29 @@
               <input type="text" id="f-role" class="form-input" placeholder="e.g. The unofficial birthday-wish muse of Lovepop Land" />
             </div>
           </div>
-
           <div class="form-section">
             <div class="form-section-title">Character Profile</div>
             <div class="form-group">
               <label class="form-label">Backstory</label>
-              <textarea id="f-backstory" class="form-textarea" rows="4"
-                placeholder="Where did they come from? What shaped who they are?"></textarea>
+              <textarea id="f-backstory" class="form-textarea" rows="4" placeholder="Where did they come from? What shaped who they are?"></textarea>
             </div>
             <div class="form-group">
               <label class="form-label">Personality</label>
-              <textarea id="f-personality" class="form-textarea" rows="3"
-                placeholder="Their disposition, quirks, and how they move through the world…"></textarea>
+              <textarea id="f-personality" class="form-textarea" rows="3" placeholder="Their disposition, quirks, and how they move through the world…"></textarea>
             </div>
             <div class="form-group">
               <label class="form-label">Key Passions</label>
-              <textarea id="f-key-passions" class="form-textarea" rows="4"
-                placeholder="1. Collecting wishes — she believes every wish deserves a little ceremony…&#10;2. Garden guardianship…&#10;3. Birthday anthropology…"></textarea>
+              <textarea id="f-key-passions" class="form-textarea" rows="4" placeholder="1. Collecting wishes…&#10;2. Garden guardianship…&#10;3. Birthday anthropology…"></textarea>
             </div>
             <div class="form-group">
               <label class="form-label">What They Care About</label>
-              <textarea id="f-what-they-care-about" class="form-textarea" rows="3"
-                placeholder="Their deepest values and core motivations…"></textarea>
+              <textarea id="f-what-they-care-about" class="form-textarea" rows="3" placeholder="Their deepest values and core motivations…"></textarea>
             </div>
             <div class="form-group">
               <label class="form-label">Tone &amp; Voice</label>
-              <textarea id="f-tone-and-voice" class="form-textarea" rows="3"
-                placeholder="How they speak, their signature style, example quotes…"></textarea>
+              <textarea id="f-tone-and-voice" class="form-textarea" rows="3" placeholder="How they speak, their signature style, example quotes…"></textarea>
             </div>
           </div>
-
           <div class="form-section">
             <div class="form-section-title">Details</div>
             <div class="form-row-2">
@@ -232,38 +219,120 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
-      </div><!-- /editor-layout -->
+    <!-- ─── LAND EDITOR ───────────────────────────────────────── -->
+    <div id="view-land-editor" class="view">
+      <div class="editor-header">
+        <div class="editor-header-left">
+          <button class="btn-back" id="land-editor-back-btn">← Back</button>
+          <h1 class="view-title" id="land-editor-title">New Land</h1>
+        </div>
+        <div class="editor-header-right">
+          <span id="land-editor-save-status" class="save-status"></span>
+          <button class="btn-secondary" id="land-editor-cancel-btn">Cancel</button>
+          <button class="btn-primary" id="land-editor-save-btn">Save Land</button>
+        </div>
+      </div>
+      <div class="editor-layout">
+        <aside class="ai-panel">
+          <div class="ai-panel-header">
+            <span class="ai-panel-title">✨ AI Generator</span>
+            <span class="ai-panel-sub">Drop an image + description to auto-fill fields</span>
+          </div>
+          <div class="ai-image-zone" id="land-ai-image-zone">
+            <input type="file" id="land-ai-image-input" accept="image/*" style="display:none" />
+            <div class="ai-image-placeholder" id="land-ai-image-placeholder">
+              <div class="ai-image-placeholder-icon">🖼</div>
+              <div class="ai-image-placeholder-text">Drop image here or <span class="link">click to upload</span></div>
+              <div class="ai-image-placeholder-hint">Used for AI generation &amp; saved as catalog image</div>
+            </div>
+            <img id="land-ai-image-preview" class="ai-image-preview hidden" alt="Land reference" />
+            <button class="ai-image-clear hidden" id="land-ai-image-clear">✕ Remove</button>
+          </div>
+          <div class="ai-desc-section">
+            <label class="form-label">Land description / notes</label>
+            <textarea id="land-ai-description" class="form-textarea" rows="5"
+              placeholder="Describe the look and feel of this land, its mood, colors, themes…"></textarea>
+          </div>
+          <button class="btn-ai-generate" id="land-ai-generate-btn">
+            <span class="btn-ai-icon">✨</span> Generate with AI
+          </button>
+          <div id="land-ai-key-warning" class="ai-key-warning hidden">
+            ⚠️ No API key configured. <a href="#" id="land-ai-goto-settings">Add it in Settings →</a>
+          </div>
+          <div id="land-ai-results" class="ai-results hidden">
+            <div class="ai-results-header">
+              <span class="ai-results-title">AI Suggestions</span>
+              <button class="btn-apply-all" id="land-ai-apply-all-btn">Apply All →</button>
+            </div>
+            <div id="land-ai-result-cards"></div>
+          </div>
+        </aside>
+        <div class="editor-form">
+          <div class="form-section">
+            <div class="form-section-title">Identity</div>
+            <div class="form-row-2">
+              <div class="form-group" style="grid-column:1/-1">
+                <label class="form-label">Land Name <span class="required">*</span></label>
+                <input type="text" id="fl-name" class="form-input" placeholder="e.g. The Meadow of Soft Mornings" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea id="fl-description" class="form-textarea" rows="4" placeholder="Paint a picture of this world — what does it feel like to be there?"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Aesthetic</div>
+            <div class="form-group">
+              <label class="form-label">Visual Style</label>
+              <textarea id="fl-visual-style" class="form-textarea" rows="3" placeholder="The art style, medium, and visual technique that defines this land…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color Palette</label>
+              <textarea id="fl-color-palette" class="form-textarea" rows="3" placeholder="Key colors with evocative names — e.g. Dusty Rose, Sage Green, Warm Cream…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Themes &amp; Content</label>
+              <textarea id="fl-themes-and-content" class="form-textarea" rows="4" placeholder="Primary motifs, subjects, and themes — wildflowers, mushrooms, birthday celebrations…"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Details</div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="fl-status" class="form-select">
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="retired">Retired</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ─── SETTINGS VIEW ─────────────────────────────────────── -->
     <div id="view-settings" class="view">
       <div class="view-toolbar">
-        <div class="toolbar-left">
-          <h1 class="view-title">Settings</h1>
-        </div>
-        <div class="toolbar-right">
-          <button class="btn-primary" id="settings-save-btn">Save Settings</button>
-        </div>
+        <div class="toolbar-left"><h1 class="view-title">Settings</h1></div>
+        <div class="toolbar-right"><button class="btn-primary" id="settings-save-btn">Save Settings</button></div>
       </div>
-
       <div class="settings-layout">
-
-        <!-- API Key -->
         <div class="settings-card">
           <div class="settings-card-title">Anthropic API Key</div>
-          <div class="settings-card-desc">Required for AI character generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</div>
+          <div class="settings-card-desc">Required for AI generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</div>
           <div id="api-key-status-badge" class="api-key-badge"></div>
           <div class="form-group" style="margin-top:14px">
             <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
             <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
           </div>
         </div>
-
-        <!-- System Prompt -->
         <div class="settings-card">
           <div class="settings-card-title">AI System Prompt</div>
-          <div class="settings-card-desc">Sets the overall context and brand voice for all AI character generation. This runs before every generation request.</div>
+          <div class="settings-card-desc">Sets the overall context and brand voice for all AI generation requests.</div>
           <div class="form-group" style="margin-top:14px">
             <textarea id="s-system-prompt" class="form-textarea" rows="6"></textarea>
           </div>
@@ -277,50 +346,32 @@
             </select>
           </div>
         </div>
-
-        <!-- Per-field instructions -->
         <div class="settings-card">
-          <div class="settings-card-title">Per-Field AI Instructions</div>
-          <div class="settings-card-desc">Customize how the AI generates each individual field. These are included in every generation request as field-specific guidance.</div>
+          <div class="settings-card-title">Character AI Instructions</div>
+          <div class="settings-card-desc">Per-field guidance for character generation.</div>
           <div class="field-instructions-grid" style="margin-top:20px">
-
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Name</div>
-              <textarea id="s-instruction-name" class="form-textarea" rows="2"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Species</div>
-              <textarea id="s-instruction-species" class="form-textarea" rows="2"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Role</div>
-              <textarea id="s-instruction-role" class="form-textarea" rows="2"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Backstory</div>
-              <textarea id="s-instruction-backstory" class="form-textarea" rows="3"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Personality</div>
-              <textarea id="s-instruction-personality" class="form-textarea" rows="2"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Key Passions</div>
-              <textarea id="s-instruction-key-passions" class="form-textarea" rows="3"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">What They Care About</div>
-              <textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea>
-            </div>
-            <div class="field-instruction-row">
-              <div class="field-instruction-label">Tone &amp; Voice</div>
-              <textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea>
-            </div>
-
+            <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-instruction-name" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Species</div><textarea id="s-instruction-species" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Role</div><textarea id="s-instruction-role" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Backstory</div><textarea id="s-instruction-backstory" class="form-textarea" rows="3"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Personality</div><textarea id="s-instruction-personality" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Key Passions</div><textarea id="s-instruction-key-passions" class="form-textarea" rows="3"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">What They Care About</div><textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Tone &amp; Voice</div><textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea></div>
           </div>
         </div>
-
-      </div><!-- /settings-layout -->
+        <div class="settings-card">
+          <div class="settings-card-title">Land AI Instructions</div>
+          <div class="settings-card-desc">Per-field guidance for Lovepop Land generation.</div>
+          <div class="field-instructions-grid" style="margin-top:20px">
+            <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-land-instruction-name" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Description</div><textarea id="s-land-instruction-description" class="form-textarea" rows="3"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Visual Style</div><textarea id="s-land-instruction-visual-style" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Color Palette</div><textarea id="s-land-instruction-color-palette" class="form-textarea" rows="2"></textarea></div>
+            <div class="field-instruction-row"><div class="field-instruction-label">Themes &amp; Content</div><textarea id="s-land-instruction-themes-and-content" class="form-textarea" rows="3"></textarea></div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </main>
@@ -338,45 +389,18 @@
       <div class="modal-body">
         <div class="detail-grid">
           <div class="detail-main">
-
-            <div class="detail-section">
-              <div class="detail-section-label">Backstory</div>
-              <div class="detail-section-content" id="detail-backstory">—</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-section-label">Personality</div>
-              <div class="detail-section-content" id="detail-personality">—</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-section-label">Key Passions</div>
-              <div class="detail-section-content" id="detail-key-passions">—</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-section-label">What They Care About</div>
-              <div class="detail-section-content" id="detail-what-they-care-about">—</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-section-label">Tone &amp; Voice</div>
-              <div class="detail-section-content" id="detail-tone-and-voice">—</div>
-            </div>
-
+            <div class="detail-section"><div class="detail-section-label">Backstory</div><div class="detail-section-content" id="detail-backstory">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Personality</div><div class="detail-section-content" id="detail-personality">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Key Passions</div><div class="detail-section-content" id="detail-key-passions">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">What They Care About</div><div class="detail-section-content" id="detail-what-they-care-about">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Tone &amp; Voice</div><div class="detail-section-content" id="detail-tone-and-voice">—</div></div>
             <div class="detail-row-2">
-              <div class="detail-section">
-                <div class="detail-section-label">First Appeared</div>
-                <div class="detail-section-content" id="detail-first-appeared">—</div>
-              </div>
-              <div class="detail-section">
-                <div class="detail-section-label">Status</div>
-                <div id="detail-status"></div>
-              </div>
+              <div class="detail-section"><div class="detail-section-label">First Appeared</div><div class="detail-section-content" id="detail-first-appeared">—</div></div>
+              <div class="detail-section"><div class="detail-section-label">Status</div><div id="detail-status"></div></div>
             </div>
-
           </div>
           <div class="detail-sidebar">
-            <div class="detail-section">
-              <div class="detail-section-label">Images</div>
-              <div class="image-gallery" id="detail-images"></div>
-            </div>
+            <div class="detail-section"><div class="detail-section-label">Images</div><div class="image-gallery" id="detail-images"></div></div>
           </div>
         </div>
       </div>
@@ -384,6 +408,38 @@
         <button class="btn-danger" id="detail-delete-btn">Delete</button>
         <button class="btn-secondary" id="detail-edit-btn">Edit Character</button>
         <button class="btn-secondary" id="detail-close-btn2">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ LAND DETAIL MODAL ════════════════════════════════════ -->
+  <div id="modal-land-detail" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="land-detail-name"></h2>
+          <div class="detail-meta" id="land-detail-meta"></div>
+        </div>
+        <button class="modal-close" id="land-detail-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid">
+          <div class="detail-main">
+            <div class="detail-section"><div class="detail-section-label">Description</div><div class="detail-section-content" id="land-detail-description">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Visual Style</div><div class="detail-section-content" id="land-detail-visual-style">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Color Palette</div><div class="detail-section-content" id="land-detail-color-palette">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Themes &amp; Content</div><div class="detail-section-content" id="land-detail-themes-and-content">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Status</div><div id="land-detail-status"></div></div>
+          </div>
+          <div class="detail-sidebar">
+            <div class="detail-section"><div class="detail-section-label">Images</div><div class="image-gallery" id="land-detail-images"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-danger" id="land-detail-delete-btn">Delete</button>
+        <button class="btn-secondary" id="land-detail-edit-btn">Edit Land</button>
+        <button class="btn-secondary" id="land-detail-close-btn2">Close</button>
       </div>
     </div>
   </div>
