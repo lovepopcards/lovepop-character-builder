@@ -171,4 +171,11 @@ app.get('/api/debug/db-path', (req, res) => {
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => console.log(`Lovepop Character Builder → http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  const dbPath = process.env.DB_PATH || path.join(__dirname, 'characters.db');
+  console.log(`Lovepop Character Builder → http://localhost:${PORT}`);
+  console.log(`DB_PATH env var: ${process.env.DB_PATH || '(not set — using local filesystem)'}`);
+  console.log(`Database location: ${dbPath}`);
+  console.log(`Database exists: ${fs.existsSync(dbPath)}`);
+  console.log(`/data directory exists: ${fs.existsSync('/data')}`);
+});
