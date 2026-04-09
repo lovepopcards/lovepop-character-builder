@@ -784,7 +784,7 @@ function bindDetailModal() {
   document.getElementById('detail-close-btn').addEventListener('click', closeDetailModal);
   document.getElementById('detail-close-btn2').addEventListener('click', closeDetailModal);
   document.getElementById('detail-delete-btn').addEventListener('click', handleDeleteChar);
-  document.getElementById('detail-edit-btn').addEventListener('click', () => { closeDetailModal(); openEditorView('edit', activeDetailId); });
+  document.getElementById('detail-edit-btn').addEventListener('click', () => { const id = activeDetailId; closeDetailModal(); openEditorView('edit', id); });
   document.getElementById('modal-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDetailModal(); });
   document.getElementById('detail-image-upload').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
@@ -869,7 +869,7 @@ function bindLandDetailModal() {
   document.getElementById('land-detail-close-btn').addEventListener('click', closeLandDetailModal);
   document.getElementById('land-detail-close-btn2').addEventListener('click', closeLandDetailModal);
   document.getElementById('land-detail-delete-btn').addEventListener('click', handleDeleteLand);
-  document.getElementById('land-detail-edit-btn').addEventListener('click', () => { closeLandDetailModal(); openLandEditorView('edit', activeLandDetailId); });
+  document.getElementById('land-detail-edit-btn').addEventListener('click', () => { const id = activeLandDetailId; closeLandDetailModal(); openLandEditorView('edit', id); });
   document.getElementById('modal-land-detail').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeLandDetailModal(); });
   document.getElementById('land-detail-image-upload').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
