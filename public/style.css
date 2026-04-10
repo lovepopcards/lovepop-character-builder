@@ -342,6 +342,12 @@ html, body {
 
 .editor-tab-panel { display: none; }
 .editor-tab-panel:not(.hidden) { display: grid; }
+.editor-tab-panel:not(.hidden)#editor-tab-products { display: block; }
+
+.products-tab-body {
+  max-width: 820px;
+  padding: 8px 0 32px;
+}
 
 .editor-layout {
   display: grid;

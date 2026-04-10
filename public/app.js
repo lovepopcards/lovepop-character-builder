@@ -219,9 +219,10 @@ function openEditorView(mode, charId = null) {
   window.scrollTo(0, 0);
 }
 
-// renderEditorImages — kept for backward compat (called on editor open + save)
+// renderEditorImages — kept for backward compat (called on editor open)
 function renderEditorImages(existingUrls) {
-  renderApprovedGallery(existingUrls);
+  renderApprovedGallery();
+  renderSourceGallery();
 }
 
 async function handleCharImageRemove(idx) {
@@ -242,7 +243,8 @@ function switchEditorTab(tab) {
   document.querySelectorAll('.editor-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
   document.getElementById('editor-tab-story').classList.toggle('hidden', tab !== 'story');
   document.getElementById('editor-tab-artwork').classList.toggle('hidden', tab !== 'artwork');
-  if (tab === 'artwork') renderApprovedGallery();
+  document.getElementById('editor-tab-products').classList.toggle('hidden', tab !== 'products');
+  if (tab === 'artwork') { renderApprovedGallery(); renderSourceGallery(); }
 }
 
 function bindEditor() {
@@ -254,8 +256,9 @@ function bindEditor() {
   document.getElementById('editor-back-btn').addEventListener('click', () => goBack('catalog'));
   document.getElementById('editor-cancel-btn').addEventListener('click', () => goBack('catalog'));
   document.getElementById('editor-save-btn').addEventListener('click', handleEditorSave);
-  // Approved images upload (artwork tab)
-  document.getElementById('editor-image-upload').addEventListener('change', async (e) => {
+
+  // Source Images upload — adds character images (saved to char.images)
+  document.getElementById('char-source-upload').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     if (editorMode === 'edit' && editorCharId) {
@@ -271,110 +274,120 @@ function bindEditor() {
           updated = await res.json();
         }
         characters = characters.map(c => c.id === updated.id ? updated : c);
-        renderApprovedGallery(updated.images || []);
+        renderSourceGallery();
         renderCatalog();
       } catch (err) { alert('Upload failed: ' + err.message); }
       finally { btn.disabled = false; btn.textContent = prevText; }
     } else {
       pendingCharImages.push(...files);
-      renderApprovedGallery();
+      renderSourceGallery();
     }
-    e.target.value = '';
-  });
-
-  // Source images upload (artwork tab)
-  document.getElementById('char-source-upload').addEventListener('change', (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length) { addCharArtRefs(files); renderSourceGallery(); }
     e.target.value = '';
   });
 }
 
-// ── Approved Assets gallery (artwork tab right, top) ──────────
-function renderApprovedGallery(existingUrls) {
-  // Use passed urls or derive from current character
-  const char = editorMode === 'edit' ? characters.find(c => c.id === editorCharId) : null;
-  const saved = existingUrls ?? (char ? char.images || [] : []);
-  const allUrls = [...pendingCharGenUrls, ...saved.filter(u => !pendingCharGenUrls.includes(u))];
-
+// ── Generated Assets gallery (artwork tab right, top) ─────────
+// Only shows AI-generated artwork accepted from the Artwork Generator (pendingCharGenUrls)
+function renderApprovedGallery() {
   const gallery = document.getElementById('editor-images-gallery');
   const empty   = document.getElementById('char-approved-empty');
   if (!gallery) return;
 
   gallery.innerHTML = '';
-  if (allUrls.length) {
-    empty?.classList.add('hidden');
-    allUrls.forEach((url, idx) => {
-      const isGen = pendingCharGenUrls.includes(url);
-      const item = document.createElement('div');
-      item.className = 'editor-image-item';
-      item.innerHTML = `
-        <img src="${esc(url)}" alt="Approved ${idx + 1}" loading="lazy" />
-        ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
-        ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
-        <button class="img-remove-btn" title="Remove">✕</button>`;
-      item.querySelector('.img-remove-btn').addEventListener('click', () => {
-        if (isGen) {
-          pendingCharGenUrls = pendingCharGenUrls.filter(u => u !== url);
-          renderApprovedGallery();
-        } else {
-          handleCharImageRemove(saved.indexOf(url));
-        }
-      });
-      gallery.appendChild(item);
-    });
-  } else {
+  if (!pendingCharGenUrls.length) {
     empty?.classList.remove('hidden');
+    return;
   }
+  empty?.classList.add('hidden');
 
-  // Also render pending File uploads (blobs)
-  pendingCharImages.forEach((file, idx) => {
+  pendingCharGenUrls.forEach((url, idx) => {
     const item = document.createElement('div');
-    item.className = 'editor-image-pending';
-    const img = document.createElement('img'); img.alt = 'Pending';
-    const reader = new FileReader();
-    reader.onload = e => { img.src = e.target.result; };
-    reader.readAsDataURL(file);
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => {
-      pendingCharImages.splice(idx, 1); renderApprovedGallery();
+    item.className = 'editor-image-item';
+    item.innerHTML = `
+      <img src="${esc(url)}" alt="Generated ${idx + 1}" loading="lazy" />
+      <span class="img-gen-badge">✨ AI</span>
+      <button class="img-remove-btn" title="Remove">✕</button>`;
+    item.querySelector('.img-remove-btn').addEventListener('click', () => {
+      pendingCharGenUrls = pendingCharGenUrls.filter(u => u !== url);
+      renderApprovedGallery();
     });
-    item.appendChild(img); item.appendChild(removeBtn);
     gallery.appendChild(item);
-    if (empty) empty.classList.add('hidden');
   });
 }
 
 // ── Source Images gallery (artwork tab right, bottom) ─────────
-let charSourceFiles = [];   // File[] for display — NOT saved to character; used as art refs
-
+// Shows: saved char.images (server URLs) + pendingCharImages (queued uploads) + charArtRefFiles (generator refs)
 function renderSourceGallery() {
   const gallery = document.getElementById('char-source-gallery');
   const empty   = document.getElementById('char-source-empty');
   if (!gallery) return;
 
-  // Source images = charArtRefFiles (the art generator's reference images)
-  if (!charArtRefFiles.length) {
-    gallery.innerHTML = ''; empty?.classList.remove('hidden'); return;
+  gallery.innerHTML = '';
+
+  const char = editorMode === 'edit' ? characters.find(c => c.id === editorCharId) : null;
+  const savedUrls = char ? (char.images || []) : [];
+  const totalCount = savedUrls.length + pendingCharImages.length + charArtRefFiles.length;
+
+  if (!totalCount) {
+    empty?.classList.remove('hidden');
+    return;
   }
   empty?.classList.add('hidden');
-  gallery.innerHTML = '';
-  charArtRefFiles.forEach((file, idx) => {
+
+  // Saved character images (already on server)
+  savedUrls.forEach((url, idx) => {
     const item = document.createElement('div');
     item.className = 'editor-image-item';
-    const img = document.createElement('img'); img.alt = `Source ${idx + 1}`;
+    const img = document.createElement('img');
+    img.src = url; img.alt = `Character image ${idx + 1}`; img.loading = 'lazy';
+    if (idx === 0) {
+      const badge = document.createElement('span');
+      badge.className = 'img-primary-badge'; badge.textContent = 'Primary';
+      item.appendChild(badge);
+    }
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕'; removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', () => handleCharImageRemove(idx));
+    item.appendChild(img); item.appendChild(removeBtn);
+    gallery.appendChild(item);
+  });
+
+  // Pending character images (queued File objects, not yet uploaded)
+  pendingCharImages.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-item';
+    const img = document.createElement('img'); img.alt = `New image ${idx + 1}`;
     const reader = new FileReader();
     reader.onload = e => { img.src = e.target.result; };
     reader.readAsDataURL(file);
     const removeBtn = document.createElement('button');
     removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕'; removeBtn.title = 'Remove';
     removeBtn.addEventListener('click', () => {
-      charArtRefFiles.splice(idx, 1);
+      pendingCharImages.splice(idx, 1);
       renderSourceGallery();
-      renderCharArtRefs(); // keep the upload strip in sync
     });
     item.appendChild(img); item.appendChild(removeBtn);
+    gallery.appendChild(item);
+  });
+
+  // Art reference files (used by the Artwork Generator — not saved directly to character)
+  charArtRefFiles.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-item';
+    const img = document.createElement('img'); img.alt = `Reference ${idx + 1}`;
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const badge = document.createElement('span');
+    badge.className = 'img-gen-badge'; badge.textContent = '🖼 Ref';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕'; removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', () => {
+      charArtRefFiles.splice(idx, 1);
+      renderSourceGallery();
+      renderCharArtRefs(); // keep generator upload strip in sync
+    });
+    item.appendChild(img); item.appendChild(badge); item.appendChild(removeBtn);
     gallery.appendChild(item);
   });
 }
@@ -1524,7 +1537,8 @@ async function acceptCharArt() {
         body: JSON.stringify({ images: newImages }),
       }).then(r => r.json());
       characters = characters.map(c => c.id === updated.id ? updated : c);
-      renderApprovedGallery(newImages);
+      renderApprovedGallery();
+      renderSourceGallery();
       renderCatalog();
     } catch (e) { alert('Could not save artwork: ' + e.message); return; }
   } else {

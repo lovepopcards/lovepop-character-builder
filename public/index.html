@@ -130,15 +130,16 @@
 
       <!-- ── Editor Tabs ──────────────────────────────────────────── -->
       <div class="editor-tabs">
-        <button class="editor-tab active" data-tab="story">✨ Story Building</button>
-        <button class="editor-tab" data-tab="artwork">🎨 Character Artwork</button>
+        <button class="editor-tab active" data-tab="story">Character Profile</button>
+        <button class="editor-tab" data-tab="artwork">Character Artwork</button>
+        <button class="editor-tab" data-tab="products">Character Products</button>
       </div>
 
-      <!-- ══ Tab: Story Building ═══════════════════════════════════ -->
+      <!-- ══ Tab: Character Profile ════════════════════════════════ -->
       <div id="editor-tab-story" class="editor-tab-panel editor-layout">
         <aside class="ai-panel">
           <div class="ai-panel-header">
-            <span class="ai-panel-title">✨ AI Story Generator</span>
+            <span class="ai-panel-title">✨ Story Builder</span>
             <span class="ai-panel-sub">Drop an image + description to auto-fill character fields</span>
           </div>
           <div class="ai-image-zone" id="ai-image-zone">
@@ -157,7 +158,7 @@
               placeholder="Paste any notes, backstory ideas, personality traits, or describe what you see in the image…"></textarea>
           </div>
           <button class="btn-ai-generate" id="ai-generate-btn">
-            <span class="btn-ai-icon">✨</span> Generate with AI
+            <span class="btn-ai-icon">✨</span> Generate
           </button>
           <div id="ai-key-warning" class="ai-key-warning hidden">
             ⚠️ No API key configured. <a href="#" id="ai-goto-settings">Add it in Settings →</a>
@@ -229,6 +230,12 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- ══ Tab: Character Products ═══════════════════════════════ -->
+      <div id="editor-tab-products" class="editor-tab-panel hidden">
+        <div class="products-tab-body">
           <div class="form-section">
             <div class="form-section-title">Character Products</div>
             <div class="form-hint" style="margin-bottom:14px">Associate products with this character. SKUs are saved permanently for reference.</div>
@@ -253,7 +260,7 @@
         <!-- Left: AI Artwork Generator -->
         <aside class="ai-panel">
           <div class="ai-panel-header char-art-panel-header">
-            <span class="ai-panel-title">🎨 AI Artwork Generator</span>
+            <span class="ai-panel-title">🎨 Artwork Generator</span>
             <span class="ai-panel-sub">Generate character artwork from references using DALL-E 3</span>
           </div>
 
@@ -278,7 +285,7 @@
             <img id="char-art-preview-img" class="char-art-gen-preview-img" alt="Generated character artwork" />
             <div id="char-art-prompt-peek" class="land-gen-prompt-peek hidden"></div>
             <div class="char-art-gen-preview-actions">
-              <button class="btn-primary btn-sm" id="char-art-accept-btn">✓ Add to Approved Assets</button>
+              <button class="btn-primary btn-sm" id="char-art-accept-btn">✓ Add to Generated Assets</button>
               <button class="btn-secondary btn-sm" id="char-art-regen-btn">↺ Regenerate</button>
               <button class="btn-ghost-dark btn-sm" id="char-art-discard-btn">✕ Discard</button>
             </div>
@@ -293,34 +300,32 @@
           </div>
         </aside>
 
-        <!-- Right: Approved Assets + Source Images -->
+        <!-- Right: Generated Assets + Source Images -->
         <div class="char-artwork-right">
 
-          <!-- Approved Assets -->
+          <!-- Generated Assets -->
           <div class="char-assets-section">
             <div class="char-assets-section-header">
-              <div class="char-assets-section-title">✓ Approved Assets</div>
-              <div class="char-assets-section-hint">First image is the character's primary tile thumbnail</div>
+              <div class="char-assets-section-title">✨ Generated Assets</div>
+              <div class="char-assets-section-hint">AI-generated artwork accepted from the generator</div>
             </div>
             <div id="editor-images-gallery" class="editor-images-gallery char-approved-gallery"></div>
             <div class="char-assets-empty hidden" id="char-approved-empty">
-              <span>No approved images yet — generate or upload images below</span>
+              <span>No generated artwork yet — use the Artwork Generator on the left</span>
             </div>
-            <label class="btn-add-image" for="editor-image-upload" style="margin-top:10px">+ Upload &amp; Approve Image</label>
-            <input type="file" id="editor-image-upload" accept="image/*" multiple style="display:none" />
           </div>
 
           <!-- Source Images -->
           <div class="char-assets-section">
             <div class="char-assets-section-header">
               <div class="char-assets-section-title">📁 Source Images</div>
-              <div class="char-assets-section-hint">Reference files, sketches, and raw uploads — not shown in the character catalog</div>
+              <div class="char-assets-section-hint">Character images and artwork references — first image is the primary tile thumbnail</div>
             </div>
             <div id="char-source-gallery" class="editor-images-gallery char-source-gallery"></div>
             <div class="char-assets-empty hidden" id="char-source-empty">
-              <span>No source images uploaded yet</span>
+              <span>No source images yet — upload character images or add references in the generator</span>
             </div>
-            <label class="btn-add-image" for="char-source-upload" style="margin-top:10px">+ Upload Source Image</label>
+            <label class="btn-add-image" for="char-source-upload" style="margin-top:10px">+ Upload Character Image</label>
             <input type="file" id="char-source-upload" accept="image/*" multiple style="display:none" />
           </div>
 
