@@ -856,6 +856,34 @@ html, body {
 }
 .land-pf-card-sep { color: var(--sand-mid); }
 
+/* Compact AI panel badge (replaces old thumbnail strip) */
+.land-ai-pf-badge {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--sand); border: 1px solid var(--sand-mid);
+  border-radius: var(--radius-sm); padding: 7px 10px; margin-bottom: 4px;
+}
+.land-ai-pf-badge-text { font-size: 12px; font-weight: 600; color: var(--navy); }
+
+/* Product Family section inside editor form */
+.land-editor-pf-empty {
+  display: flex; align-items: center; gap: 8px;
+  padding: 18px 16px; border-radius: var(--radius-sm);
+  background: var(--sand); border: 1.5px dashed var(--sand-mid);
+  font-size: 13px; color: var(--gray);
+}
+.land-editor-pf-empty-icon { font-size: 18px; opacity: 0.6; }
+.land-editor-pf-actions {
+  display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap;
+}
+.land-editor-pf-count {
+  font-size: 12px; font-weight: 600; color: var(--green);
+  background: var(--green-bg); border: 1px solid var(--green-border);
+  padding: 3px 10px; border-radius: 99px;
+}
+/* Slightly narrower cards in the editor so more fit without scrolling */
+.land-editor-pf-card { width: 130px; }
+.land-editor-pf-card .land-pf-card-img-wrap { height: 110px; }
+
 /* Browse button + divider in land AI panel */
 .product-browse-divider {
   display: flex; align-items: center; gap: 8px;

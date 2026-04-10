@@ -1326,38 +1326,72 @@ async function confirmProductSelection() {
 }
 
 function renderLandProductSelection() {
-  const section = document.getElementById('land-product-selection');
-  const thumbs  = document.getElementById('land-product-selection-thumbs');
-  const count   = document.getElementById('land-product-selection-count');
+  const n = landSelectedProducts.length;
 
-  if (!landSelectedProducts.length) {
-    section.classList.add('hidden');
+  // ── AI panel compact badge ──────────────────────────────────
+  const badge     = document.getElementById('land-product-selection');
+  const countSpan = document.getElementById('land-product-selection-count');
+  if (badge) {
+    if (n) {
+      countSpan.textContent = n;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  // ── Form section card display ───────────────────────────────
+  const emptyEl   = document.getElementById('land-editor-pf-empty');
+  const scrollEl  = document.getElementById('land-editor-pf-scroll');
+  const cardsEl   = document.getElementById('land-editor-pf-cards');
+  const countEl   = document.getElementById('land-editor-pf-count');
+
+  if (!emptyEl) return; // editor not rendered yet
+
+  if (!n) {
+    emptyEl.classList.remove('hidden');
+    scrollEl.classList.add('hidden');
+    if (countEl) countEl.classList.add('hidden');
     return;
   }
 
-  count.textContent = landSelectedProducts.length;
-  thumbs.innerHTML = '';
+  emptyEl.classList.add('hidden');
+  scrollEl.classList.remove('hidden');
+  if (countEl) {
+    countEl.textContent = `${n} SKU${n !== 1 ? 's' : ''} selected`;
+    countEl.classList.remove('hidden');
+  }
+
+  cardsEl.innerHTML = '';
   landSelectedProducts.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'land-pf-card land-editor-pf-card';
     if (p.image_url) {
-      const img = document.createElement('img');
-      img.src = p.image_url;
-      img.alt = p.name || p.sku;
-      img.title = p.name || p.sku;
-      img.className = 'land-product-selection-thumb';
-      thumbs.appendChild(img);
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap">
+          <img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" />
+        </div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(p.name || p.sku)}</div>
+          <div class="land-pf-card-sku">${esc(p.sku)}</div>
+        </div>`;
     } else {
-      const badge = document.createElement('div');
-      badge.className = 'land-product-sku-badge';
-      badge.textContent = p.sku;
-      badge.title = p.sku;
-      thumbs.appendChild(badge);
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap land-pf-card-img-empty">
+          <span class="land-pf-card-img-icon">📦</span>
+        </div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(p.sku)}</div>
+          <div class="land-pf-card-sku">Loading…</div>
+        </div>`;
     }
+    cardsEl.appendChild(card);
   });
-  section.classList.remove('hidden');
 }
 
 function bindProductPicker() {
   document.getElementById('land-browse-products-btn').addEventListener('click', openProductPicker);
+  document.getElementById('land-browse-products-btn2').addEventListener('click', openProductPicker);
   document.getElementById('product-picker-close-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-cancel-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-confirm-btn').addEventListener('click', confirmProductSelection);

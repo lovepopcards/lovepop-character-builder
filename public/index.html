@@ -262,12 +262,9 @@
           </div>
           <div class="product-browse-divider"><span>or use product images</span></div>
           <button class="btn-browse-products" id="land-browse-products-btn">🛍 Browse Product Library</button>
-          <div id="land-product-selection" class="land-product-selection hidden">
-            <div class="land-product-selection-header">
-              <span class="land-product-selection-label">📦 <span id="land-product-selection-count">0</span> product(s) selected as reference</span>
-              <button class="land-product-selection-clear" id="land-product-selection-clear">✕ Clear</button>
-            </div>
-            <div id="land-product-selection-thumbs" class="land-product-selection-thumbs"></div>
+          <div id="land-product-selection" class="land-ai-pf-badge hidden">
+            <span class="land-ai-pf-badge-text">📦 <span id="land-product-selection-count">0</span> product(s) selected</span>
+            <button class="land-product-selection-clear" id="land-product-selection-clear">✕ Clear all</button>
           </div>
           <div class="ai-desc-section">
             <label class="form-label">Land description / notes</label>
@@ -317,6 +314,27 @@
               <textarea id="fl-themes-and-content" class="form-textarea" rows="4" placeholder="Primary motifs, subjects, and themes — wildflowers, mushrooms, birthday celebrations…"></textarea>
             </div>
           </div>
+          <div class="form-section">
+            <div class="form-section-title">Product Family</div>
+            <div class="form-hint" style="margin-bottom:14px">Products permanently associated with this land. Selected SKUs are also used as visual reference for AI generation.</div>
+
+            <!-- Empty state -->
+            <div id="land-editor-pf-empty" class="land-editor-pf-empty">
+              <span class="land-editor-pf-empty-icon">📦</span>
+              <span>No products selected yet</span>
+            </div>
+
+            <!-- Card display (shown when products are selected) -->
+            <div id="land-editor-pf-scroll" class="land-pf-scroll-wrap hidden">
+              <div id="land-editor-pf-cards" class="land-pf-cards"></div>
+            </div>
+
+            <div class="land-editor-pf-actions">
+              <button class="btn-secondary" id="land-browse-products-btn2">🛍 Browse Product Library</button>
+              <span id="land-editor-pf-count" class="land-editor-pf-count hidden"></span>
+            </div>
+          </div>
+
           <div class="form-section">
             <div class="form-section-title">Details</div>
             <div class="form-group">
