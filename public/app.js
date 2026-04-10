@@ -180,6 +180,7 @@ function openEditorView(mode, charId = null) {
   aiImageFile = null;
   pendingCharImages = [];
   clearAIPanel();
+  clearCharProductSelection();
   if (mode === 'edit' && charId) {
     const char = characters.find(c => c.id === charId);
     if (!char) return;
@@ -188,6 +189,9 @@ function openEditorView(mode, charId = null) {
     document.getElementById('f-status').value = char.status || 'active';
     document.getElementById('f-first-appeared').value = char.first_appeared || '';
     renderEditorImages(char.images || []);
+    if (char.product_skus && char.product_skus.length) {
+      restoreCharProductSelection(char.product_skus);
+    }
   } else {
     document.getElementById('editor-title').textContent = 'New Character';
     CHAR_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
@@ -295,6 +299,8 @@ async function handleEditorSave() {
   CHAR_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) data[f.key] = el.value.trim(); });
   data.status = document.getElementById('f-status').value;
   data.first_appeared = document.getElementById('f-first-appeared').value.trim();
+
+  data.product_skus = [...charSelectedProductSkus];
 
   if (!data.name) {
     const el = document.getElementById('f-name');
@@ -812,6 +818,107 @@ function clearLandAIPanel() {
   document.getElementById('land-ai-result-cards').innerHTML = '';
 }
 
+// ── Character product selection ───────────────────────────────
+function renderCharProductSelection() {
+  const n = charSelectedProducts.length;
+  const emptyEl  = document.getElementById('char-editor-pf-empty');
+  const scrollEl = document.getElementById('char-editor-pf-scroll');
+  const cardsEl  = document.getElementById('char-editor-pf-cards');
+  const countEl  = document.getElementById('char-editor-pf-count');
+  if (!emptyEl) return;
+
+  if (!n) {
+    emptyEl.classList.remove('hidden');
+    scrollEl.classList.add('hidden');
+    if (countEl) countEl.classList.add('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+  scrollEl.classList.remove('hidden');
+  if (countEl) { countEl.textContent = `${n} SKU${n !== 1 ? 's' : ''} selected`; countEl.classList.remove('hidden'); }
+
+  cardsEl.innerHTML = '';
+  charSelectedProducts.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'land-pf-card land-editor-pf-card';
+    if (p.image_url) {
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap">
+          <img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" />
+        </div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(p.name || p.sku)}</div>
+          <div class="land-pf-card-sku">${esc(p.sku)}</div>
+        </div>`;
+    } else {
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(p.sku)}</div>
+          <div class="land-pf-card-sku">Loading…</div>
+        </div>`;
+    }
+    cardsEl.appendChild(card);
+  });
+}
+
+function clearCharProductSelection() {
+  charSelectedProductSkus = new Set();
+  charSelectedProducts = [];
+  renderCharProductSelection();
+}
+
+function restoreCharProductSelection(skus) {
+  charSelectedProductSkus = new Set(skus);
+  if (productsLoaded) {
+    charSelectedProducts = skus.map(sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' });
+    renderCharProductSelection();
+  } else {
+    charSelectedProducts = skus.map(sku => ({ sku, name: sku, image_url: '' }));
+    renderCharProductSelection();
+    loadProducts().then(() => {
+      if (charSelectedProductSkus.size) {
+        charSelectedProducts = [...charSelectedProductSkus].map(sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' });
+        renderCharProductSelection();
+      }
+    }).catch(() => {});
+  }
+}
+
+function renderCharDetailProducts(char) {
+  const section   = document.getElementById('char-detail-products-section');
+  const container = document.getElementById('char-detail-products');
+  const countEl   = document.getElementById('char-pf-count');
+  const skus = char.product_skus || [];
+  if (!skus.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  if (countEl) countEl.textContent = `${skus.length} SKU${skus.length !== 1 ? 's' : ''}`;
+  container.innerHTML = '';
+  skus.forEach(sku => {
+    const product = productsLoaded ? allProducts.find(p => p.sku === sku) : null;
+    const card = document.createElement('div');
+    card.className = 'land-pf-card';
+    if (product && product.image_url) {
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap">
+          <img src="${esc(product.image_url)}" alt="${esc(product.name)}" class="land-pf-card-img" />
+        </div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(product.name)}</div>
+          <div class="land-pf-card-sku">${esc(sku)}</div>
+        </div>`;
+    } else {
+      card.innerHTML = `
+        <div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+        <div class="land-pf-card-body">
+          <div class="land-pf-card-name">${esc(sku)}</div>
+          <div class="land-pf-card-sku">Loading…</div>
+        </div>`;
+    }
+    container.appendChild(card);
+  });
+}
+
 function clearLandProductSelection() {
   landSelectedProducts = [];
   landAiProductImageUrls = [];
@@ -897,7 +1004,15 @@ function openDetailModal(id) {
   document.getElementById('detail-status').innerHTML = `<span class="status-badge status-${char.status}">${cap(char.status)}</span>`;
 
   renderDetailImages(char);
+  renderCharDetailProducts(char);
   document.getElementById('modal-detail').classList.remove('hidden');
+
+  const skus = char.product_skus || [];
+  if (skus.length && !productsLoaded) {
+    loadProducts().then(() => {
+      if (activeDetailId === id) renderCharDetailProducts(char);
+    }).catch(() => {});
+  }
 }
 
 function renderDetailImages(char) {
@@ -1149,9 +1264,13 @@ async function handleSettingsSave() {
 // ── Product Library ───────────────────────────────────────────
 let allProducts = [];
 let productsLoaded = false;
-let selectedProductSkus = new Set();   // multi-select
-let landSelectedProducts = [];         // full product objects for display
-let landAiProductImageUrls = [];       // image_url strings passed to AI
+let selectedProductSkus = new Set();   // picker modal working state
+let landSelectedProducts = [];         // land: full product objects for display
+let landAiProductImageUrls = [];       // land: image_url strings passed to AI
+let charSelectedProductSkus = new Set(); // character: persistent selected SKUs
+let charSelectedProducts = [];           // character: full product objects for display
+let pickerContext = 'land';              // 'land' | 'character' — set when opening picker
+let _pickerSavedLandSkus = new Set();    // backup of land SKUs while character picker is open
 let productSearchTimer = null;
 const PRODUCT_GRID_LIMIT = 200;
 
@@ -1270,8 +1389,15 @@ function handleProductTileClick(product) {
   updateConfirmBtn();
 }
 
-async function openProductPicker() {
-  // Preserve any existing selection so re-opening keeps context
+async function openProductPicker(context = 'land') {
+  pickerContext = context;
+
+  if (context === 'character') {
+    // Swap in character SKUs; save land SKUs to restore on close/cancel
+    _pickerSavedLandSkus = new Set(selectedProductSkus);
+    selectedProductSkus = new Set(charSelectedProductSkus);
+  }
+
   document.getElementById('product-picker-status').textContent =
     selectedProductSkus.size ? `${selectedProductSkus.size} product${selectedProductSkus.size !== 1 ? 's' : ''} selected` : '';
   document.getElementById('product-search').value = '';
@@ -1295,20 +1421,37 @@ async function openProductPicker() {
 }
 
 function closeProductPicker() {
+  // On cancel, restore land SKUs if we swapped them for character context
+  if (pickerContext === 'character') {
+    selectedProductSkus = _pickerSavedLandSkus;
+  }
   document.getElementById('modal-product-picker').classList.add('hidden');
 }
 
 async function confirmProductSelection() {
   if (!selectedProductSkus.size) return;
 
+  if (pickerContext === 'character') {
+    // ── Character products ───────────────────────────────────
+    charSelectedProductSkus = new Set(selectedProductSkus);
+    charSelectedProducts = [...charSelectedProductSkus].map(
+      sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' }
+    );
+    // Restore land SKUs (we swapped them in openProductPicker)
+    selectedProductSkus = _pickerSavedLandSkus;
+    document.getElementById('modal-product-picker').classList.add('hidden');
+    renderCharProductSelection();
+    return;
+  }
+
+  // ── Land products (original behaviour) ──────────────────────
   const products = [...selectedProductSkus]
     .map(sku => allProducts.find(p => p.sku === sku))
     .filter(p => p && p.image_url);
   if (!products.length) return;
 
-  closeProductPicker();
+  document.getElementById('modal-product-picker').classList.add('hidden');
 
-  // Products replace any manually uploaded/dropped image
   clearAIImage('land');
 
   landSelectedProducts = products;
@@ -1393,8 +1536,9 @@ function renderLandProductSelection() {
 }
 
 function bindProductPicker() {
-  document.getElementById('land-browse-products-btn').addEventListener('click', openProductPicker);
-  document.getElementById('land-browse-products-btn2').addEventListener('click', openProductPicker);
+  document.getElementById('land-browse-products-btn').addEventListener('click', () => openProductPicker('land'));
+  document.getElementById('land-browse-products-btn2').addEventListener('click', () => openProductPicker('land'));
+  document.getElementById('char-browse-products-btn').addEventListener('click', () => openProductPicker('character'));
   document.getElementById('product-picker-close-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-cancel-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-confirm-btn').addEventListener('click', confirmProductSelection);
@@ -1437,6 +1581,7 @@ function exportCharactersToExcel() {
       'Status':              c.status || '',
       'First Appeared':      c.first_appeared || '',
       'Images':              (c.images || []).join(', '),
+      'Character Products':  (c.product_skus || []).join(', '),
       'Created At':          fmtExportDate(c.created_at),
     }));
 

@@ -29,7 +29,7 @@ db.exec(`
 
 // Migrate: add new columns to characters if missing
 const existingCharCols = db.prepare("PRAGMA table_info(characters)").all().map(r => r.name);
-const newCharCols = { species: 'TEXT DEFAULT ""', role: 'TEXT DEFAULT ""', backstory: 'TEXT DEFAULT ""', personality: 'TEXT DEFAULT ""', key_passions: 'TEXT DEFAULT ""', what_they_care_about: 'TEXT DEFAULT ""', tone_and_voice: 'TEXT DEFAULT ""' };
+const newCharCols = { species: 'TEXT DEFAULT ""', role: 'TEXT DEFAULT ""', backstory: 'TEXT DEFAULT ""', personality: 'TEXT DEFAULT ""', key_passions: 'TEXT DEFAULT ""', what_they_care_about: 'TEXT DEFAULT ""', tone_and_voice: 'TEXT DEFAULT ""', product_skus: 'TEXT DEFAULT "[]"' };
 for (const [col, def] of Object.entries(newCharCols)) {
   if (!existingCharCols.includes(col)) db.exec(`ALTER TABLE characters ADD COLUMN ${col} ${def}`);
 }
@@ -100,10 +100,11 @@ const parseJSON = (val, fallback = []) => { try { return JSON.parse(val); } catc
 
 const serializeChar = (row) => ({
   ...row,
-  images: parseJSON(row.images),
-  products: parseJSON(row.products),
-  quotes: parseJSON(row.quotes),
-  art_styles: parseJSON(row.art_styles),
+  images:       parseJSON(row.images),
+  products:     parseJSON(row.products),
+  quotes:       parseJSON(row.quotes),
+  art_styles:   parseJSON(row.art_styles),
+  product_skus: parseJSON(row.product_skus),
 });
 
 const serializeLand = (row) => ({
@@ -113,7 +114,7 @@ const serializeLand = (row) => ({
 });
 
 const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','first_appeared','status'];
-const CHAR_JSON   = ['images','products','quotes','art_styles'];
+const CHAR_JSON   = ['images','products','quotes','art_styles','product_skus'];
 const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
 
 const LAND_TEXT   = ['name','description','visual_style','color_palette','themes_and_content','status'];

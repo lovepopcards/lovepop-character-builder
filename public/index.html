@@ -227,6 +227,21 @@
             <label class="btn-add-image" for="editor-image-upload">+ Add Image</label>
             <input type="file" id="editor-image-upload" accept="image/*" multiple style="display:none" />
           </div>
+          <div class="form-section">
+            <div class="form-section-title">Character Products</div>
+            <div class="form-hint" style="margin-bottom:14px">Associate products with this character. SKUs are saved permanently for reference.</div>
+            <div id="char-editor-pf-empty" class="land-editor-pf-empty">
+              <span class="land-editor-pf-empty-icon">📦</span>
+              <span>No products selected yet</span>
+            </div>
+            <div id="char-editor-pf-scroll" class="land-pf-scroll-wrap hidden">
+              <div id="char-editor-pf-cards" class="land-pf-cards"></div>
+            </div>
+            <div class="land-editor-pf-actions">
+              <button class="btn-secondary" id="char-browse-products-btn">🛍 Browse Product Library</button>
+              <span id="char-editor-pf-count" class="land-editor-pf-count hidden"></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -433,6 +448,20 @@
         <button class="modal-close" id="detail-close-btn">✕</button>
       </div>
       <div class="modal-body">
+
+        <!-- Character Products — full-width, above the 2-column grid -->
+        <div class="land-pf-section hidden" id="char-detail-products-section">
+          <div class="land-pf-section-header">
+            <div class="land-pf-section-title">
+              <span class="land-pf-icon">🛍</span> Character Products
+            </div>
+            <span class="land-pf-section-count" id="char-pf-count"></span>
+          </div>
+          <div class="land-pf-scroll-wrap">
+            <div id="char-detail-products" class="land-pf-cards"></div>
+          </div>
+        </div>
+
         <div class="detail-grid">
           <div class="detail-main">
             <div class="detail-section"><div class="detail-section-label">Backstory</div><div class="detail-section-content" id="detail-backstory">—</div></div>
