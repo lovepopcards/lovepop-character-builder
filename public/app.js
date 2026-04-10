@@ -210,6 +210,8 @@ function openEditorView(mode, charId = null) {
     renderEditorImages([]);
   }
   document.getElementById('editor-save-status').textContent = '';
+  // Always start on story tab
+  switchEditorTab('story');
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-editor').classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -217,52 +219,9 @@ function openEditorView(mode, charId = null) {
   window.scrollTo(0, 0);
 }
 
+// renderEditorImages — kept for backward compat (called on editor open + save)
 function renderEditorImages(existingUrls) {
-  const gallery = document.getElementById('editor-images-gallery');
-  gallery.innerHTML = '';
-  // Prepend any accepted generated artwork URLs (already on server)
-  const allUrls = [...pendingCharGenUrls, ...existingUrls.filter(u => !pendingCharGenUrls.includes(u))];
-  allUrls.forEach((url, idx) => {
-    const isGen = pendingCharGenUrls.includes(url);
-    const item = document.createElement('div');
-    item.className = 'editor-image-item';
-    item.innerHTML = `
-      <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" />
-      ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
-      ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
-      <button class="img-remove-btn" title="Remove image" aria-label="Remove">✕</button>`;
-    item.querySelector('.img-remove-btn').addEventListener('click', () => {
-      if (isGen) {
-        pendingCharGenUrls = pendingCharGenUrls.filter(u => u !== url);
-        renderEditorImages(existingUrls);
-      } else {
-        handleCharImageRemove(existingUrls.indexOf(url));
-      }
-    });
-    gallery.appendChild(item);
-  });
-  // Render pending (not-yet-uploaded) images
-  pendingCharImages.forEach((file, idx) => {
-    const item = document.createElement('div');
-    item.className = 'editor-image-pending';
-    const img = document.createElement('img');
-    img.alt = 'Pending upload';
-    const reader = new FileReader();
-    reader.onload = e => { img.src = e.target.result; };
-    reader.readAsDataURL(file);
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'img-remove-btn';
-    removeBtn.title = 'Remove';
-    removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => {
-      pendingCharImages.splice(idx, 1);
-      const char = editorMode === 'edit' ? characters.find(c => c.id === editorCharId) : null;
-      renderEditorImages(char ? char.images || [] : []);
-    });
-    item.appendChild(img);
-    item.appendChild(removeBtn);
-    gallery.appendChild(item);
-  });
+  renderApprovedGallery(existingUrls);
 }
 
 async function handleCharImageRemove(idx) {
@@ -278,39 +237,145 @@ async function handleCharImageRemove(idx) {
   }
 }
 
+// ── Editor tab switching ──────────────────────────────────────
+function switchEditorTab(tab) {
+  document.querySelectorAll('.editor-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.getElementById('editor-tab-story').classList.toggle('hidden', tab !== 'story');
+  document.getElementById('editor-tab-artwork').classList.toggle('hidden', tab !== 'artwork');
+  if (tab === 'artwork') renderApprovedGallery();
+}
+
 function bindEditor() {
+  // Tab buttons
+  document.querySelectorAll('.editor-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchEditorTab(btn.dataset.tab));
+  });
+
   document.getElementById('editor-back-btn').addEventListener('click', () => goBack('catalog'));
   document.getElementById('editor-cancel-btn').addEventListener('click', () => goBack('catalog'));
   document.getElementById('editor-save-btn').addEventListener('click', handleEditorSave);
+  // Approved images upload (artwork tab)
   document.getElementById('editor-image-upload').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     if (editorMode === 'edit' && editorCharId) {
-      // Upload immediately in edit mode
       const btn = document.getElementById('editor-save-btn');
       btn.disabled = true;
-      const prevText = btn.textContent;
-      btn.textContent = 'Uploading…';
+      const prevText = btn.textContent; btn.textContent = 'Uploading…';
       try {
         let updated;
         for (const file of files) {
-          const fd = new FormData();
-          fd.append('image', file);
+          const fd = new FormData(); fd.append('image', file);
           const res = await fetch(`${API}/${editorCharId}/images`, { method: 'POST', body: fd });
           if (!res.ok) throw new Error('Upload failed');
           updated = await res.json();
         }
         characters = characters.map(c => c.id === updated.id ? updated : c);
-        renderEditorImages(updated.images || []);
+        renderApprovedGallery(updated.images || []);
         renderCatalog();
       } catch (err) { alert('Upload failed: ' + err.message); }
       finally { btn.disabled = false; btn.textContent = prevText; }
     } else {
-      // Queue for upload after character is created
       pendingCharImages.push(...files);
-      renderEditorImages([]);
+      renderApprovedGallery();
     }
     e.target.value = '';
+  });
+
+  // Source images upload (artwork tab)
+  document.getElementById('char-source-upload').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length) { addCharArtRefs(files); renderSourceGallery(); }
+    e.target.value = '';
+  });
+}
+
+// ── Approved Assets gallery (artwork tab right, top) ──────────
+function renderApprovedGallery(existingUrls) {
+  // Use passed urls or derive from current character
+  const char = editorMode === 'edit' ? characters.find(c => c.id === editorCharId) : null;
+  const saved = existingUrls ?? (char ? char.images || [] : []);
+  const allUrls = [...pendingCharGenUrls, ...saved.filter(u => !pendingCharGenUrls.includes(u))];
+
+  const gallery = document.getElementById('editor-images-gallery');
+  const empty   = document.getElementById('char-approved-empty');
+  if (!gallery) return;
+
+  gallery.innerHTML = '';
+  if (allUrls.length) {
+    empty?.classList.add('hidden');
+    allUrls.forEach((url, idx) => {
+      const isGen = pendingCharGenUrls.includes(url);
+      const item = document.createElement('div');
+      item.className = 'editor-image-item';
+      item.innerHTML = `
+        <img src="${esc(url)}" alt="Approved ${idx + 1}" loading="lazy" />
+        ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
+        ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
+        <button class="img-remove-btn" title="Remove">✕</button>`;
+      item.querySelector('.img-remove-btn').addEventListener('click', () => {
+        if (isGen) {
+          pendingCharGenUrls = pendingCharGenUrls.filter(u => u !== url);
+          renderApprovedGallery();
+        } else {
+          handleCharImageRemove(saved.indexOf(url));
+        }
+      });
+      gallery.appendChild(item);
+    });
+  } else {
+    empty?.classList.remove('hidden');
+  }
+
+  // Also render pending File uploads (blobs)
+  pendingCharImages.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-pending';
+    const img = document.createElement('img'); img.alt = 'Pending';
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      pendingCharImages.splice(idx, 1); renderApprovedGallery();
+    });
+    item.appendChild(img); item.appendChild(removeBtn);
+    gallery.appendChild(item);
+    if (empty) empty.classList.add('hidden');
+  });
+}
+
+// ── Source Images gallery (artwork tab right, bottom) ─────────
+let charSourceFiles = [];   // File[] for display — NOT saved to character; used as art refs
+
+function renderSourceGallery() {
+  const gallery = document.getElementById('char-source-gallery');
+  const empty   = document.getElementById('char-source-empty');
+  if (!gallery) return;
+
+  // Source images = charArtRefFiles (the art generator's reference images)
+  if (!charArtRefFiles.length) {
+    gallery.innerHTML = ''; empty?.classList.remove('hidden'); return;
+  }
+  empty?.classList.add('hidden');
+  gallery.innerHTML = '';
+  charArtRefFiles.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-item';
+    const img = document.createElement('img'); img.alt = `Source ${idx + 1}`;
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'img-remove-btn'; removeBtn.textContent = '✕'; removeBtn.title = 'Remove';
+    removeBtn.addEventListener('click', () => {
+      charArtRefFiles.splice(idx, 1);
+      renderSourceGallery();
+      renderCharArtRefs(); // keep the upload strip in sync
+    });
+    item.appendChild(img); item.appendChild(removeBtn);
+    gallery.appendChild(item);
   });
 }
 
@@ -1347,6 +1412,7 @@ function addCharArtRefs(files) {
   const toAdd = files.slice(0, remaining);
   charArtRefFiles.push(...toAdd);
   renderCharArtRefs();
+  renderSourceGallery();
 }
 
 function renderCharArtRefs() {
@@ -1381,6 +1447,7 @@ function renderCharArtRefs() {
       e.stopPropagation();
       charArtRefFiles.splice(idx, 1);
       renderCharArtRefs();
+      renderSourceGallery();
     });
     wrap.appendChild(img);
     wrap.appendChild(removeBtn);
@@ -1469,14 +1536,12 @@ async function acceptCharArt() {
         body: JSON.stringify({ images: newImages }),
       }).then(r => r.json());
       characters = characters.map(c => c.id === updated.id ? updated : c);
-      renderEditorImages(newImages);
+      renderApprovedGallery(newImages);
       renderCatalog();
     } catch (e) { alert('Could not save artwork: ' + e.message); return; }
   } else {
-    // New character — queue as a pending server URL (not a File blob)
     if (!pendingCharGenUrls.includes(charArtGenUrl)) pendingCharGenUrls.unshift(charArtGenUrl);
-    const existingChar = characters.find(c => c.id === editorCharId);
-    renderEditorImages(existingChar ? existingChar.images || [] : []);
+    renderApprovedGallery();
   }
   document.getElementById('char-art-preview-wrap').classList.add('hidden');
   charArtGenUrl = null;

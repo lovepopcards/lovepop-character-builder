@@ -316,6 +316,33 @@ html, body {
 
 .save-status { font-size: 12px; color: var(--green); font-weight: 500; }
 
+/* ── Editor Tabs ─────────────────────────────────────────────── */
+.editor-tabs {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid var(--sand-mid);
+  margin-bottom: 20px;
+  padding: 0 2px;
+}
+.editor-tab {
+  padding: 10px 20px;
+  background: none; border: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px; font-weight: 500;
+  color: var(--gray); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color .15s, border-color .15s;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.editor-tab:hover { color: var(--navy); }
+.editor-tab.active {
+  color: var(--navy); font-weight: 700;
+  border-bottom-color: var(--coral);
+}
+
+.editor-tab-panel { display: none; }
+.editor-tab-panel:not(.hidden) { display: grid; }
+
 .editor-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -334,6 +361,80 @@ html, body {
   max-height: calc(100vh - 92px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* ── Artwork tab right column ────────────────────────────────── */
+.char-artwork-right {
+  display: flex; flex-direction: column; gap: 20px; min-width: 0;
+}
+
+.char-assets-section {
+  background: white; border: 1px solid var(--sand-mid);
+  border-radius: var(--radius-lg); padding: 20px 22px;
+}
+.char-assets-section-header { margin-bottom: 14px; }
+.char-assets-section-title {
+  font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 3px;
+}
+.char-assets-section-hint {
+  font-size: 12px; color: var(--gray);
+}
+
+.char-approved-gallery { min-height: 100px; }
+.char-source-gallery   { min-height: 80px; }
+
+.char-assets-empty {
+  padding: 20px 16px; text-align: center;
+  background: var(--sand); border: 1.5px dashed var(--sand-mid);
+  border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* Artwork generator AI panel — full panel style, no nested card */
+.char-art-panel-header {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: linear-gradient(135deg, #2d3a4a 0%, #3d5068 100%);
+}
+
+/* Generated preview inside artwork AI panel */
+.char-art-gen-preview-wrap {
+  margin: 0 14px 10px;
+  border-radius: var(--radius-md); overflow: hidden;
+  border: 2px solid rgba(124,77,255,0.35);
+  background: var(--sand);
+}
+.char-art-gen-preview-label {
+  padding: 7px 12px; font-size: 11px; font-weight: 600;
+  color: #7c4dff; background: rgba(124,77,255,0.08);
+  border-bottom: 1px solid rgba(124,77,255,0.15);
+}
+.char-art-gen-preview-img {
+  width: 100%; display: block; cursor: pointer;
+  transition: opacity .15s;
+}
+.char-art-gen-preview-img:hover { opacity: 0.92; }
+.char-art-gen-preview-actions {
+  display: flex; gap: 6px; padding: 8px 10px;
+  background: white; flex-wrap: wrap;
+}
+.btn-ghost-dark {
+  background: transparent; border: 1.5px solid var(--sand-mid);
+  color: var(--gray);
+}
+.btn-ghost-dark:hover { border-color: var(--red); color: var(--red); }
+
+/* Status message in artwork panel (white bg context) */
+.char-art-status-msg {
+  margin: 0 14px 12px;
+  padding: 9px 12px;
+  background: var(--sand); border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--gray); line-height: 1.5;
+}
+
+/* Upload zone inside the artwork AI panel — consistent inset */
+#editor-tab-artwork .char-art-upload-zone {
+  margin: 14px 14px 0;
 }
 
 /* ── AI Panel ────────────────────────────────────────────────── */
@@ -1071,17 +1172,6 @@ html, body {
 }
 
 /* ── Character Artwork Generator (AI panel) ─────────────────── */
-.char-art-panel {
-  background: white;
-  border: 1px solid var(--sand-mid);
-  border-radius: var(--radius-lg);
-  margin-top: 16px;
-  overflow: hidden;
-}
-.char-art-panel-header {
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: linear-gradient(135deg, #2d3a4a 0%, #3d5068 100%);
-}
 
 /* Multi-image upload zone */
 .char-art-upload-zone {
@@ -1137,18 +1227,6 @@ html, body {
   width: calc(100% - 28px);
 }
 
-/* Status + preview inside the white artwork panel — override dark-bg defaults */
-.char-art-panel .land-gen-status {
-  margin: 0 14px 12px;
-  background: var(--sand); color: var(--gray);
-}
-.char-art-panel .land-gen-preview-wrap {
-  margin: 0 14px 12px;
-}
-.char-art-panel .btn-sm.btn-ghost {
-  color: var(--gray-light);
-}
-.char-art-panel .btn-sm.btn-ghost:hover { color: var(--navy); }
 
 /* ── Land Headline Image Generator (AI panel) ────────────────── */
 .land-img-gen-divider {

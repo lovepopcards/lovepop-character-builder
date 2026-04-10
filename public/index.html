@@ -127,10 +127,16 @@
           <button class="btn-primary" id="editor-save-btn">Save Character</button>
         </div>
       </div>
-      <div class="editor-layout">
-        <aside class="ai-panel">
 
-          <!-- ── Story Generator ────────────────────────────────── -->
+      <!-- ── Editor Tabs ──────────────────────────────────────────── -->
+      <div class="editor-tabs">
+        <button class="editor-tab active" data-tab="story">✨ Story Building</button>
+        <button class="editor-tab" data-tab="artwork">🎨 Character Artwork</button>
+      </div>
+
+      <!-- ══ Tab: Story Building ═══════════════════════════════════ -->
+      <div id="editor-tab-story" class="editor-tab-panel editor-layout">
+        <aside class="ai-panel">
           <div class="ai-panel-header">
             <span class="ai-panel-title">✨ AI Story Generator</span>
             <span class="ai-panel-sub">Drop an image + description to auto-fill character fields</span>
@@ -163,52 +169,8 @@
             </div>
             <div id="ai-result-cards"></div>
           </div>
-
-          <!-- ── Artwork Generator ──────────────────────────────── -->
-          <div class="char-art-panel">
-            <div class="ai-panel-header char-art-panel-header">
-              <span class="ai-panel-title">🎨 AI Artwork Generator</span>
-              <span class="ai-panel-sub">Generate character artwork from references using DALL-E 3</span>
-            </div>
-
-            <!-- Multi-image upload zone -->
-            <div class="char-art-upload-zone" id="char-art-upload-zone">
-              <input type="file" id="char-art-upload-input" accept="image/*" multiple style="display:none" />
-              <div class="char-art-upload-placeholder" id="char-art-upload-placeholder">
-                <div class="char-art-upload-icon">🖼</div>
-                <div class="char-art-upload-text">Drop reference images or <span class="link" id="char-art-upload-link">click to upload</span></div>
-                <div class="char-art-upload-hint">Sketches, style refs, previous artwork — up to 4 images</div>
-              </div>
-              <div id="char-art-preview-strip" class="char-art-preview-strip hidden"></div>
-            </div>
-
-            <div class="ai-desc-section">
-              <label class="form-label">Artwork notes</label>
-              <textarea id="char-art-notes" class="form-textarea" rows="3"
-                placeholder="Describe the scene, pose, style, mood… Leave blank to use the character's story fields."></textarea>
-            </div>
-
-            <!-- Generated image preview -->
-            <div id="char-art-preview-wrap" class="land-gen-preview-wrap hidden">
-              <img id="char-art-preview-img" class="land-gen-preview-img" alt="Generated character artwork" />
-              <div id="char-art-prompt-peek" class="land-gen-prompt-peek hidden"></div>
-              <div class="land-gen-preview-actions">
-                <button class="btn-primary btn-sm" id="char-art-accept-btn">✓ Save as Character Image</button>
-                <button class="btn-secondary btn-sm" id="char-art-regen-btn">↺ Regenerate</button>
-                <button class="btn-ghost btn-sm" id="char-art-discard-btn">✕ Discard</button>
-              </div>
-            </div>
-
-            <button class="btn-image-generate char-art-generate-btn" id="char-art-generate-btn">
-              <span class="btn-ai-icon">🎨</span> Generate Artwork
-            </button>
-            <div id="char-art-status" class="land-gen-status hidden"></div>
-            <div id="char-art-openai-warning" class="ai-key-warning hidden">
-              ⚠️ OpenAI API key needed. <a href="#" id="char-art-goto-settings">Add it in Settings →</a>
-            </div>
-          </div>
-
         </aside>
+
         <div class="editor-form">
           <div class="form-section">
             <div class="form-section-title">Identity</div>
@@ -268,13 +230,6 @@
             </div>
           </div>
           <div class="form-section">
-            <div class="form-section-title">Images</div>
-            <div class="form-hint" style="margin-bottom:12px">The first image is used as the tile thumbnail. The AI panel image is also saved here on create.</div>
-            <div id="editor-images-gallery" class="editor-images-gallery"></div>
-            <label class="btn-add-image" for="editor-image-upload">+ Add Image</label>
-            <input type="file" id="editor-image-upload" accept="image/*" multiple style="display:none" />
-          </div>
-          <div class="form-section">
             <div class="form-section-title">Character Products</div>
             <div class="form-hint" style="margin-bottom:14px">Associate products with this character. SKUs are saved permanently for reference.</div>
             <div id="char-editor-pf-empty" class="land-editor-pf-empty">
@@ -291,6 +246,86 @@
           </div>
         </div>
       </div>
+
+      <!-- ══ Tab: Character Artwork ════════════════════════════════ -->
+      <div id="editor-tab-artwork" class="editor-tab-panel editor-layout hidden">
+
+        <!-- Left: AI Artwork Generator -->
+        <aside class="ai-panel">
+          <div class="ai-panel-header char-art-panel-header">
+            <span class="ai-panel-title">🎨 AI Artwork Generator</span>
+            <span class="ai-panel-sub">Generate character artwork from references using DALL-E 3</span>
+          </div>
+
+          <div class="char-art-upload-zone" id="char-art-upload-zone">
+            <input type="file" id="char-art-upload-input" accept="image/*" multiple style="display:none" />
+            <div class="char-art-upload-placeholder" id="char-art-upload-placeholder">
+              <div class="char-art-upload-icon">🖼</div>
+              <div class="char-art-upload-text">Drop reference images or <span class="link" id="char-art-upload-link">click to upload</span></div>
+              <div class="char-art-upload-hint">Sketches, style refs, previous artwork — up to 4 images</div>
+            </div>
+            <div id="char-art-preview-strip" class="char-art-preview-strip hidden"></div>
+          </div>
+
+          <div class="ai-desc-section">
+            <label class="form-label">Artwork notes</label>
+            <textarea id="char-art-notes" class="form-textarea" rows="4"
+              placeholder="Describe the scene, pose, style, mood… Leave blank to use the character's story fields."></textarea>
+          </div>
+
+          <div id="char-art-preview-wrap" class="char-art-gen-preview-wrap hidden">
+            <div class="char-art-gen-preview-label">✨ Generated — review before accepting</div>
+            <img id="char-art-preview-img" class="char-art-gen-preview-img" alt="Generated character artwork" />
+            <div id="char-art-prompt-peek" class="land-gen-prompt-peek hidden"></div>
+            <div class="char-art-gen-preview-actions">
+              <button class="btn-primary btn-sm" id="char-art-accept-btn">✓ Add to Approved Assets</button>
+              <button class="btn-secondary btn-sm" id="char-art-regen-btn">↺ Regenerate</button>
+              <button class="btn-ghost-dark btn-sm" id="char-art-discard-btn">✕ Discard</button>
+            </div>
+          </div>
+
+          <button class="btn-image-generate char-art-generate-btn" id="char-art-generate-btn">
+            <span class="btn-ai-icon">🎨</span> Generate Artwork
+          </button>
+          <div id="char-art-status" class="char-art-status-msg hidden"></div>
+          <div id="char-art-openai-warning" class="ai-key-warning hidden">
+            ⚠️ OpenAI API key needed. <a href="#" id="char-art-goto-settings">Add it in Settings →</a>
+          </div>
+        </aside>
+
+        <!-- Right: Approved Assets + Source Images -->
+        <div class="char-artwork-right">
+
+          <!-- Approved Assets -->
+          <div class="char-assets-section">
+            <div class="char-assets-section-header">
+              <div class="char-assets-section-title">✓ Approved Assets</div>
+              <div class="char-assets-section-hint">First image is the character's primary tile thumbnail</div>
+            </div>
+            <div id="editor-images-gallery" class="editor-images-gallery char-approved-gallery"></div>
+            <div class="char-assets-empty hidden" id="char-approved-empty">
+              <span>No approved images yet — generate or upload images below</span>
+            </div>
+            <label class="btn-add-image" for="editor-image-upload" style="margin-top:10px">+ Upload &amp; Approve Image</label>
+            <input type="file" id="editor-image-upload" accept="image/*" multiple style="display:none" />
+          </div>
+
+          <!-- Source Images -->
+          <div class="char-assets-section">
+            <div class="char-assets-section-header">
+              <div class="char-assets-section-title">📁 Source Images</div>
+              <div class="char-assets-section-hint">Reference files, sketches, and raw uploads — not shown in the character catalog</div>
+            </div>
+            <div id="char-source-gallery" class="editor-images-gallery char-source-gallery"></div>
+            <div class="char-assets-empty hidden" id="char-source-empty">
+              <span>No source images uploaded yet</span>
+            </div>
+            <label class="btn-add-image" for="char-source-upload" style="margin-top:10px">+ Upload Source Image</label>
+            <input type="file" id="char-source-upload" accept="image/*" multiple style="display:none" />
+          </div>
+
+        </div>
+      </div><!-- /editor-tab-artwork -->
     </div>
 
     <!-- ─── LAND EDITOR ───────────────────────────────────────── -->
