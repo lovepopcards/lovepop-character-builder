@@ -21,7 +21,8 @@ let landAiImageFile = null;
 let aiGeneratedData = {};
 let landAiGeneratedData = {};
 let pendingCharImages = [];   // File[] queued for upload on create
-let pendingLandImages = [];   // File[] queued for upload on create
+let pendingLandImages = [];      // File[] queued for upload on create
+let pendingLandGenUrls = [];     // already-on-server URLs from accepted generated images
 
 const CHAR_FIELD_META = [
   { key: 'name',                 label: 'Name',                   inputId: 'f-name' },
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindDetailModal();
   bindLandDetailModal();
   bindSettings();
+  bindLandImageGenerator();
   loadAll();
   checkApiKeyStatus();
 });
@@ -624,6 +626,10 @@ function openLandEditorView(mode, landId = null) {
   landAiGeneratedData = {};
   landAiImageFile = null;
   pendingLandImages = [];
+  pendingLandGenUrls = [];
+  landGenImageUrl = null;
+  document.getElementById('land-gen-preview-wrap')?.classList.add('hidden');
+  document.getElementById('land-gen-status')?.classList.add('hidden');
   clearLandAIPanel();
 
   if (mode === 'edit' && landId) {
@@ -655,14 +661,25 @@ function openLandEditorView(mode, landId = null) {
 function renderLandEditorImages(existingUrls) {
   const gallery = document.getElementById('land-editor-images-gallery');
   gallery.innerHTML = '';
-  existingUrls.forEach((url, idx) => {
+  // Prepend any accepted generated URLs (already on server) so they show first
+  const allUrls = [...pendingLandGenUrls, ...existingUrls.filter(u => !pendingLandGenUrls.includes(u))];
+  allUrls.forEach((url, idx) => {
     const item = document.createElement('div');
     item.className = 'editor-image-item';
+    const isGen = pendingLandGenUrls.includes(url);
     item.innerHTML = `
       <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" />
       ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
+      ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
       <button class="img-remove-btn" title="Remove image" aria-label="Remove">✕</button>`;
-    item.querySelector('.img-remove-btn').addEventListener('click', () => handleLandImageRemove(idx));
+    item.querySelector('.img-remove-btn').addEventListener('click', () => {
+      if (isGen) {
+        pendingLandGenUrls = pendingLandGenUrls.filter(u => u !== url);
+        renderLandEditorImages(existingUrls);
+      } else {
+        handleLandImageRemove(existingUrls.indexOf(url));
+      }
+    });
     gallery.appendChild(item);
   });
   pendingLandImages.forEach((file, idx) => {
@@ -769,6 +786,18 @@ async function handleLandEditorSave() {
       }
     }
     pendingLandImages = [];
+
+    // Include any accepted AI-generated image URLs (already on server)
+    if (pendingLandGenUrls.length) {
+      const mergedImages = [...pendingLandGenUrls, ...(saved.images || []).filter(u => !pendingLandGenUrls.includes(u))];
+      const updRes = await fetch(`${LANDS_API}/${saved.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: mergedImages }),
+      });
+      if (updRes.ok) saved = await updRes.json();
+      pendingLandGenUrls = [];
+    }
 
     if (landEditorMode === 'edit') {
       lands = lands.map(l => l.id === saved.id ? saved : l);
@@ -1194,6 +1223,27 @@ async function handleDeleteLand() {
 function bindSettings() {
   document.getElementById('settings-save-btn').addEventListener('click', handleSettingsSave);
   document.getElementById('settings-export-btn').addEventListener('click', exportSettingsToExcel);
+
+  // Image sample upload
+  document.getElementById('img-samples-upload').addEventListener('change', (e) => {
+    if (e.target.files.length) uploadImageSamples(Array.from(e.target.files));
+    e.target.value = '';
+  });
+}
+
+// ── Land Headline Image Generator — event bindings ────────────
+function bindLandImageGenerator() {
+  document.getElementById('land-gen-image-btn').addEventListener('click', generateLandImage);
+  document.getElementById('land-gen-accept-btn').addEventListener('click', acceptGeneratedImage);
+  document.getElementById('land-gen-discard-btn').addEventListener('click', discardGeneratedImage);
+  document.getElementById('land-gen-regen-btn').addEventListener('click', generateLandImage);
+  document.getElementById('land-gen-goto-settings').addEventListener('click', (e) => {
+    e.preventDefault(); switchView('settings'); loadSettings();
+  });
+  // Toggle DALL-E prompt on image click
+  document.getElementById('land-gen-preview-img').addEventListener('click', () => {
+    document.getElementById('land-gen-prompt-peek').classList.toggle('hidden');
+  });
 }
 
 async function loadSettings() {
@@ -1215,10 +1265,17 @@ async function loadSettings() {
     setVal('s-land-instruction-visual-style', s.ai_land_instruction_visual_style);
     setVal('s-land-instruction-color-palette', s.ai_land_instruction_color_palette);
     setVal('s-land-instruction-themes-and-content', s.ai_land_instruction_themes_and_content);
+    setVal('s-image-gen-instructions', s.ai_image_gen_instructions);
 
     const badge = document.getElementById('api-key-status-badge');
     badge.className = s.api_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
     badge.textContent = s.api_key_configured ? '✓ API Key Configured' : '✗ API Key Not Set';
+
+    const oaiBadge = document.getElementById('openai-key-status-badge');
+    oaiBadge.className = s.openai_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
+    oaiBadge.textContent = s.openai_key_configured ? '✓ OpenAI Key Configured' : '✗ OpenAI Key Not Set';
+
+    loadImageSamples();
   } catch (err) { console.error('Settings load error:', err); }
 }
 
@@ -1239,15 +1296,19 @@ async function handleSettingsSave() {
     ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
     ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
     ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
+    ai_image_gen_instructions: getVal('s-image-gen-instructions'),
   };
   const apiKey = getVal('s-api-key');
   if (apiKey) data.anthropic_api_key = apiKey;
+  const openaiKey = getVal('s-openai-api-key');
+  if (openaiKey) data.openai_api_key = openaiKey;
 
   const btn = document.getElementById('settings-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     document.getElementById('s-api-key').value = '';
+    document.getElementById('s-openai-api-key').value = '';
     await loadSettings();
     await checkApiKeyStatus();
     btn.textContent = '✓ Saved';
@@ -1256,6 +1317,156 @@ async function handleSettingsSave() {
     alert('Save failed: ' + err.message);
     btn.disabled = false; btn.textContent = 'Save Settings';
   }
+}
+
+// ── Image Samples (Settings) ──────────────────────────────────
+async function loadImageSamples() {
+  try {
+    const res = await fetch('/api/settings/image-samples');
+    const { samples } = await res.json();
+    renderImageSamples(samples);
+  } catch (e) { console.error('Could not load image samples:', e); }
+}
+
+function renderImageSamples(samples) {
+  const grid = document.getElementById('img-samples-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!samples || !samples.length) {
+    grid.innerHTML = '<div class="img-samples-empty">No sample images uploaded yet.</div>';
+    return;
+  }
+  samples.forEach(src => {
+    const filename = src.split('/').pop();
+    const card = document.createElement('div');
+    card.className = 'img-sample-card';
+    card.innerHTML = `
+      <img src="${esc(src)}" class="img-sample-thumb" alt="Sample" />
+      <button class="img-sample-delete" data-filename="${esc(filename)}" title="Remove">✕</button>`;
+    card.querySelector('.img-sample-delete').addEventListener('click', () => deleteImageSample(filename));
+    grid.appendChild(card);
+  });
+}
+
+async function deleteImageSample(filename) {
+  if (!confirm('Remove this sample image?')) return;
+  try {
+    const res = await fetch(`/api/settings/image-samples/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const { samples } = await res.json();
+    renderImageSamples(samples);
+  } catch (e) { alert('Could not delete sample: ' + e.message); }
+}
+
+async function uploadImageSamples(files) {
+  const status = document.getElementById('img-samples-status');
+  status.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''}…`;
+  status.classList.remove('hidden');
+  let lastSamples = [];
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      const res = await fetch('/api/settings/image-samples', { method: 'POST', body: fd });
+      const data = await res.json();
+      lastSamples = data.samples;
+    } catch (e) { console.error('Upload failed:', e); }
+  }
+  renderImageSamples(lastSamples);
+  status.textContent = 'Uploaded!';
+  setTimeout(() => status.classList.add('hidden'), 2000);
+}
+
+// ── Land Headline Image Generator ─────────────────────────────
+let landGenImageUrl = null;   // URL of the most recently generated image (not yet accepted)
+
+async function generateLandImage() {
+  const btn    = document.getElementById('land-gen-image-btn');
+  const status = document.getElementById('land-gen-status');
+  const warn   = document.getElementById('land-gen-openai-warning');
+  const preview = document.getElementById('land-gen-preview-wrap');
+
+  // Read current form values (works even if land isn't saved yet)
+  const name               = (document.getElementById('fl-name')?.value || '').trim();
+  const description        = (document.getElementById('fl-description')?.value || '').trim();
+  const visual_style       = (document.getElementById('fl-visual-style')?.value || '').trim();
+  const color_palette      = (document.getElementById('fl-color-palette')?.value || '').trim();
+  const themes_and_content = (document.getElementById('fl-themes-and-content')?.value || '').trim();
+
+  // Include names of currently selected products as context
+  const product_names = landSelectedProducts.map(p => p.name).filter(Boolean);
+
+  btn.disabled = true;
+  preview.classList.add('hidden');
+  warn.classList.add('hidden');
+  status.classList.remove('hidden');
+  status.innerHTML = '<span class="land-gen-spinner">⏳</span> Generating your headline image… this takes about 15–30 seconds.';
+
+  try {
+    const res = await fetch('/api/ai/generate-land-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, visual_style, color_palette, themes_and_content, product_names }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 400 && data.error && data.error.toLowerCase().includes('openai')) {
+        warn.classList.remove('hidden');
+      } else {
+        status.textContent = '✗ ' + (data.error || 'Generation failed');
+      }
+      return;
+    }
+
+    landGenImageUrl = data.image_url;
+    const img = document.getElementById('land-gen-preview-img');
+    img.src = data.image_url;
+    status.classList.add('hidden');
+    preview.classList.remove('hidden');
+
+    // Show prompt peek on click
+    const peek = document.getElementById('land-gen-prompt-peek');
+    peek.textContent = '📝 Prompt: ' + data.dalle_prompt;
+
+  } catch (err) {
+    status.textContent = '✗ ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function acceptGeneratedImage() {
+  if (!landGenImageUrl) return;
+  if (landEditorMode === 'edit' && landEditorId) {
+    // Land already exists — patch images array immediately
+    try {
+      const landData = await fetch(`/api/lands/${landEditorId}`).then(r => r.json());
+      const newImages = [landGenImageUrl, ...(landData.images || []).filter(u => u !== landGenImageUrl)];
+      const updated = await fetch(`/api/lands/${landEditorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: newImages }),
+      }).then(r => r.json());
+      lands = lands.map(l => l.id === updated.id ? updated : l);
+      renderLandEditorImages(newImages);
+      renderLands();
+    } catch (e) { alert('Could not save image: ' + e.message); return; }
+  } else {
+    // New land — queue the URL; save function will include it after land is created
+    if (!pendingLandGenUrls.includes(landGenImageUrl)) {
+      pendingLandGenUrls.unshift(landGenImageUrl);
+    }
+    // Show in gallery (these are already-on-server URLs, not File blobs)
+    const existingLand = lands.find(l => l.id === landEditorId);
+    renderLandEditorImages(existingLand ? existingLand.images || [] : []);
+  }
+  document.getElementById('land-gen-preview-wrap').classList.add('hidden');
+  landGenImageUrl = null;
+}
+
+function discardGeneratedImage() {
+  landGenImageUrl = null;
+  document.getElementById('land-gen-preview-wrap').classList.add('hidden');
+  document.getElementById('land-gen-status').classList.add('hidden');
 }
 
 // ── Product Library ───────────────────────────────────────────

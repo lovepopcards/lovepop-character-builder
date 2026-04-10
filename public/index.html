@@ -298,6 +298,34 @@
             </div>
             <div id="land-ai-result-cards"></div>
           </div>
+
+          <!-- ── Headline Image Generator ───────────────────── -->
+          <div class="land-img-gen-divider"></div>
+          <div class="land-img-gen-section">
+            <div class="land-img-gen-header">
+              <span class="land-img-gen-title">🎨 Headline Image</span>
+              <span class="land-img-gen-hint">AI-generated hero image for this land</span>
+            </div>
+
+            <!-- Preview (shown after generation) -->
+            <div id="land-gen-preview-wrap" class="land-gen-preview-wrap hidden">
+              <img id="land-gen-preview-img" class="land-gen-preview-img" alt="Generated headline image" />
+              <div id="land-gen-prompt-peek" class="land-gen-prompt-peek hidden"></div>
+              <div class="land-gen-preview-actions">
+                <button class="btn-primary btn-sm" id="land-gen-accept-btn">✓ Use as Hero Image</button>
+                <button class="btn-secondary btn-sm" id="land-gen-regen-btn">↺ Regenerate</button>
+                <button class="btn-ghost btn-sm" id="land-gen-discard-btn">✕ Discard</button>
+              </div>
+            </div>
+
+            <button class="btn-image-generate" id="land-gen-image-btn">
+              <span class="btn-ai-icon">🎨</span> Generate Headline Image
+            </button>
+            <div id="land-gen-status" class="land-gen-status hidden"></div>
+            <div id="land-gen-openai-warning" class="ai-key-warning hidden">
+              ⚠️ OpenAI API key needed for image generation. <a href="#" id="land-gen-goto-settings">Add it in Settings →</a>
+            </div>
+          </div>
         </aside>
         <div class="editor-form">
           <div class="form-section">
@@ -429,6 +457,32 @@
             <div class="field-instruction-row"><div class="field-instruction-label">Visual Style</div><textarea id="s-land-instruction-visual-style" class="form-textarea" rows="2"></textarea></div>
             <div class="field-instruction-row"><div class="field-instruction-label">Color Palette</div><textarea id="s-land-instruction-color-palette" class="form-textarea" rows="2"></textarea></div>
             <div class="field-instruction-row"><div class="field-instruction-label">Themes &amp; Content</div><textarea id="s-land-instruction-themes-and-content" class="form-textarea" rows="3"></textarea></div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="settings-card-title">🎨 Land Headline Image Generator</div>
+          <div class="settings-card-desc">AI-generated hero images for Lovepop Lands, powered by OpenAI DALL-E 3. Configure your API key, style instructions, and reference samples below.</div>
+
+          <div class="form-group" style="margin-top:18px">
+            <label class="form-label">OpenAI API Key <span class="form-hint-inline">(set as <code>OPENAI_API_KEY</code> env var in Railway, or enter below)</span></label>
+            <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
+            <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Image Generation Instructions</label>
+            <div class="form-hint" style="margin-bottom:8px">Describe the visual style, mood, and quality standards for generated land images. This is passed to the AI alongside each land's specific data.</div>
+            <textarea id="s-image-gen-instructions" class="form-textarea" rows="7"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Sample Headline Images</label>
+            <div class="form-hint" style="margin-bottom:12px">Upload example headline images that represent the ideal visual style. The AI will study these as style references when generating new images (up to 3 are used per generation).</div>
+            <div id="img-samples-grid" class="img-samples-grid"></div>
+            <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
+            <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
+            <div id="img-samples-status" class="img-samples-status hidden"></div>
           </div>
         </div>
       </div>

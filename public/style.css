@@ -1011,6 +1011,122 @@ html, body {
   margin-top: 12px; margin-bottom: 4px;
 }
 
+/* ── Land Headline Image Generator (AI panel) ────────────────── */
+.land-img-gen-divider {
+  height: 1px; background: var(--sand-mid);
+  margin: 18px 14px 0;
+}
+.land-img-gen-section {
+  padding: 14px 14px 20px;
+}
+.land-img-gen-header {
+  margin-bottom: 12px;
+}
+.land-img-gen-title {
+  display: block; font-size: 13px; font-weight: 700; color: var(--navy);
+  margin-bottom: 2px;
+}
+.land-img-gen-hint {
+  font-size: 11px; color: rgba(255,255,255,0.55);
+}
+
+/* Generate button */
+.btn-image-generate {
+  display: block; width: 100%;
+  padding: 11px 16px;
+  background: linear-gradient(135deg, #7c4dff 0%, #5c35cc 100%);
+  border: none; border-radius: var(--radius-sm);
+  color: #fff; font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s, transform .12s;
+  text-align: center;
+}
+.btn-image-generate:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-image-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* Generated image preview */
+.land-gen-preview-wrap {
+  margin-bottom: 10px;
+  border-radius: var(--radius-md); overflow: hidden;
+  border: 2px solid rgba(124,77,255,0.4);
+}
+.land-gen-preview-img {
+  width: 100%; display: block;
+  cursor: pointer; transition: opacity .15s;
+}
+.land-gen-preview-img:hover { opacity: 0.92; }
+.land-gen-prompt-peek {
+  background: rgba(0,0,0,0.75); color: rgba(255,255,255,0.8);
+  font-size: 10px; line-height: 1.5; padding: 8px 10px;
+  font-family: 'DM Mono', monospace;
+}
+.land-gen-preview-actions {
+  display: flex; gap: 6px; padding: 8px;
+  background: rgba(255,255,255,0.06);
+}
+
+/* Small button variants for the preview actions */
+.btn-sm {
+  padding: 5px 10px; font-size: 11px; font-weight: 600;
+  border-radius: var(--radius-sm); cursor: pointer;
+  font-family: 'DM Sans', sans-serif; border: 1.5px solid transparent;
+  transition: all .12s ease;
+}
+.btn-sm.btn-primary { background: var(--coral); border-color: var(--coral); color: #fff; }
+.btn-sm.btn-primary:hover { background: #d94f2e; border-color: #d94f2e; }
+.btn-sm.btn-secondary { background: var(--white); border-color: var(--sand-mid); color: var(--navy); }
+.btn-sm.btn-secondary:hover { border-color: var(--navy-light); }
+.btn-sm.btn-ghost { background: transparent; border-color: transparent; color: rgba(255,255,255,0.5); }
+.btn-sm.btn-ghost:hover { color: #fff; }
+
+.land-gen-status {
+  margin-top: 8px; padding: 8px 10px;
+  background: rgba(255,255,255,0.08); border-radius: var(--radius-sm);
+  font-size: 11px; color: rgba(255,255,255,0.7); line-height: 1.5;
+}
+
+/* "Generated" badge on accepted images in the editor gallery */
+.img-gen-badge {
+  position: absolute; bottom: 6px; left: 6px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.4px;
+  padding: 2px 6px; border-radius: 99px;
+  background: rgba(124,77,255,0.85); color: #fff;
+}
+
+/* ── Image Samples section in Settings ──────────────────────── */
+.img-samples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px; margin-bottom: 10px;
+}
+.img-samples-empty {
+  grid-column: 1/-1; padding: 24px 0; text-align: center;
+  font-size: 13px; color: var(--text-muted);
+  background: var(--sand); border-radius: var(--radius-sm);
+  border: 1.5px dashed var(--sand-mid);
+}
+.img-sample-card {
+  position: relative; border-radius: var(--radius-sm);
+  overflow: hidden; border: 1.5px solid var(--sand-mid);
+  aspect-ratio: 16 / 10; background: var(--sand);
+}
+.img-sample-thumb {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.img-sample-delete {
+  position: absolute; top: 5px; right: 5px;
+  background: rgba(0,0,0,0.55); color: #fff; border: none;
+  border-radius: 50%; width: 22px; height: 22px;
+  font-size: 11px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .15s;
+}
+.img-sample-card:hover .img-sample-delete { opacity: 1; }
+.img-samples-upload-btn { display: inline-flex; }
+.img-samples-status {
+  font-size: 12px; color: var(--green); margin-top: 6px; font-weight: 500;
+}
+
 /* ── Utility ─────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 

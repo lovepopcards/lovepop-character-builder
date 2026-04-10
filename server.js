@@ -15,6 +15,10 @@ const UPLOADS_DIR = DATA_DIR
   : path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// Image samples dir — lives inside uploads so it shares the same persistent volume
+const IMAGE_SAMPLES_DIR = path.join(UPLOADS_DIR, 'image-samples');
+if (!fs.existsSync(IMAGE_SAMPLES_DIR)) fs.mkdirSync(IMAGE_SAMPLES_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -22,8 +26,16 @@ const diskStorage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   },
 });
-const uploadDisk = multer({ storage: diskStorage, limits: { fileSize: 10 * 1024 * 1024 } });
-const uploadMem  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const sampleStorage = multer.diskStorage({
+  destination: IMAGE_SAMPLES_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `sample-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadDisk   = multer({ storage: diskStorage,  limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadMem    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadSample = multer({ storage: sampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
@@ -103,8 +115,10 @@ app.delete('/api/lands/:id/images/:index', (req, res) => {
 // ── Settings API ──────────────────────────────────────────────
 app.get('/api/settings', (req, res) => {
   const settings = db.getAllSettings();
-  const apiKeySet = !!(process.env.ANTHROPIC_API_KEY || settings.anthropic_api_key);
-  res.json({ ...settings, anthropic_api_key: undefined, api_key_configured: apiKeySet });
+  const apiKeySet    = !!(process.env.ANTHROPIC_API_KEY || settings.anthropic_api_key);
+  const openaiKeySet = !!(process.env.OPENAI_API_KEY    || settings.openai_api_key);
+  res.json({ ...settings, anthropic_api_key: undefined, openai_api_key: undefined,
+             api_key_configured: apiKeySet, openai_key_configured: openaiKeySet });
 });
 app.put('/api/settings', (req, res) => {
   db.setSettings(req.body);
@@ -213,6 +227,160 @@ app.post('/api/ai/generate-land', uploadMem.single('image'), (req, res) =>
     color_palette: 'Color Palette', themes_and_content: 'Themes & Content',
   }})
 );
+
+// ── Image Sample endpoints (for Land Image Generator settings) ─
+app.get('/api/settings/image-samples', (req, res) => {
+  const raw = db.getSetting('ai_image_gen_samples');
+  const samples = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  res.json({ samples });
+});
+
+app.post('/api/settings/image-samples', uploadSample.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const imgPath = `/uploads/image-samples/${req.file.filename}`;
+  const raw = db.getSetting('ai_image_gen_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  current.push(imgPath);
+  db.setSetting('ai_image_gen_samples', JSON.stringify(current));
+  res.json({ path: imgPath, samples: current });
+});
+
+app.delete('/api/settings/image-samples/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(IMAGE_SAMPLES_DIR, filename);
+  if (fs.existsSync(filepath)) { try { fs.unlinkSync(filepath); } catch (e) { console.warn('Could not delete sample:', e.message); } }
+  const raw = db.getSetting('ai_image_gen_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  const updated = current.filter(p => !p.endsWith('/' + filename));
+  db.setSetting('ai_image_gen_samples', JSON.stringify(updated));
+  res.json({ success: true, samples: updated });
+});
+
+// ── Land Headline Image Generator ─────────────────────────────
+app.post('/api/ai/generate-land-image', async (req, res) => {
+  const openaiKey   = process.env.OPENAI_API_KEY  || db.getSetting('openai_api_key');
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!openaiKey) return res.status(400).json({ error: 'OpenAI API key not configured. Add it in Settings to use image generation.' });
+
+  const settings = db.getAllSettings();
+  const instructions = settings.ai_image_gen_instructions || db.DEFAULTS.ai_image_gen_instructions;
+
+  // Land context — client sends current form values (works for unsaved lands too)
+  const { name = '', description = '', visual_style = '', color_palette = '', themes_and_content = '', product_names = [] } = req.body;
+
+  // ── Step 1: Build the DALL-E prompt ──────────────────────────
+  // If Anthropic key available + sample images exist, use Claude vision to write a richer prompt.
+  // Otherwise fall back to a template-built prompt.
+  let dallePrompt = '';
+
+  const rawSamples = db.getSetting('ai_image_gen_samples');
+  const samplePaths = (() => { try { return JSON.parse(rawSamples || '[]'); } catch { return []; } })();
+
+  if (anthropicKey) {
+    // Build Claude request — optionally include sample images for style reference
+    const anthropic = new Anthropic({ apiKey: anthropicKey });
+    const userContent = [];
+
+    // Load up to 3 sample images from disk
+    for (const sp of samplePaths.slice(0, 3)) {
+      const filename = path.basename(sp);
+      const fullPath = path.join(IMAGE_SAMPLES_DIR, filename);
+      if (!fs.existsSync(fullPath)) continue;
+      try {
+        const buf  = fs.readFileSync(fullPath);
+        const ext  = path.extname(fullPath).slice(1).toLowerCase();
+        const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: mime, data: buf.toString('base64') } });
+      } catch (e) { console.warn('Could not load sample image:', e.message); }
+    }
+
+    const productContext = Array.isArray(product_names) && product_names.length
+      ? `\nFeatured products in this land:\n${product_names.slice(0, 8).map(n => `- ${n}`).join('\n')}`
+      : '';
+
+    userContent.push({
+      type: 'text',
+      text: [
+        userContent.length > 0 ? `I've provided ${userContent.length} sample headline image${userContent.length > 1 ? 's' : ''} above that represent the visual style and quality standard. Study them carefully and match that aesthetic.\n` : '',
+        `INSTRUCTIONS FOR THIS IMAGE:\n${instructions}\n`,
+        `LAND DATA:`,
+        `Name: ${name || '(untitled)'}`,
+        `Description: ${description || '(none)'}`,
+        `Visual Style: ${visual_style || '(none)'}`,
+        `Color Palette: ${color_palette || '(none)'}`,
+        `Themes & Content: ${themes_and_content || '(none)'}`,
+        productContext,
+        `\nWrite a single, detailed DALL-E 3 image generation prompt (150–220 words) for this land's headline image.`,
+        `Be specific about composition, lighting, color, texture, and mood.`,
+        `Output ONLY the prompt text — no preamble, no markdown, no quotes.`,
+      ].filter(Boolean).join('\n'),
+    });
+
+    try {
+      const promptResp = await anthropic.messages.create({
+        model: settings.ai_model || db.DEFAULTS.ai_model,
+        max_tokens: 512,
+        system: 'You write DALL-E 3 image generation prompts. Output only the raw prompt text.',
+        messages: [{ role: 'user', content: userContent }],
+      });
+      dallePrompt = promptResp.content[0].text.trim();
+    } catch (e) {
+      console.warn('Claude prompt-building failed, using template:', e.message);
+    }
+  }
+
+  // Fallback: template-built prompt
+  if (!dallePrompt) {
+    const productLine = Array.isArray(product_names) && product_names.length
+      ? ` Featuring elements inspired by: ${product_names.slice(0, 5).join(', ')}.`
+      : '';
+    dallePrompt = [
+      instructions,
+      `\nLand: "${name || 'Lovepop Land'}"`,
+      description ? `World description: ${description}` : '',
+      visual_style ? `Visual style: ${visual_style}` : '',
+      color_palette ? `Color palette: ${color_palette}` : '',
+      themes_and_content ? `Key themes and motifs: ${themes_and_content}` : '',
+      productLine,
+      `\nComposition: wide landscape, cinematic hero image, rich detail, luminous lighting.`,
+    ].filter(Boolean).join('\n');
+  }
+
+  // ── Step 2: Call DALL-E 3 ─────────────────────────────────────
+  try {
+    const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: dallePrompt,
+        size: '1792x1024',
+        quality: 'hd',
+        n: 1,
+      }),
+    });
+
+    if (!dalleResp.ok) {
+      const errBody = await dalleResp.json().catch(() => ({}));
+      throw new Error(errBody.error?.message || `DALL-E API error ${dalleResp.status}`);
+    }
+
+    const dalleData = await dalleResp.json();
+    const imageUrl  = dalleData.data[0].url;
+
+    // ── Step 3: Download & persist the image ──────────────────────
+    const imgResp = await fetch(imageUrl);
+    if (!imgResp.ok) throw new Error('Failed to download generated image from OpenAI');
+    const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
+    const filename = `gen-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
+
+    res.json({ image_url: `/uploads/${filename}`, dalle_prompt: dallePrompt });
+  } catch (err) {
+    console.error('Image generation error:', err);
+    res.status(500).json({ error: err.message || 'Image generation failed' });
+  }
+});
 
 // ── Product Library Proxy ─────────────────────────────────────
 let _productCache = null;

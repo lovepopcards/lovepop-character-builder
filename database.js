@@ -88,6 +88,13 @@ const DEFAULTS = {
   ai_land_instruction_themes_and_content: `List the primary themes, motifs, and content types that appear in this land (e.g. "wildflowers, mushrooms, morning dew, soft woodland creatures, birthday celebrations"). Aim for 6-10 specific elements.`,
 
   ai_model: 'claude-opus-4-5',
+
+  // Land headline image generator
+  ai_image_gen_instructions: `You are creating a headline image for a Lovepop greeting card world. Lovepop makes beautiful, intricate paper pop-up art — the images should evoke that same sense of wonder, precision, and warmth.
+
+The headline image should feel like a storybook come to life: lush, layered, luminous, and full of hand-crafted charm. Avoid photorealism. Aim for an illustrative quality — painterly and whimsical, with rich color, fine detail, and a sense of depth and magic.
+
+The image should immediately capture the mood, color palette, and signature themes of the land. It will be used as a hero banner — landscape orientation, wide and cinematic. The composition should feel like a world you want to step into.`,
 };
 
 for (const [key, value] of Object.entries(DEFAULTS)) {
