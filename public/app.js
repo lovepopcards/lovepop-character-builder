@@ -578,27 +578,27 @@ function buildLandTile(land) {
   const tile = document.createElement('div');
   tile.className = 'character-tile land-tile';
 
-  // Optional featured image (small, in the header row)
-  const featuredThumb = (land.images && land.images.length)
-    ? `<img src="${esc(land.images[0])}" class="land-tile-featured-img" alt="${esc(land.name)}" loading="lazy" />`
-    : '';
+  // Hero image area — matches character tile structure
+  const imgHtml = (land.images && land.images.length)
+    ? `<img src="${esc(land.images[0])}" alt="${esc(land.name)}" loading="lazy" />`
+    : `<div class="tile-image-placeholder">🌍</div>`;
 
   // Description snippet
   const descHtml = land.description
-    ? `<div class="land-tile-desc">${esc(land.description.substring(0, 110))}${land.description.length > 110 ? '…' : ''}</div>`
+    ? `<div class="land-tile-desc">${esc(land.description.substring(0, 180))}${land.description.length > 180 ? '…' : ''}</div>`
     : '';
 
-  // Product family thumbnails (up to 5)
+  // Product family thumbnails (up to 6, larger)
   const skus = land.product_skus || [];
   let pfHtml = '';
   if (skus.length) {
-    const thumbs = skus.slice(0, 5).map(sku => {
+    const thumbs = skus.slice(0, 6).map(sku => {
       const p = productsLoaded ? allProducts.find(pr => pr.sku === sku) : null;
       return p && p.image_url
         ? `<img src="${esc(p.image_url)}" class="land-tile-pf-thumb" title="${esc(p.name || sku)}" loading="lazy" />`
         : `<div class="land-tile-pf-placeholder" title="${esc(sku)}"></div>`;
     }).join('');
-    const more = skus.length > 5 ? `<div class="land-tile-pf-more">+${skus.length - 5}</div>` : '';
+    const more = skus.length > 6 ? `<div class="land-tile-pf-more">+${skus.length - 6}</div>` : '';
     pfHtml = `
       <div class="land-tile-pf">
         <div class="land-tile-pf-label">Product Family · ${skus.length} SKU${skus.length !== 1 ? 's' : ''}</div>
@@ -607,10 +607,7 @@ function buildLandTile(land) {
   }
 
   tile.innerHTML = `
-    <div class="land-tile-header">
-      <span class="status-badge status-${land.status}">${cap(land.status)}</span>
-      ${featuredThumb}
-    </div>
+    <div class="land-tile-image">${imgHtml}<span class="tile-status-badge status-badge status-${land.status}">${cap(land.status)}</span></div>
     <div class="land-tile-body">
       <div class="tile-name">${esc(land.name)}</div>
       ${descHtml}

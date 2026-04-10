@@ -263,22 +263,21 @@
         <aside class="ai-panel">
           <div class="ai-panel-header">
             <span class="ai-panel-title">✨ AI Generator</span>
-            <span class="ai-panel-sub">Drop an image + description to auto-fill fields</span>
+            <span class="ai-panel-sub">Select products + add notes to generate your land</span>
           </div>
-          <div class="ai-image-zone" id="land-ai-image-zone">
-            <input type="file" id="land-ai-image-input" accept="image/*" style="display:none" />
-            <div class="ai-image-placeholder" id="land-ai-image-placeholder">
-              <div class="ai-image-placeholder-icon">🖼</div>
-              <div class="ai-image-placeholder-text">Drop image here or <span class="link">click to upload</span></div>
-              <div class="ai-image-placeholder-hint">Used for AI generation &amp; saved as catalog image</div>
-            </div>
-            <img id="land-ai-image-preview" class="ai-image-preview hidden" alt="Land reference" />
-            <button class="ai-image-clear hidden" id="land-ai-image-clear">✕ Remove</button>
-          </div>
-          <button class="btn-browse-products" id="land-browse-products-btn">🛍 Browse Product Library</button>
+          <button class="btn-browse-products btn-browse-products-primary" id="land-browse-products-btn">🛍 Browse Product Library</button>
           <div id="land-product-selection" class="land-ai-pf-badge hidden">
             <span class="land-ai-pf-badge-text">📦 <span id="land-product-selection-count">0</span> product(s) selected</span>
             <button class="land-product-selection-clear" id="land-product-selection-clear">✕ Clear all</button>
+          </div>
+          <div class="product-browse-divider land-ai-ref-divider"><span>or add a reference image</span></div>
+          <div class="ai-image-zone ai-image-zone-compact" id="land-ai-image-zone">
+            <input type="file" id="land-ai-image-input" accept="image/*" style="display:none" />
+            <div class="ai-image-placeholder ai-image-placeholder-compact" id="land-ai-image-placeholder">
+              <div class="ai-image-placeholder-text">📎 Drop image or <span class="link">click to upload</span></div>
+            </div>
+            <img id="land-ai-image-preview" class="ai-image-preview hidden" alt="Land reference" />
+            <button class="ai-image-clear hidden" id="land-ai-image-clear">✕ Remove</button>
           </div>
           <div class="product-browse-divider"><span>then add your notes</span></div>
           <div class="ai-desc-section">

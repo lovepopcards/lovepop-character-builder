@@ -192,6 +192,9 @@ html, body {
 }
 .character-grid.small { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); }
 
+/* Lands grid — wider columns so tiles feel more like editorial cards */
+#lands-tile-view { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
 .character-tile {
   background: white; border: 1px solid var(--sand-mid);
   border-radius: var(--radius-md); overflow: hidden;
@@ -802,9 +805,20 @@ html, body {
   display: flex; align-items: center; white-space: nowrap;
 }
 
-/* ── Land Tile (new card-style layout) ───────────────────────── */
+/* ── Land Tile (card-style layout with hero image) ───────────── */
 .land-tile { display: flex; flex-direction: column; }
 
+/* Hero image area — matches character tile proportions */
+.land-tile-image {
+  aspect-ratio: 4 / 3;
+  background: var(--sand);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative;
+}
+.land-tile-image img { width: 100%; height: 100%; object-fit: cover; }
+.land-tile-image .tile-image-placeholder { font-size: 48px; opacity: 0.3; user-select: none; }
+
+/* Legacy header — kept for any old tiles still referencing it */
 .land-tile-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px 0 12px;
@@ -813,32 +827,33 @@ html, body {
   width: 36px; height: 36px; border-radius: 5px; object-fit: cover;
   border: 1px solid var(--sand-mid); flex-shrink: 0;
 }
+
 .land-tile-body {
-  padding: 8px 12px 12px;
+  padding: 10px 12px 12px;
   display: flex; flex-direction: column; gap: 6px; flex: 1;
 }
 .land-tile-desc {
-  font-size: 11px; color: var(--gray); line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 12px; color: var(--gray); line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
 
 /* Product family strip inside the land tile */
-.land-tile-pf { margin-top: 4px; }
+.land-tile-pf { margin-top: 6px; }
 .land-tile-pf-label {
   font-size: 9px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase;
-  color: var(--gray); margin-bottom: 5px;
+  color: var(--gray); margin-bottom: 6px;
 }
-.land-tile-pf-thumbs { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
+.land-tile-pf-thumbs { display: flex; gap: 5px; flex-wrap: nowrap; overflow: hidden; }
 .land-tile-pf-thumb {
-  width: 36px; height: 36px; border-radius: 4px; object-fit: cover;
+  width: 42px; height: 42px; border-radius: 5px; object-fit: cover;
   border: 1px solid var(--sand-mid); flex-shrink: 0; background: var(--sand);
 }
 .land-tile-pf-placeholder {
-  width: 36px; height: 36px; border-radius: 4px;
+  width: 42px; height: 42px; border-radius: 5px;
   background: var(--sand); border: 1px solid var(--sand-mid); flex-shrink: 0;
 }
 .land-tile-pf-more {
-  width: 36px; height: 36px; border-radius: 4px;
+  width: 42px; height: 42px; border-radius: 5px;
   background: var(--sand); border: 1px solid var(--sand-mid); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: 10px; font-weight: 600; color: var(--gray);
@@ -965,6 +980,36 @@ html, body {
 }
 .btn-browse-products:hover { border-color: var(--navy-light); color: var(--navy); background: var(--sand); }
 .btn-browse-products:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Primary style for the land AI panel browse button — solid, prominent */
+.btn-browse-products.btn-browse-products-primary {
+  margin-top: 14px;
+  padding: 13px 16px;
+  background: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 14px; font-weight: 600;
+}
+.btn-browse-products.btn-browse-products-primary:hover {
+  background: var(--navy-light); border-color: var(--navy-light); color: #fff;
+}
+
+/* Compact image drop zone — secondary, reduced visual weight */
+.ai-image-zone.ai-image-zone-compact {
+  margin: 2px 14px 0;
+}
+.ai-image-placeholder.ai-image-placeholder-compact {
+  padding: 10px 14px;
+}
+.ai-image-placeholder.ai-image-placeholder-compact .ai-image-placeholder-text {
+  font-size: 12px;
+}
+
+/* Tighter divider above the reference image zone */
+.product-browse-divider.land-ai-ref-divider {
+  margin-top: 12px; margin-bottom: 4px;
+}
 
 /* ── Utility ─────────────────────────────────────────────────── */
 .hidden { display: none !important; }
