@@ -65,7 +65,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Load everything ───────────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadCharacters(), loadLands()]);
+  await Promise.all([loadCharacters(), loadLands(), loadSalesData()]);
+}
+
+// ── Sales Data ────────────────────────────────────────────────
+let salesData = {};   // keyed by SKU → { t12m_revenue, t12m_units, asp }
+
+async function loadSalesData() {
+  try {
+    const res = await fetch('/api/sales');
+    if (res.ok) salesData = await res.json();
+  } catch { /* silently ignore — sales data is non-critical */ }
+}
+
+function fmtRevenue(n) {
+  if (!n || isNaN(n)) return null;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000)     return `$${Math.round(n / 1_000)}K`;
+  return `$${Math.round(n)}`;
+}
+
+function fmtUnits(n) {
+  if (!n || isNaN(n)) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
+  return `${Math.round(n)}`;
+}
+
+function fmtAsp(n) {
+  if (!n || isNaN(n)) return null;
+  return `$${Number(n).toFixed(2)}`;
+}
+
+// Build the inner HTML for a product card body (with optional sales row)
+function buildProductCardBody(p) {
+  const s = salesData[p.sku];
+  const rev   = s ? fmtRevenue(s.t12m_revenue) : null;
+  const units = s ? fmtUnits(s.t12m_units)     : null;
+  const asp   = s ? fmtAsp(s.asp)              : null;
+  const hasSales = rev || units || asp;
+
+  return `
+    <div class="land-pf-card-name">${esc(p.name || p.sku)}</div>
+    <div class="land-pf-card-sku">${esc(p.sku)}</div>
+    ${rev ? `<div class="pf-sales-rev">${rev} T12M rev</div>` : ''}
+    ${hasSales && (units || asp) ? `<div class="pf-sales-metrics">${units ? `Units ${units}` : ''}${units && asp ? ' &nbsp; ' : ''}${asp ? `ASP ${asp}` : ''}</div>` : ''}`;
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -975,23 +1019,11 @@ function renderCharProductSelection() {
   charSelectedProducts.forEach(p => {
     const card = document.createElement('div');
     card.className = 'land-pf-card land-editor-pf-card';
-    if (p.image_url) {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap">
-          <img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" />
-        </div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(p.name || p.sku)}</div>
-          <div class="land-pf-card-sku">${esc(p.sku)}</div>
-        </div>`;
-    } else {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(p.sku)}</div>
-          <div class="land-pf-card-sku">Loading…</div>
-        </div>`;
-    }
+    card.innerHTML = p.image_url
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" /></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
+      : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+         <div class="land-pf-card-body"><div class="land-pf-card-name">${esc(p.sku)}</div><div class="land-pf-card-sku">Loading…</div></div>`;
     cardsEl.appendChild(card);
   });
 }
@@ -1030,25 +1062,14 @@ function renderCharDetailProducts(char) {
   container.innerHTML = '';
   skus.forEach(sku => {
     const product = productsLoaded ? allProducts.find(p => p.sku === sku) : null;
+    const p = product || { sku, name: sku, image_url: '' };
     const card = document.createElement('div');
     card.className = 'land-pf-card';
-    if (product && product.image_url) {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap">
-          <img src="${esc(product.image_url)}" alt="${esc(product.name)}" class="land-pf-card-img" />
-        </div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(product.name)}</div>
-          <div class="land-pf-card-sku">${esc(sku)}</div>
-        </div>`;
-    } else {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(sku)}</div>
-          <div class="land-pf-card-sku">Loading…</div>
-        </div>`;
-    }
+    card.innerHTML = p.image_url
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name)}" class="land-pf-card-img" loading="lazy" /></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
+      : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+         <div class="land-pf-card-body"><div class="land-pf-card-name">${esc(sku)}</div><div class="land-pf-card-sku">${product ? product.name : 'Loading…'}</div></div>`;
     container.appendChild(card);
   });
 }
@@ -1301,6 +1322,54 @@ async function handleDeleteLand() {
 function bindSettings() {
   document.getElementById('settings-save-btn').addEventListener('click', handleSettingsSave);
   document.getElementById('settings-export-btn').addEventListener('click', exportSettingsToExcel);
+
+  // Snowflake: Test Connection
+  document.getElementById('sf-test-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('sf-test-btn');
+    const bar = document.getElementById('snowflake-status-bar');
+    btn.disabled = true; btn.textContent = 'Testing…';
+    bar.className = 'snowflake-status-bar'; bar.textContent = ''; bar.classList.remove('hidden');
+    try {
+      // Save current creds first so snowflake.js picks them up
+      await saveSnowflakeCredentials();
+      const res = await fetch('/api/sales/test', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        bar.classList.add('sf-status-ok'); bar.textContent = '✓ Connection successful';
+      } else {
+        bar.classList.add('sf-status-err'); bar.textContent = '✗ ' + (data.error || 'Connection failed');
+      }
+    } catch (err) {
+      bar.classList.add('sf-status-err'); bar.textContent = '✗ ' + err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Test Connection';
+    }
+  });
+
+  // Snowflake: Sync Sales Data
+  document.getElementById('sf-refresh-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('sf-refresh-btn');
+    const bar = document.getElementById('snowflake-status-bar');
+    btn.disabled = true; btn.textContent = 'Syncing…';
+    bar.className = 'snowflake-status-bar'; bar.textContent = ''; bar.classList.remove('hidden');
+    try {
+      await saveSnowflakeCredentials();
+      const res = await fetch('/api/sales/refresh', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        bar.classList.add('sf-status-ok');
+        bar.textContent = `✓ Synced ${data.count} SKUs`;
+        await loadSalesData(); // refresh in-memory cache
+        updateSfLastSync(data.last_refresh);
+      } else {
+        bar.classList.add('sf-status-err'); bar.textContent = '✗ ' + (data.error || 'Sync failed');
+      }
+    } catch (err) {
+      bar.classList.add('sf-status-err'); bar.textContent = '✗ ' + err.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Sync Sales Data';
+    }
+  });
 
   // Image sample upload
   document.getElementById('img-samples-upload').addEventListener('change', (e) => {
@@ -1573,6 +1642,22 @@ async function loadSettings() {
     setVal('s-land-instruction-themes-and-content', s.ai_land_instruction_themes_and_content);
     setVal('s-image-gen-instructions', s.ai_image_gen_instructions);
 
+    // Snowflake — only populate if values exist (don't overwrite env-var-sourced blanks)
+    setVal('s-sf-account',   s.snowflake_account);
+    setVal('s-sf-username',  s.snowflake_username);
+    setVal('s-sf-warehouse', s.snowflake_warehouse);
+    setVal('s-sf-database',  s.snowflake_database);
+    setVal('s-sf-schema',    s.snowflake_schema);
+    setVal('s-sf-role',      s.snowflake_role);
+    setVal('s-sf-query',     s.snowflake_query);
+    // Never pre-fill password field
+
+    // Load sync status
+    try {
+      const sfStatus = await fetch('/api/sales/status').then(r => r.json());
+      updateSfLastSync(sfStatus.last_refresh, sfStatus.sku_count);
+    } catch { /* non-critical */ }
+
     const badge = document.getElementById('api-key-status-badge');
     badge.className = s.api_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
     badge.textContent = s.api_key_configured ? '✓ API Key Configured' : '✗ API Key Not Set';
@@ -1603,7 +1688,16 @@ async function handleSettingsSave() {
     ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
     ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
     ai_image_gen_instructions: getVal('s-image-gen-instructions'),
+    snowflake_account:   getVal('s-sf-account'),
+    snowflake_username:  getVal('s-sf-username'),
+    snowflake_warehouse: getVal('s-sf-warehouse'),
+    snowflake_database:  getVal('s-sf-database'),
+    snowflake_schema:    getVal('s-sf-schema'),
+    snowflake_role:      getVal('s-sf-role'),
+    snowflake_query:     getVal('s-sf-query'),
   };
+  const sfPassword = getVal('s-sf-password');
+  if (sfPassword) data.snowflake_password = sfPassword;
   const apiKey = getVal('s-api-key');
   if (apiKey) data.anthropic_api_key = apiKey;
   const openaiKey = getVal('s-openai-api-key');
@@ -1623,6 +1717,31 @@ async function handleSettingsSave() {
     alert('Save failed: ' + err.message);
     btn.disabled = false; btn.textContent = 'Save Settings';
   }
+}
+
+// ── Snowflake Settings helpers ────────────────────────────────
+async function saveSnowflakeCredentials() {
+  const data = {
+    snowflake_account:   getVal('s-sf-account'),
+    snowflake_username:  getVal('s-sf-username'),
+    snowflake_warehouse: getVal('s-sf-warehouse'),
+    snowflake_database:  getVal('s-sf-database'),
+    snowflake_schema:    getVal('s-sf-schema'),
+    snowflake_role:      getVal('s-sf-role'),
+    snowflake_query:     getVal('s-sf-query'),
+  };
+  const pw = getVal('s-sf-password');
+  if (pw) data.snowflake_password = pw;
+  await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+}
+
+function updateSfLastSync(lastRefresh, skuCount) {
+  const el = document.getElementById('sf-last-sync');
+  if (!el) return;
+  if (!lastRefresh) { el.textContent = ''; return; }
+  const d = new Date(lastRefresh + (lastRefresh.endsWith('Z') ? '' : 'Z'));
+  const formatted = d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  el.textContent = `Last synced ${formatted}${skuCount ? ` · ${skuCount} SKUs` : ''}`;
 }
 
 // ── Image Samples (Settings) ──────────────────────────────────
@@ -2014,25 +2133,11 @@ function renderLandProductSelection() {
   landSelectedProducts.forEach(p => {
     const card = document.createElement('div');
     card.className = 'land-pf-card land-editor-pf-card';
-    if (p.image_url) {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap">
-          <img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" />
-        </div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(p.name || p.sku)}</div>
-          <div class="land-pf-card-sku">${esc(p.sku)}</div>
-        </div>`;
-    } else {
-      card.innerHTML = `
-        <div class="land-pf-card-img-wrap land-pf-card-img-empty">
-          <span class="land-pf-card-img-icon">📦</span>
-        </div>
-        <div class="land-pf-card-body">
-          <div class="land-pf-card-name">${esc(p.sku)}</div>
-          <div class="land-pf-card-sku">Loading…</div>
-        </div>`;
-    }
+    card.innerHTML = p.image_url
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" /></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
+      : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+         <div class="land-pf-card-body"><div class="land-pf-card-name">${esc(p.sku)}</div><div class="land-pf-card-sku">Loading…</div></div>`;
     cardsEl.appendChild(card);
   });
 }

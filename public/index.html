@@ -512,6 +512,10 @@
             <a class="settings-nav-item" href="#s-section-land-ai" data-section="s-section-land-ai">🌍 Land Generator</a>
             <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
           </div>
+          <div class="settings-nav-group">
+            <div class="settings-nav-group-label">Data</div>
+            <a class="settings-nav-item" href="#s-section-snowflake" data-section="s-section-snowflake">❄️ Snowflake</a>
+          </div>
         </nav>
 
         <!-- ── Collapsible sections ──────────────────────────────── -->
@@ -632,6 +636,66 @@
                 <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
                 <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
                 <div id="img-samples-status" class="img-samples-status hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Snowflake Data Connection -->
+          <div class="settings-section collapsed" id="s-section-snowflake">
+            <button class="settings-section-toggle" data-target="s-section-snowflake">
+              <span class="settings-section-toggle-title">❄️ Snowflake Sales Data</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Connect to Snowflake to pull trailing-12-month revenue, units, and ASP into product tiles. Credentials can also be set as Railway env vars (<code>SNOWFLAKE_ACCOUNT</code>, <code>SNOWFLAKE_USERNAME</code>, <code>SNOWFLAKE_PASSWORD</code>, <code>SNOWFLAKE_WAREHOUSE</code>, <code>SNOWFLAKE_DATABASE</code>, <code>SNOWFLAKE_SCHEMA</code>, <code>SNOWFLAKE_ROLE</code>).</p>
+
+              <div id="snowflake-status-bar" class="snowflake-status-bar hidden"></div>
+
+              <div class="form-row-2" style="margin-top:18px">
+                <div class="form-group">
+                  <label class="form-label">Account Identifier <span class="form-hint-inline">(e.g. xy12345.us-east-1)</span></label>
+                  <input type="text" id="s-sf-account" class="form-input" placeholder="xy12345.us-east-1" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Username</label>
+                  <input type="text" id="s-sf-username" class="form-input" placeholder="LOVEPOP_USER" autocomplete="off" />
+                </div>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label class="form-label">Password</label>
+                  <input type="password" id="s-sf-password" class="form-input" placeholder="••••••••" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Role <span class="form-hint-inline">(optional)</span></label>
+                  <input type="text" id="s-sf-role" class="form-input" placeholder="ANALYST" autocomplete="off" />
+                </div>
+              </div>
+              <div class="form-row-3">
+                <div class="form-group">
+                  <label class="form-label">Warehouse</label>
+                  <input type="text" id="s-sf-warehouse" class="form-input" placeholder="COMPUTE_WH" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Database</label>
+                  <input type="text" id="s-sf-database" class="form-input" placeholder="LOVEPOP_DB" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Schema</label>
+                  <input type="text" id="s-sf-schema" class="form-input" placeholder="PUBLIC" autocomplete="off" />
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top:8px">
+                <label class="form-label">Sales Query</label>
+                <div class="form-hint" style="margin-bottom:8px">Must return columns: <code>sku</code>, <code>t12m_revenue</code>, <code>t12m_units</code>, <code>asp</code>. Snowflake returns column names in uppercase — both cases are handled automatically.</div>
+                <textarea id="s-sf-query" class="form-textarea sf-query-textarea" rows="9" spellcheck="false"></textarea>
+              </div>
+
+              <div class="sf-actions">
+                <button class="btn-secondary" id="sf-test-btn">Test Connection</button>
+                <button class="btn-primary" id="sf-refresh-btn">Sync Sales Data</button>
+                <span id="sf-last-sync" class="sf-last-sync"></span>
               </div>
             </div>
           </div>

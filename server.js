@@ -531,6 +531,44 @@ app.get('/api/image-proxy', async (req, res) => {
   }
 });
 
+// ── Snowflake Sales Data ──────────────────────────────────────
+app.get('/api/sales', (req, res) => {
+  try {
+    res.json(db.getAllSales());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/sales/status', (req, res) => {
+  try {
+    res.json(db.getSalesStatus());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sales/refresh', async (req, res) => {
+  try {
+    const { refreshSalesCache } = require('./snowflake');
+    const count = await refreshSalesCache();
+    const status = db.getSalesStatus();
+    res.json({ ok: true, count, ...status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/sales/test', async (req, res) => {
+  try {
+    const { testConnection } = require('./snowflake');
+    await testConnection();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Diagnostic
 app.get('/api/debug/db-path', (req, res) => {
   const dbPath = process.env.DB_PATH || path.join(__dirname, 'characters.db');

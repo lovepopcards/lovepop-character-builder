@@ -57,6 +57,17 @@ if (!existingLandCols.includes('product_skus')) {
   db.exec(`ALTER TABLE lands ADD COLUMN product_skus TEXT DEFAULT '[]'`);
 }
 
+// ── Sales Cache table ─────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sales_cache (
+    sku           TEXT PRIMARY KEY,
+    t12m_revenue  REAL DEFAULT 0,
+    t12m_units    REAL DEFAULT 0,
+    asp           REAL DEFAULT 0,
+    refreshed_at  TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -88,6 +99,23 @@ const DEFAULTS = {
   ai_land_instruction_themes_and_content: `List the primary themes, motifs, and content types that appear in this land (e.g. "wildflowers, mushrooms, morning dew, soft woodland creatures, birthday celebrations"). Aim for 6-10 specific elements.`,
 
   ai_model: 'claude-opus-4-5',
+
+  // Snowflake connection
+  snowflake_account:   '',
+  snowflake_username:  '',
+  snowflake_password:  '',
+  snowflake_warehouse: '',
+  snowflake_database:  '',
+  snowflake_schema:    'PUBLIC',
+  snowflake_role:      '',
+  snowflake_query: `SELECT
+  sku,
+  SUM(t12m_revenue) AS t12m_revenue,
+  SUM(t12m_units)   AS t12m_units,
+  ROUND(SUM(t12m_revenue) / NULLIF(SUM(t12m_units), 0), 2) AS asp
+FROM your_sales_table
+WHERE order_date >= DATEADD('month', -12, CURRENT_DATE())
+GROUP BY sku`,
 
   // Land headline image generator
   ai_image_gen_instructions: `You are creating a headline image for a Lovepop greeting card world. Lovepop makes beautiful, intricate paper pop-up art — the images should evoke that same sense of wonder, precision, and warmth.
@@ -210,6 +238,39 @@ module.exports = {
   },
   setSettings(obj) {
     for (const [key, value] of Object.entries(obj)) this.setSetting(key, value);
+  },
+
+  // ── Sales Cache ───────────────────────────────────────────────
+  getAllSales() {
+    const rows = db.prepare('SELECT * FROM sales_cache').all();
+    return Object.fromEntries(rows.map(r => [r.sku, r]));
+  },
+  upsertSalesCache(rows) {
+    const stmt = db.prepare(`
+      INSERT INTO sales_cache (sku, t12m_revenue, t12m_units, asp, refreshed_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(sku) DO UPDATE SET
+        t12m_revenue = excluded.t12m_revenue,
+        t12m_units   = excluded.t12m_units,
+        asp          = excluded.asp,
+        refreshed_at = excluded.refreshed_at
+    `);
+    // Snowflake returns uppercase column names by default
+    for (const row of rows) {
+      stmt.run(
+        row.SKU          ?? row.sku          ?? '',
+        row.T12M_REVENUE ?? row.t12m_revenue ?? 0,
+        row.T12M_UNITS   ?? row.t12m_units   ?? 0,
+        row.ASP          ?? row.asp          ?? 0,
+      );
+    }
+  },
+  getSalesStatus() {
+    const row = db.prepare(`
+      SELECT COUNT(*) AS sku_count, MAX(refreshed_at) AS last_refresh
+      FROM sales_cache
+    `).get();
+    return { sku_count: row.sku_count || 0, last_refresh: row.last_refresh || null };
   },
 
   DEFAULTS,

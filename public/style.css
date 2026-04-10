@@ -585,6 +585,8 @@ html, body {
 
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 .form-row-2 .form-group { margin-bottom: 0; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.form-row-3 .form-group { margin-bottom: 0; }
 
 .form-label {
   display: block; font-size: 12px; font-weight: 600;
@@ -1126,6 +1128,15 @@ html, body {
   font-size: 9px; font-family: 'DM Mono', monospace; color: var(--text-muted);
   letter-spacing: 0.3px;
 }
+/* Sales metrics on product cards */
+.pf-sales-rev {
+  font-size: 10px; font-weight: 700; color: var(--navy);
+  margin-top: 5px; line-height: 1.2;
+}
+.pf-sales-metrics {
+  font-size: 9px; color: var(--gray); font-weight: 500;
+  margin-top: 2px; line-height: 1.2;
+}
 .land-pf-card-meta {
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
   margin-top: 5px; font-size: 10px; color: var(--gray); font-weight: 500;
@@ -1387,6 +1398,26 @@ html, body {
 .img-samples-status {
   font-size: 12px; color: var(--green); margin-top: 6px; font-weight: 500;
 }
+
+/* ── Snowflake Settings ──────────────────────────────────────── */
+.sf-query-textarea {
+  font-family: 'DM Mono', 'Courier New', monospace;
+  font-size: 12px; line-height: 1.55;
+  background: #f8f8fc;
+}
+.sf-actions {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 18px; flex-wrap: wrap;
+}
+.sf-last-sync {
+  font-size: 11px; color: var(--gray); margin-left: 4px;
+}
+.snowflake-status-bar {
+  padding: 8px 12px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; margin-top: 14px;
+}
+.sf-status-ok  { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.sf-status-err { background: #FDECEA; color: var(--red); border: 1px solid #f5c6c2; }
 
 /* ── Utility ─────────────────────────────────────────────────── */
 .hidden { display: none !important; }
