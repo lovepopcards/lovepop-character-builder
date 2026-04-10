@@ -917,7 +917,8 @@ html, body {
 .land-ai-pf-badge {
   display: flex; align-items: center; justify-content: space-between;
   background: var(--sand); border: 1px solid var(--sand-mid);
-  border-radius: var(--radius-sm); padding: 7px 10px; margin-bottom: 4px;
+  border-radius: var(--radius-sm); padding: 7px 10px;
+  margin: 0 14px 4px;   /* align with btn-browse-products */
 }
 .land-ai-pf-badge-text { font-size: 12px; font-weight: 600; color: var(--navy); }
 
@@ -951,7 +952,10 @@ html, body {
   content: ''; flex: 1; height: 1px; background: var(--sand-mid);
 }
 .btn-browse-products {
-  width: 100%; padding: 9px 12px; margin-bottom: 4px;
+  display: block;
+  width: calc(100% - 28px);   /* matches btn-ai-generate: inset 14px on each side */
+  margin: 10px 14px 4px;
+  padding: 9px 12px;
   background: var(--white);
   border: 1.5px dashed var(--sand-mid);
   border-radius: var(--radius-sm);
