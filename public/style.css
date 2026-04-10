@@ -694,6 +694,9 @@ html, body {
   overflow-x: hidden;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  /* Explicit row height breaks the grid×flex circular-dependency that collapses rows to 0.
+     Without this, grid rows with flex-container items have no intrinsic height. */
+  grid-auto-rows: 230px;
   gap: 12px;
   padding: 2px 28px 16px;
   align-content: start;
@@ -715,11 +718,12 @@ html, body {
 
 .product-tile {
   position: relative;
-  display: flex; flex-direction: column;   /* ← ensures image area never gets squashed */
+  display: flex; flex-direction: column;
   border: 1.5px solid var(--sand-mid);
   border-radius: var(--radius-md);
   background: var(--white);
-  cursor: pointer; overflow: hidden;
+  cursor: pointer;
+  overflow: hidden;   /* clips image to border-radius; safe now that grid-auto-rows sets the row height */
   transition: border-color .15s, box-shadow .15s, transform .12s;
   user-select: none;
 }

@@ -1220,12 +1220,9 @@ function renderProductGrid() {
       ? `$${(product.revenue.t12m / 1000).toFixed(0)}K T12M`
       : '';
 
-    // Inline styles on the image wrapper + img guarantee the 160px height regardless of
-    // any cascade issues — this is the critical fix for the collapsed-image bug.
     tile.innerHTML = `
-      <div class="product-tile-image" style="height:160px;overflow:hidden;background:#F0EAE0;flex-shrink:0;">
-        <img src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy"
-             style="width:100%;height:100%;object-fit:cover;display:block;" />
+      <div class="product-tile-image">
+        <img src="${esc(product.image_url)}" alt="${esc(product.name)}" />
       </div>
       <div class="product-tile-body">
         <div class="product-tile-name">${esc(product.name)}</div>
