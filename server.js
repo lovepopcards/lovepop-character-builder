@@ -228,6 +228,114 @@ app.post('/api/ai/generate-land', uploadMem.single('image'), (req, res) =>
   }})
 );
 
+// ── Character Artwork Generator ───────────────────────────────
+app.post('/api/ai/generate-char-image', uploadMem.array('images', 4), async (req, res) => {
+  const openaiKey    = process.env.OPENAI_API_KEY    || db.getSetting('openai_api_key');
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!openaiKey) return res.status(400).json({ error: 'OpenAI API key not configured. Add it in Settings to use image generation.' });
+
+  const settings = db.getAllSettings();
+  const { name = '', species = '', role = '', backstory = '', personality = '',
+          key_passions = '', tone_and_voice = '', notes = '' } = req.body;
+
+  // ── Step 1: Build the DALL-E prompt via Claude ────────────────
+  let dallePrompt = '';
+
+  if (anthropicKey) {
+    const anthropic = new Anthropic({ apiKey: anthropicKey });
+    const userContent = [];
+
+    // Attach uploaded reference images (up to 4)
+    if (req.files && req.files.length) {
+      for (const file of req.files.slice(0, 4)) {
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: file.mimetype, data: file.buffer.toString('base64') } });
+      }
+    }
+
+    userContent.push({
+      type: 'text',
+      text: [
+        req.files && req.files.length
+          ? `I've provided ${req.files.length} reference image${req.files.length > 1 ? 's' : ''} above. Use these to inform the character's visual appearance, art style, and aesthetic.\n`
+          : '',
+        `CHARACTER DATA:`,
+        name        ? `Name: ${name}` : '',
+        species     ? `Species/Type: ${species}` : '',
+        role        ? `Role: ${role}` : '',
+        backstory   ? `Backstory: ${backstory}` : '',
+        personality ? `Personality: ${personality}` : '',
+        key_passions ? `Key Passions: ${key_passions}` : '',
+        tone_and_voice ? `Tone & Voice: ${tone_and_voice}` : '',
+        notes       ? `\nAdditional artwork notes: ${notes}` : '',
+        `\nWrite a single, detailed DALL-E 3 image generation prompt (120–200 words) for a piece of character artwork.`,
+        `The artwork should feel like Lovepop's warm, whimsical, paper-art illustration style — expressive, charming, full of personality.`,
+        `Be specific about the character's appearance, pose, expression, setting, color palette, lighting, and artistic medium.`,
+        `Output ONLY the prompt text — no preamble, no markdown, no quotes.`,
+      ].filter(Boolean).join('\n'),
+    });
+
+    try {
+      const promptResp = await anthropic.messages.create({
+        model: settings.ai_model || db.DEFAULTS.ai_model,
+        max_tokens: 512,
+        system: 'You write DALL-E 3 image generation prompts for character illustrations. Output only the raw prompt text.',
+        messages: [{ role: 'user', content: userContent }],
+      });
+      dallePrompt = promptResp.content[0].text.trim();
+    } catch (e) {
+      console.warn('Claude prompt-building failed, using template:', e.message);
+    }
+  }
+
+  // Fallback template prompt
+  if (!dallePrompt) {
+    dallePrompt = [
+      `A charming, whimsical character illustration in the style of Lovepop paper art:`,
+      name    ? `Character named "${name}"` : 'a Lovepop character',
+      species ? `who is a ${species}` : '',
+      role    ? `— ${role}` : '',
+      personality ? `Personality: ${personality}` : '',
+      notes   ? `Additional details: ${notes}` : '',
+      `Warm, inviting illustration style. Expressive face, rich colors, soft lighting. Square composition.`,
+    ].filter(Boolean).join('. ');
+  }
+
+  // ── Step 2: Call DALL-E 3 ─────────────────────────────────────
+  try {
+    const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: dallePrompt,
+        size: '1024x1024',
+        quality: 'hd',
+        n: 1,
+      }),
+    });
+
+    if (!dalleResp.ok) {
+      const errBody = await dalleResp.json().catch(() => ({}));
+      throw new Error(errBody.error?.message || `DALL-E API error ${dalleResp.status}`);
+    }
+
+    const dalleData = await dalleResp.json();
+    const imageUrl  = dalleData.data[0].url;
+
+    // Download & persist
+    const imgResp = await fetch(imageUrl);
+    if (!imgResp.ok) throw new Error('Failed to download generated image');
+    const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
+    const filename = `char-art-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
+
+    res.json({ image_url: `/uploads/${filename}`, dalle_prompt: dallePrompt });
+  } catch (err) {
+    console.error('Character artwork generation error:', err);
+    res.status(500).json({ error: err.message || 'Image generation failed' });
+  }
+});
+
 // ── Image Sample endpoints (for Land Image Generator settings) ─
 app.get('/api/settings/image-samples', (req, res) => {
   const raw = db.getSetting('ai_image_gen_samples');

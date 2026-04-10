@@ -20,7 +20,8 @@ let aiImageFile = null;
 let landAiImageFile = null;
 let aiGeneratedData = {};
 let landAiGeneratedData = {};
-let pendingCharImages = [];   // File[] queued for upload on create
+let pendingCharImages = [];      // File[] queued for upload on create
+let pendingCharGenUrls = [];     // already-on-server URLs from accepted generated artwork
 let pendingLandImages = [];      // File[] queued for upload on create
 let pendingLandGenUrls = [];     // already-on-server URLs from accepted generated images
 
@@ -56,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindDetailModal();
   bindLandDetailModal();
   bindSettings();
+  bindCharArtGenerator();
   bindLandImageGenerator();
   loadAll();
   checkApiKeyStatus();
@@ -181,6 +183,12 @@ function openEditorView(mode, charId = null) {
   aiGeneratedData = {};
   aiImageFile = null;
   pendingCharImages = [];
+  pendingCharGenUrls = [];
+  charArtRefFiles = [];
+  charArtGenUrl = null;
+  document.getElementById('char-art-preview-wrap')?.classList.add('hidden');
+  document.getElementById('char-art-status')?.classList.add('hidden');
+  renderCharArtRefs();
   clearAIPanel();
   clearCharProductSelection();
   if (mode === 'edit' && charId) {
@@ -212,15 +220,25 @@ function openEditorView(mode, charId = null) {
 function renderEditorImages(existingUrls) {
   const gallery = document.getElementById('editor-images-gallery');
   gallery.innerHTML = '';
-  // Render existing saved images
-  existingUrls.forEach((url, idx) => {
+  // Prepend any accepted generated artwork URLs (already on server)
+  const allUrls = [...pendingCharGenUrls, ...existingUrls.filter(u => !pendingCharGenUrls.includes(u))];
+  allUrls.forEach((url, idx) => {
+    const isGen = pendingCharGenUrls.includes(url);
     const item = document.createElement('div');
     item.className = 'editor-image-item';
     item.innerHTML = `
       <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" />
       ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
+      ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
       <button class="img-remove-btn" title="Remove image" aria-label="Remove">✕</button>`;
-    item.querySelector('.img-remove-btn').addEventListener('click', () => handleCharImageRemove(idx));
+    item.querySelector('.img-remove-btn').addEventListener('click', () => {
+      if (isGen) {
+        pendingCharGenUrls = pendingCharGenUrls.filter(u => u !== url);
+        renderEditorImages(existingUrls);
+      } else {
+        handleCharImageRemove(existingUrls.indexOf(url));
+      }
+    });
     gallery.appendChild(item);
   });
   // Render pending (not-yet-uploaded) images
@@ -333,6 +351,18 @@ async function handleEditorSave() {
       }
     }
     pendingCharImages = [];
+
+    // Include any accepted AI-generated artwork URLs (already on server)
+    if (pendingCharGenUrls.length) {
+      const mergedImages = [...pendingCharGenUrls, ...(saved.images || []).filter(u => !pendingCharGenUrls.includes(u))];
+      const updRes = await fetch(`${API}/${saved.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: mergedImages }),
+      });
+      if (updRes.ok) saved = await updRes.json();
+      pendingCharGenUrls = [];
+    }
 
     if (editorMode === 'edit') {
       characters = characters.map(c => c.id === saved.id ? saved : c);
@@ -1267,6 +1297,195 @@ function setSettingsNavActive(id) {
   document.querySelectorAll('.settings-nav-item').forEach(link => {
     link.classList.toggle('active', link.dataset.section === id);
   });
+}
+
+// ── Character Artwork Generator ───────────────────────────────
+let charArtRefFiles = [];    // File[] — uploaded reference images
+let charArtGenUrl   = null;  // URL of most recently generated artwork
+
+function bindCharArtGenerator() {
+  const zone    = document.getElementById('char-art-upload-zone');
+  const input   = document.getElementById('char-art-upload-input');
+  const link    = document.getElementById('char-art-upload-link');
+  const placeholder = document.getElementById('char-art-upload-placeholder');
+
+  // Click anywhere in zone (or on link) to open file picker
+  zone.addEventListener('click', (e) => {
+    if (e.target.classList.contains('char-art-ref-remove')) return;
+    if (e.target.classList.contains('char-art-ref-add')) return;
+    input.click();
+  });
+  if (link) link.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+
+  input.addEventListener('change', () => {
+    addCharArtRefs(Array.from(input.files));
+    input.value = '';
+  });
+
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length) addCharArtRefs(files);
+  });
+
+  document.getElementById('char-art-generate-btn').addEventListener('click', generateCharArt);
+  document.getElementById('char-art-accept-btn').addEventListener('click', acceptCharArt);
+  document.getElementById('char-art-regen-btn').addEventListener('click', generateCharArt);
+  document.getElementById('char-art-discard-btn').addEventListener('click', discardCharArt);
+  document.getElementById('char-art-goto-settings').addEventListener('click', (e) => {
+    e.preventDefault(); switchView('settings'); loadSettings();
+  });
+  document.getElementById('char-art-preview-img').addEventListener('click', () => {
+    document.getElementById('char-art-prompt-peek').classList.toggle('hidden');
+  });
+}
+
+function addCharArtRefs(files) {
+  const remaining = 4 - charArtRefFiles.length;
+  const toAdd = files.slice(0, remaining);
+  charArtRefFiles.push(...toAdd);
+  renderCharArtRefs();
+}
+
+function renderCharArtRefs() {
+  const strip       = document.getElementById('char-art-preview-strip');
+  const placeholder = document.getElementById('char-art-upload-placeholder');
+  const input       = document.getElementById('char-art-upload-input');
+
+  if (!charArtRefFiles.length) {
+    strip.classList.add('hidden');
+    placeholder.classList.remove('hidden');
+    return;
+  }
+
+  strip.classList.remove('hidden');
+  placeholder.classList.add('hidden');
+  strip.innerHTML = '';
+
+  charArtRefFiles.forEach((file, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'char-art-ref-thumb-wrap';
+    const img = document.createElement('img');
+    img.className = 'char-art-ref-thumb';
+    img.alt = `Ref ${idx + 1}`;
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'char-art-ref-remove';
+    removeBtn.title = 'Remove';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      charArtRefFiles.splice(idx, 1);
+      renderCharArtRefs();
+    });
+    wrap.appendChild(img);
+    wrap.appendChild(removeBtn);
+    strip.appendChild(wrap);
+  });
+
+  // Add "+" button if under limit
+  if (charArtRefFiles.length < 4) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'char-art-ref-add';
+    addBtn.title = 'Add another reference image';
+    addBtn.textContent = '+';
+    addBtn.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+    strip.appendChild(addBtn);
+  }
+}
+
+async function generateCharArt() {
+  const btn    = document.getElementById('char-art-generate-btn');
+  const status = document.getElementById('char-art-status');
+  const warn   = document.getElementById('char-art-openai-warning');
+  const preview = document.getElementById('char-art-preview-wrap');
+  const notes  = (document.getElementById('char-art-notes')?.value || '').trim();
+
+  // Pull current form field values for context
+  const name        = (document.getElementById('f-name')?.value || '').trim();
+  const species     = (document.getElementById('f-species')?.value || '').trim();
+  const role        = (document.getElementById('f-role')?.value || '').trim();
+  const backstory   = (document.getElementById('f-backstory')?.value || '').trim();
+  const personality = (document.getElementById('f-personality')?.value || '').trim();
+  const key_passions    = (document.getElementById('f-key-passions')?.value || '').trim();
+  const tone_and_voice  = (document.getElementById('f-tone-and-voice')?.value || '').trim();
+
+  btn.disabled = true;
+  preview.classList.add('hidden');
+  warn.classList.add('hidden');
+  status.classList.remove('hidden');
+  status.innerHTML = '<span>⏳</span> Generating artwork… this takes about 15–30 seconds.';
+
+  try {
+    const fd = new FormData();
+    charArtRefFiles.forEach(f => fd.append('images', f));
+    fd.append('name', name);
+    fd.append('species', species);
+    fd.append('role', role);
+    fd.append('backstory', backstory);
+    fd.append('personality', personality);
+    fd.append('key_passions', key_passions);
+    fd.append('tone_and_voice', tone_and_voice);
+    fd.append('notes', notes);
+
+    const res  = await fetch('/api/ai/generate-char-image', { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (res.status === 400 && data.error?.toLowerCase().includes('openai')) {
+        warn.classList.remove('hidden');
+      } else {
+        status.textContent = '✗ ' + (data.error || 'Generation failed');
+      }
+      return;
+    }
+
+    charArtGenUrl = data.image_url;
+    document.getElementById('char-art-preview-img').src = data.image_url;
+    document.getElementById('char-art-prompt-peek').textContent = '📝 Prompt: ' + data.dalle_prompt;
+    status.classList.add('hidden');
+    preview.classList.remove('hidden');
+
+  } catch (err) {
+    status.textContent = '✗ ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function acceptCharArt() {
+  if (!charArtGenUrl) return;
+  if (editorMode === 'edit' && editorCharId) {
+    try {
+      const charData = await fetch(`/api/characters/${editorCharId}`).then(r => r.json());
+      const newImages = [charArtGenUrl, ...(charData.images || []).filter(u => u !== charArtGenUrl)];
+      const updated = await fetch(`/api/characters/${editorCharId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: newImages }),
+      }).then(r => r.json());
+      characters = characters.map(c => c.id === updated.id ? updated : c);
+      renderEditorImages(newImages);
+      renderCatalog();
+    } catch (e) { alert('Could not save artwork: ' + e.message); return; }
+  } else {
+    // New character — queue as a pending server URL (not a File blob)
+    if (!pendingCharGenUrls.includes(charArtGenUrl)) pendingCharGenUrls.unshift(charArtGenUrl);
+    const existingChar = characters.find(c => c.id === editorCharId);
+    renderEditorImages(existingChar ? existingChar.images || [] : []);
+  }
+  document.getElementById('char-art-preview-wrap').classList.add('hidden');
+  charArtGenUrl = null;
+}
+
+function discardCharArt() {
+  charArtGenUrl = null;
+  document.getElementById('char-art-preview-wrap').classList.add('hidden');
+  document.getElementById('char-art-status').classList.add('hidden');
 }
 
 // ── Land Headline Image Generator — event bindings ────────────

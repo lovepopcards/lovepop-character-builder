@@ -1070,6 +1070,66 @@ html, body {
   margin-top: 12px; margin-bottom: 4px;
 }
 
+/* ── Character Artwork Generator (AI panel) ─────────────────── */
+.char-art-gen-divider {
+  height: 1px; background: rgba(255,255,255,0.1);
+  margin: 18px 14px 0;
+}
+.char-art-gen-section { padding: 14px 14px 20px; }
+.char-art-gen-header { margin-bottom: 12px; }
+.char-art-gen-title {
+  display: block; font-size: 13px; font-weight: 700; color: var(--navy);
+  margin-bottom: 2px;
+}
+.char-art-gen-hint { font-size: 11px; color: rgba(255,255,255,0.55); }
+
+/* Multi-image upload zone */
+.char-art-upload-zone {
+  border: 1.5px dashed var(--sand-mid);
+  border-radius: var(--radius-md);
+  overflow: hidden; cursor: pointer;
+  transition: border-color .15s;
+  min-height: 72px;
+}
+.char-art-upload-zone:hover { border-color: var(--coral); }
+.char-art-upload-zone.drag-over { border-color: var(--coral); background: var(--coral-light); }
+
+.char-art-upload-placeholder {
+  padding: 16px; text-align: center;
+}
+.char-art-upload-icon { font-size: 20px; margin-bottom: 6px; opacity: 0.4; }
+.char-art-upload-text { font-size: 12px; color: var(--gray); line-height: 1.5; }
+.char-art-upload-text .link { color: var(--coral); cursor: pointer; text-decoration: underline; }
+.char-art-upload-hint { font-size: 10px; color: var(--gray-light); margin-top: 4px; }
+
+/* Thumbnail strip of uploaded references */
+.char-art-preview-strip {
+  display: flex; gap: 6px; flex-wrap: wrap; padding: 8px;
+  background: rgba(255,255,255,0.04);
+}
+.char-art-ref-thumb-wrap {
+  position: relative; width: 60px; height: 60px; flex-shrink: 0;
+}
+.char-art-ref-thumb {
+  width: 60px; height: 60px; border-radius: 6px;
+  object-fit: cover; border: 1.5px solid var(--sand-mid); display: block;
+}
+.char-art-ref-remove {
+  position: absolute; top: -5px; right: -5px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--coral); color: #fff; border: none;
+  font-size: 10px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; line-height: 1;
+}
+.char-art-ref-add {
+  width: 60px; height: 60px; border-radius: 6px;
+  border: 1.5px dashed var(--sand-mid); background: none;
+  color: var(--gray-light); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: border-color .15s, color .15s;
+}
+.char-art-ref-add:hover { border-color: var(--coral); color: var(--coral); }
+
 /* ── Land Headline Image Generator (AI panel) ────────────────── */
 .land-img-gen-divider {
   height: 1px; background: var(--sand-mid);
