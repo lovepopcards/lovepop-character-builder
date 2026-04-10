@@ -408,84 +408,149 @@
           <button class="btn-primary" id="settings-save-btn">Save Settings</button>
         </div>
       </div>
-      <div class="settings-layout">
-        <div class="settings-card">
-          <div class="settings-card-title">Anthropic API Key</div>
-          <div class="settings-card-desc">Required for AI generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</div>
-          <div id="api-key-status-badge" class="api-key-badge"></div>
-          <div class="form-group" style="margin-top:14px">
-            <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
-            <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
-          </div>
-        </div>
-        <div class="settings-card">
-          <div class="settings-card-title">AI System Prompt</div>
-          <div class="settings-card-desc">Sets the overall context and brand voice for all AI generation requests.</div>
-          <div class="form-group" style="margin-top:14px">
-            <textarea id="s-system-prompt" class="form-textarea" rows="6"></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label">AI Model</label>
-            <select id="s-model" class="form-select">
-              <option value="claude-opus-4-5">claude-opus-4-5 (recommended)</option>
-              <option value="claude-sonnet-4-5">claude-sonnet-4-5 (faster)</option>
-              <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
-              <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022 (fastest)</option>
-            </select>
-          </div>
-        </div>
-        <div class="settings-card">
-          <div class="settings-card-title">Character AI Instructions</div>
-          <div class="settings-card-desc">Per-field guidance for character generation.</div>
-          <div class="field-instructions-grid" style="margin-top:20px">
-            <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-instruction-name" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Species</div><textarea id="s-instruction-species" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Role</div><textarea id="s-instruction-role" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Backstory</div><textarea id="s-instruction-backstory" class="form-textarea" rows="3"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Personality</div><textarea id="s-instruction-personality" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Key Passions</div><textarea id="s-instruction-key-passions" class="form-textarea" rows="3"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">What They Care About</div><textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Tone &amp; Voice</div><textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea></div>
-          </div>
-        </div>
-        <div class="settings-card">
-          <div class="settings-card-title">Land AI Instructions</div>
-          <div class="settings-card-desc">Per-field guidance for Lovepop Land generation.</div>
-          <div class="field-instructions-grid" style="margin-top:20px">
-            <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-land-instruction-name" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Description</div><textarea id="s-land-instruction-description" class="form-textarea" rows="3"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Visual Style</div><textarea id="s-land-instruction-visual-style" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Color Palette</div><textarea id="s-land-instruction-color-palette" class="form-textarea" rows="2"></textarea></div>
-            <div class="field-instruction-row"><div class="field-instruction-label">Themes &amp; Content</div><textarea id="s-land-instruction-themes-and-content" class="form-textarea" rows="3"></textarea></div>
-          </div>
-        </div>
 
-        <div class="settings-card">
-          <div class="settings-card-title">🎨 Land Headline Image Generator</div>
-          <div class="settings-card-desc">AI-generated hero images for Lovepop Lands, powered by OpenAI DALL-E 3. Configure your API key, style instructions, and reference samples below.</div>
+      <div class="settings-shell">
 
-          <div class="form-group" style="margin-top:18px">
-            <label class="form-label">OpenAI API Key <span class="form-hint-inline">(set as <code>OPENAI_API_KEY</code> env var in Railway, or enter below)</span></label>
-            <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
-            <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
+        <!-- ── Left nav ─────────────────────────────────────────── -->
+        <nav class="settings-nav">
+          <div class="settings-nav-group">
+            <div class="settings-nav-group-label">API Keys</div>
+            <a class="settings-nav-item active" href="#s-section-anthropic" data-section="s-section-anthropic">🤖 Anthropic (Claude)</a>
+            <a class="settings-nav-item" href="#s-section-openai" data-section="s-section-openai">🎨 OpenAI (DALL-E)</a>
+          </div>
+          <div class="settings-nav-group">
+            <div class="settings-nav-group-label">AI Behavior</div>
+            <a class="settings-nav-item" href="#s-section-system" data-section="s-section-system">⚙️ System Prompt &amp; Model</a>
+            <a class="settings-nav-item" href="#s-section-char-ai" data-section="s-section-char-ai">✨ Character Generator</a>
+            <a class="settings-nav-item" href="#s-section-land-ai" data-section="s-section-land-ai">🌍 Land Generator</a>
+            <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
+          </div>
+        </nav>
+
+        <!-- ── Collapsible sections ──────────────────────────────── -->
+        <div class="settings-content">
+
+          <!-- Anthropic API Key -->
+          <div class="settings-section" id="s-section-anthropic">
+            <button class="settings-section-toggle" data-target="s-section-anthropic">
+              <span class="settings-section-toggle-title">🤖 Anthropic API Key</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Required for AI text generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</p>
+              <div id="api-key-status-badge" class="api-key-badge"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
+                <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
+              </div>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Image Generation Instructions</label>
-            <div class="form-hint" style="margin-bottom:8px">Describe the visual style, mood, and quality standards for generated land images. This is passed to the AI alongside each land's specific data.</div>
-            <textarea id="s-image-gen-instructions" class="form-textarea" rows="7"></textarea>
+          <!-- OpenAI API Key -->
+          <div class="settings-section collapsed" id="s-section-openai">
+            <button class="settings-section-toggle" data-target="s-section-openai">
+              <span class="settings-section-toggle-title">🎨 OpenAI API Key</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Required for AI headline image generation (DALL-E 3). Set as the <code>OPENAI_API_KEY</code> env var in Railway, or enter below.</p>
+              <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">API Key <span class="form-hint-inline">(prefer env var in production)</span></label>
+                <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
+              </div>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Sample Headline Images</label>
-            <div class="form-hint" style="margin-bottom:12px">Upload example headline images that represent the ideal visual style. The AI will study these as style references when generating new images (up to 3 are used per generation).</div>
-            <div id="img-samples-grid" class="img-samples-grid"></div>
-            <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
-            <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
-            <div id="img-samples-status" class="img-samples-status hidden"></div>
+          <!-- System Prompt & Model -->
+          <div class="settings-section collapsed" id="s-section-system">
+            <button class="settings-section-toggle" data-target="s-section-system">
+              <span class="settings-section-toggle-title">⚙️ System Prompt &amp; Model</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Sets the overall context and brand voice sent with every AI generation request.</p>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">System Prompt</label>
+                <textarea id="s-system-prompt" class="form-textarea" rows="6"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">AI Model</label>
+                <select id="s-model" class="form-select">
+                  <option value="claude-opus-4-5">claude-opus-4-5 (recommended)</option>
+                  <option value="claude-sonnet-4-5">claude-sonnet-4-5 (faster)</option>
+                  <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                  <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022 (fastest)</option>
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+
+          <!-- Character AI Instructions -->
+          <div class="settings-section collapsed" id="s-section-char-ai">
+            <button class="settings-section-toggle" data-target="s-section-char-ai">
+              <span class="settings-section-toggle-title">✨ Character Generator Instructions</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Per-field guidance telling the AI how to write each part of a character profile.</p>
+              <div class="field-instructions-grid" style="margin-top:20px">
+                <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-instruction-name" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Species</div><textarea id="s-instruction-species" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Role</div><textarea id="s-instruction-role" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Backstory</div><textarea id="s-instruction-backstory" class="form-textarea" rows="3"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Personality</div><textarea id="s-instruction-personality" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Key Passions</div><textarea id="s-instruction-key-passions" class="form-textarea" rows="3"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">What They Care About</div><textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Tone &amp; Voice</div><textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Land AI Instructions -->
+          <div class="settings-section collapsed" id="s-section-land-ai">
+            <button class="settings-section-toggle" data-target="s-section-land-ai">
+              <span class="settings-section-toggle-title">🌍 Land Generator Instructions</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Per-field guidance for Lovepop Land text generation.</p>
+              <div class="field-instructions-grid" style="margin-top:20px">
+                <div class="field-instruction-row"><div class="field-instruction-label">Name</div><textarea id="s-land-instruction-name" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Description</div><textarea id="s-land-instruction-description" class="form-textarea" rows="3"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Visual Style</div><textarea id="s-land-instruction-visual-style" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Color Palette</div><textarea id="s-land-instruction-color-palette" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Themes &amp; Content</div><textarea id="s-land-instruction-themes-and-content" class="form-textarea" rows="3"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Headline Image Generator -->
+          <div class="settings-section collapsed" id="s-section-image-ai">
+            <button class="settings-section-toggle" data-target="s-section-image-ai">
+              <span class="settings-section-toggle-title">🖼 Headline Image Generator</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">AI-generated hero images for Lovepop Lands, powered by OpenAI DALL-E 3. Claude writes a detailed prompt from the land's data; DALL-E renders the image.</p>
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Image Generation Instructions</label>
+                <div class="form-hint" style="margin-bottom:8px">Describe the visual style, mood, and quality standards. Passed to Claude when building the DALL-E prompt.</div>
+                <textarea id="s-image-gen-instructions" class="form-textarea" rows="7"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Sample Headline Images</label>
+                <div class="form-hint" style="margin-bottom:12px">Upload reference images representing the ideal style. Up to 3 are sent to Claude as visual reference per generation.</div>
+                <div id="img-samples-grid" class="img-samples-grid"></div>
+                <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
+                <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
+                <div id="img-samples-status" class="img-samples-status hidden"></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /settings-content -->
+      </div><!-- /settings-shell -->
     </div>
 
   </main>

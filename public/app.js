@@ -1229,6 +1229,44 @@ function bindSettings() {
     if (e.target.files.length) uploadImageSamples(Array.from(e.target.files));
     e.target.value = '';
   });
+
+  // Collapsible section toggles
+  document.querySelectorAll('.settings-section-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const section = btn.closest('.settings-section');
+      section.classList.toggle('collapsed');
+      // Sync nav active state
+      const id = section.id;
+      if (!section.classList.contains('collapsed')) setSettingsNavActive(id);
+    });
+  });
+
+  // Left nav click — expand target section, scroll to it
+  document.querySelectorAll('.settings-nav-item').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = link.dataset.section;
+      const section = document.getElementById(id);
+      if (!section) return;
+      section.classList.remove('collapsed');
+      setSettingsNavActive(id);
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Highlight nav item as user scrolls sections into view
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) setSettingsNavActive(entry.target.id);
+    });
+  }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+  document.querySelectorAll('.settings-section').forEach(s => observer.observe(s));
+}
+
+function setSettingsNavActive(id) {
+  document.querySelectorAll('.settings-nav-item').forEach(link => {
+    link.classList.toggle('active', link.dataset.section === id);
+  });
 }
 
 // ── Land Headline Image Generator — event bindings ────────────

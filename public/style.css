@@ -502,20 +502,79 @@ html, body {
 /* ════════════════════════════════════════════════════════════════
    SETTINGS VIEW
    ════════════════════════════════════════════════════════════════ */
-.settings-layout {
-  max-width: 760px;
-  display: flex; flex-direction: column; gap: 16px;
+/* ── Settings two-column shell ───────────────────────────────── */
+.settings-shell {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 28px;
+  align-items: start;
+  max-width: 960px;
 }
-.settings-card {
-  background: white; border: 1px solid var(--sand-mid);
-  border-radius: var(--radius-md); padding: 22px 24px;
+
+/* Left nav */
+.settings-nav {
+  position: sticky;
+  top: 72px;
+  display: flex; flex-direction: column; gap: 22px;
 }
-.settings-card-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px;
+.settings-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.settings-nav-group-label {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.9px;
+  text-transform: uppercase; color: var(--gray-light);
+  padding: 0 10px 6px;
 }
-.settings-card-desc { font-size: 13px; color: var(--gray); line-height: 1.6; }
-.settings-card-desc code {
+.settings-nav-item {
+  display: block; padding: 7px 12px;
+  font-size: 13px; font-weight: 500; color: var(--gray);
+  border-radius: var(--radius-sm);
+  text-decoration: none; transition: all .12s ease;
+  border: 1.5px solid transparent;
+}
+.settings-nav-item:hover { background: var(--sand); color: var(--navy); }
+.settings-nav-item.active {
+  background: var(--sand); color: var(--navy);
+  border-color: var(--sand-mid); font-weight: 600;
+}
+
+/* Collapsible sections */
+.settings-content { display: flex; flex-direction: column; gap: 8px; }
+
+.settings-section {
+  background: white;
+  border: 1px solid var(--sand-mid);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: box-shadow .15s;
+}
+.settings-section:has(.settings-section-body:not(.collapsed)) {
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+.settings-section-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  background: none; border: none; cursor: pointer;
+  text-align: left; transition: background .12s;
+}
+.settings-section-toggle:hover { background: var(--sand); }
+.settings-section-toggle-title {
+  font-size: 14px; font-weight: 600; color: var(--navy);
+}
+.settings-section-chevron {
+  font-size: 13px; color: var(--gray-light);
+  transition: transform .2s ease; display: inline-block;
+}
+.settings-section.collapsed .settings-section-chevron { transform: rotate(-90deg); }
+
+.settings-section-body {
+  padding: 4px 20px 22px;
+  border-top: 1px solid var(--sand);
+}
+.settings-section.collapsed .settings-section-body { display: none; }
+
+/* Shared card desc text */
+.settings-card-desc { font-size: 13px; color: var(--gray); line-height: 1.6; margin-bottom: 4px; }
+.settings-card-desc code, .settings-section-body code {
   background: var(--sand); padding: 1px 5px; border-radius: 4px;
   font-family: 'DM Mono', monospace; font-size: 12px; color: var(--navy);
 }
