@@ -655,10 +655,38 @@ html, body {
 }
 .product-picker-filters {
   display: flex; gap: 10px;
-  padding: 0 28px 14px; flex-shrink: 0;
+  padding: 0 28px 10px; flex-shrink: 0;
 }
 .product-picker-filters .form-input { flex: 1; min-width: 0; }
 .product-picker-filters .form-select { width: 172px; flex-shrink: 0; }
+
+/* Toggle row below the filters */
+.product-picker-toggles {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 28px 12px; flex-shrink: 0;
+}
+
+/* Custom toggle switch */
+.picker-toggle-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+}
+.picker-toggle-cb { display: none; }
+.picker-toggle-track {
+  width: 34px; height: 18px; border-radius: 99px;
+  background: var(--sand-mid); position: relative;
+  transition: background 0.2s ease; flex-shrink: 0;
+}
+.picker-toggle-cb:checked + .picker-toggle-track { background: var(--navy); }
+.picker-toggle-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: white; transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.picker-toggle-cb:checked + .picker-toggle-track .picker-toggle-knob { transform: translateX(16px); }
+.picker-toggle-text { font-size: 12px; font-weight: 500; color: var(--navy); }
+
 .product-picker-grid {
   flex: 1;
   min-height: 0;          /* flex items are min-height:auto by default — this lets it shrink */
@@ -687,6 +715,7 @@ html, body {
 
 .product-tile {
   position: relative;
+  display: flex; flex-direction: column;   /* ← ensures image area never gets squashed */
   border: 1.5px solid var(--sand-mid);
   border-radius: var(--radius-md);
   background: var(--white);
@@ -710,17 +739,21 @@ html, body {
   z-index: 1;
 }
 .product-tile-image {
-  /* Explicit height — aspect-ratio:1 collapses to 0 before <img> loads */
-  height: 160px;
+  height: 160px; min-height: 160px;   /* min-height prevents grid from squashing this */
   background: var(--sand); overflow: hidden; flex-shrink: 0;
 }
 .product-tile-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.product-tile-body { padding: 8px 10px 10px; }
+.product-tile-body { padding: 8px 10px 10px; flex: 1; }
 .product-tile-name {
   font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--text-main);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.product-tile-rev { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.product-tile-config {
+  font-size: 10px; color: var(--gray); margin-top: 3px;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.product-tile-rev { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
 /* Selected-products preview strip inside the Land AI panel */
 .land-product-selection {

@@ -520,7 +520,7 @@
       <div class="modal-header" style="flex-shrink:0">
         <div>
           <h2 class="modal-title">Browse Product Library</h2>
-          <div class="detail-meta">Select a product — its image will be used as the AI reference for this land</div>
+          <div class="detail-meta">Select one or more products to associate with this land</div>
         </div>
         <button class="modal-close" id="product-picker-close-btn">✕</button>
       </div>
@@ -528,6 +528,13 @@
         <input type="text" id="product-search" class="form-input" placeholder="Search by name, SKU, or occasion…" />
         <select id="product-format-filter" class="form-select"><option value="">All Formats</option></select>
         <select id="product-occasion-filter" class="form-select"><option value="">All Occasions</option></select>
+      </div>
+      <div class="product-picker-toggles">
+        <label class="picker-toggle-label">
+          <input type="checkbox" id="product-hide-sentiment" class="picker-toggle-cb" />
+          <span class="picker-toggle-track"><span class="picker-toggle-knob"></span></span>
+          <span class="picker-toggle-text">Hide Sentiment Sets</span>
+        </label>
       </div>
       <div id="product-picker-grid" class="product-picker-grid">
         <div class="product-picker-loading">Loading product library…</div>

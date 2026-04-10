@@ -1181,13 +1181,15 @@ function populateProductFilters() {
 }
 
 function getFilteredProducts() {
-  const query   = (document.getElementById('product-search').value || '').toLowerCase().trim();
-  const format  = document.getElementById('product-format-filter').value;
+  const query    = (document.getElementById('product-search').value || '').toLowerCase().trim();
+  const format   = document.getElementById('product-format-filter').value;
   const occasion = document.getElementById('product-occasion-filter').value;
+  const hideSentiment = document.getElementById('product-hide-sentiment')?.checked;
 
   return allProducts.filter(p => {
     if (format   && p.format   !== format)   return false;
     if (occasion && p.occasion !== occasion) return false;
+    if (hideSentiment && p.product_configuration && p.product_configuration.includes('Sentiment')) return false;
     if (query) {
       const hay = `${p.name} ${p.sku} ${p.occasion} ${p.theme} ${p.format}`.toLowerCase();
       if (!hay.includes(query)) return false;
@@ -1218,12 +1220,16 @@ function renderProductGrid() {
       ? `$${(product.revenue.t12m / 1000).toFixed(0)}K T12M`
       : '';
 
+    // Inline styles on the image wrapper + img guarantee the 160px height regardless of
+    // any cascade issues — this is the critical fix for the collapsed-image bug.
     tile.innerHTML = `
-      <div class="product-tile-image">
-        <img src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy" />
+      <div class="product-tile-image" style="height:160px;overflow:hidden;background:#F0EAE0;flex-shrink:0;">
+        <img src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy"
+             style="width:100%;height:100%;object-fit:cover;display:block;" />
       </div>
       <div class="product-tile-body">
         <div class="product-tile-name">${esc(product.name)}</div>
+        ${product.product_configuration ? `<div class="product-tile-config">${esc(product.product_configuration)}</div>` : ''}
         ${rev ? `<div class="product-tile-rev">${rev}</div>` : ''}
       </div>`;
 
@@ -1405,6 +1411,7 @@ function bindProductPicker() {
   });
   document.getElementById('product-format-filter').addEventListener('change', renderProductGrid);
   document.getElementById('product-occasion-filter').addEventListener('change', renderProductGrid);
+  document.getElementById('product-hide-sentiment').addEventListener('change', renderProductGrid);
 }
 
 // ── Excel Export ──────────────────────────────────────────────
