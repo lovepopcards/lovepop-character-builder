@@ -960,16 +960,16 @@
         <!-- ── Left nav ─────────────────────────────────────────── -->
         <nav class="settings-nav">
           <div class="settings-nav-group">
-            <div class="settings-nav-group-label">API Keys</div>
-            <a class="settings-nav-item active" href="#s-section-anthropic" data-section="s-section-anthropic">🤖 Anthropic (Claude)</a>
-            <a class="settings-nav-item" href="#s-section-openai" data-section="s-section-openai">🎨 OpenAI (DALL-E)</a>
-          </div>
-          <div class="settings-nav-group">
             <div class="settings-nav-group-label">AI Behavior</div>
-            <a class="settings-nav-item" href="#s-section-system" data-section="s-section-system">⚙️ System Prompt &amp; Model</a>
+            <a class="settings-nav-item active" href="#s-section-system" data-section="s-section-system">⚙️ System Prompt &amp; Model</a>
             <a class="settings-nav-item" href="#s-section-char-ai" data-section="s-section-char-ai">✨ Character Generator</a>
             <a class="settings-nav-item" href="#s-section-land-ai" data-section="s-section-land-ai">🌍 Land Generator</a>
             <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
+          </div>
+          <div class="settings-nav-group">
+            <div class="settings-nav-group-label">API Keys</div>
+            <a class="settings-nav-item" href="#s-section-anthropic" data-section="s-section-anthropic">🤖 Anthropic (Claude)</a>
+            <a class="settings-nav-item" href="#s-section-openai" data-section="s-section-openai">🎨 OpenAI (DALL-E)</a>
           </div>
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">Data</div>
@@ -981,40 +981,8 @@
         <!-- ── Collapsible sections ──────────────────────────────── -->
         <div class="settings-content">
 
-          <!-- Anthropic API Key -->
-          <div class="settings-section" id="s-section-anthropic">
-            <button class="settings-section-toggle" data-target="s-section-anthropic">
-              <span class="settings-section-toggle-title">🤖 Anthropic API Key</span>
-              <span class="settings-section-chevron">▾</span>
-            </button>
-            <div class="settings-section-body">
-              <p class="settings-card-desc">Required for AI text generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</p>
-              <div id="api-key-status-badge" class="api-key-badge"></div>
-              <div class="form-group" style="margin-top:14px">
-                <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
-                <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
-              </div>
-            </div>
-          </div>
-
-          <!-- OpenAI API Key -->
-          <div class="settings-section collapsed" id="s-section-openai">
-            <button class="settings-section-toggle" data-target="s-section-openai">
-              <span class="settings-section-toggle-title">🎨 OpenAI API Key</span>
-              <span class="settings-section-chevron">▾</span>
-            </button>
-            <div class="settings-section-body">
-              <p class="settings-card-desc">Required for AI headline image generation (DALL-E 3). Set as the <code>OPENAI_API_KEY</code> env var in Railway, or enter below.</p>
-              <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
-              <div class="form-group" style="margin-top:14px">
-                <label class="form-label">API Key <span class="form-hint-inline">(prefer env var in production)</span></label>
-                <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
-              </div>
-            </div>
-          </div>
-
           <!-- System Prompt & Model -->
-          <div class="settings-section collapsed" id="s-section-system">
+          <div class="settings-section" id="s-section-system">
             <button class="settings-section-toggle" data-target="s-section-system">
               <span class="settings-section-toggle-title">⚙️ System Prompt &amp; Model</span>
               <span class="settings-section-chevron">▾</span>
@@ -1096,6 +1064,38 @@
                 <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
                 <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
                 <div id="img-samples-status" class="img-samples-status hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anthropic API Key -->
+          <div class="settings-section collapsed" id="s-section-anthropic">
+            <button class="settings-section-toggle" data-target="s-section-anthropic">
+              <span class="settings-section-toggle-title">🤖 Anthropic API Key</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Required for AI text generation. Set as the <code>ANTHROPIC_API_KEY</code> environment variable in Railway (recommended), or enter it below.</p>
+              <div id="api-key-status-badge" class="api-key-badge"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
+                <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
+              </div>
+            </div>
+          </div>
+
+          <!-- OpenAI API Key -->
+          <div class="settings-section collapsed" id="s-section-openai">
+            <button class="settings-section-toggle" data-target="s-section-openai">
+              <span class="settings-section-toggle-title">🎨 OpenAI API Key</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Required for AI headline image generation (DALL-E 3). Set as the <code>OPENAI_API_KEY</code> env var in Railway, or enter below.</p>
+              <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">API Key <span class="form-hint-inline">(prefer env var in production)</span></label>
+                <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
               </div>
             </div>
           </div>
