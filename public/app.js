@@ -2757,7 +2757,11 @@ function renderSRMSegment() {
     document.getElementById('srm-nav-label').textContent = 'No segments';
     return;
   }
+
   const seg = srmSegments[srmIndex];
+  const isReviewed = seg.status === 'approved' || seg.status === 'rejected';
+  const allDone = srmSegments.every(s => s.status !== 'pending_review');
+
   document.getElementById('srm-nav-label').textContent = `Segment ${srmIndex + 1} of ${srmSegments.length}`;
   document.getElementById('srm-prev-btn').disabled = srmIndex === 0;
   document.getElementById('srm-next-btn').disabled = srmIndex === srmSegments.length - 1;
@@ -2792,6 +2796,52 @@ function renderSRMSegment() {
   document.getElementById('srm-stats').textContent = `${approved} ✓  ${rejected} ✗  ${pending} pending`;
   document.getElementById('srm-approve-all-btn').disabled = srmReviewedCount === 0;
 
+  // Show/hide reviewed status badge and lock buttons if already reviewed
+  let statusBadge = document.getElementById('srm-reviewed-badge');
+  if (!statusBadge) {
+    statusBadge = document.createElement('div');
+    statusBadge.id = 'srm-reviewed-badge';
+    statusBadge.style.cssText = 'font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;text-align:center;margin-bottom:8px';
+    const actionsEl = document.querySelector('.srm-actions');
+    actionsEl?.parentNode.insertBefore(statusBadge, actionsEl);
+  }
+
+  const approveBtn = document.getElementById('srm-approve-btn');
+  const rejectBtn = document.getElementById('srm-reject-btn');
+  const mergeBtn = document.getElementById('srm-merge-btn');
+
+  if (allDone) {
+    // All segments reviewed — show completion state
+    statusBadge.style.display = '';
+    statusBadge.style.background = '#e6f7ee';
+    statusBadge.style.color = 'var(--green)';
+    statusBadge.textContent = `✓ All ${srmSegments.length} segments reviewed`;
+    approveBtn.disabled = true; approveBtn.style.opacity = '0.4';
+    rejectBtn.disabled = true; rejectBtn.style.opacity = '0.4';
+    mergeBtn.disabled = true; mergeBtn.style.opacity = '0.4';
+  } else if (isReviewed) {
+    // This segment already reviewed — show its status, offer to change
+    statusBadge.style.display = '';
+    if (seg.status === 'approved') {
+      statusBadge.style.background = '#e6f7ee';
+      statusBadge.style.color = 'var(--green)';
+      statusBadge.textContent = '✓ Approved — click Reject to change';
+    } else {
+      statusBadge.style.background = '#fff0f0';
+      statusBadge.style.color = 'var(--red)';
+      statusBadge.textContent = '✗ Rejected — click Approve to change';
+    }
+    approveBtn.disabled = false; approveBtn.style.opacity = '0.6';
+    rejectBtn.disabled = false; rejectBtn.style.opacity = '0.6';
+    mergeBtn.disabled = false; mergeBtn.style.opacity = '0.6';
+  } else {
+    // Pending — normal state
+    statusBadge.style.display = 'none';
+    approveBtn.disabled = false; approveBtn.style.opacity = '';
+    rejectBtn.disabled = false; rejectBtn.style.opacity = '';
+    mergeBtn.disabled = false; mergeBtn.style.opacity = '';
+  }
+
   // Trigger auto-label if not yet done
   if (!seg.auto_label) fetchAutoLabel(seg.id);
 }
@@ -2818,6 +2868,12 @@ async function reviewCurrentSegment(status) {
   const notes = document.getElementById('srm-notes-input').value.trim();
   const typeEl = document.querySelector('input[name="srm-type"]:checked');
   const elementType = typeEl?.value || '';
+
+  // Briefly dim buttons to prevent double-tap
+  const approveBtn = document.getElementById('srm-approve-btn');
+  const rejectBtn = document.getElementById('srm-reject-btn');
+  approveBtn.disabled = true; rejectBtn.disabled = true;
+
   try {
     await fetch(`/api/asset-library/segments/${seg.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -2826,9 +2882,19 @@ async function reviewCurrentSegment(status) {
     srmSegments[srmIndex].status = status;
     srmSegments[srmIndex].element_label = label;
     srmReviewedCount++;
-    if (srmIndex < srmSegments.length - 1) { srmIndex++; renderSRMSegment(); }
-    else { renderSRMSegment(); }
-  } catch (err) { alert(`Failed to save: ${err.message}`); }
+
+    // Advance to the next PENDING segment, or stay on last if all done
+    let next = srmIndex + 1;
+    while (next < srmSegments.length && srmSegments[next].status !== 'pending_review') next++;
+    if (next < srmSegments.length) {
+      srmIndex = next;
+    }
+    // Always re-render so the "all done" or "already reviewed" state shows correctly
+    renderSRMSegment();
+  } catch (err) {
+    approveBtn.disabled = false; rejectBtn.disabled = false;
+    alert(`Failed to save: ${err.message}`);
+  }
 }
 
 function navigateSRM(delta) {
