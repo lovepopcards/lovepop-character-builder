@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
+const sharp = require('sharp');
 
 // Temp storage for uploaded source images
 const ASSET_TEMP_DIR = process.env.ASSET_TEMP_DIR || '/tmp/asset_segments';
@@ -104,31 +105,26 @@ async function runSegmentation(jobId, files, metadata) {
   db.updateAssetJob(jobId, { status: 'complete', segment_count: totalSegments });
 }
 
-function runSAM2(imagePath, settings, jobId, sourceFilename, metadata) {
-  return new Promise((resolve, reject) => {
-    const modelPath = settings.sam2ModelPath;
-    if (!modelPath || !fs.existsSync(modelPath)) {
-      // Fallback: create mock segments for UI testing when SAM2 not installed
-      console.warn('SAM2 model not found, creating placeholder segment for UI testing');
-      const seg = db.createAssetSegment({
-        job_id: jobId,
-        source_filename: sourceFilename,
-        status: 'pending_review',
-        temp_path: imagePath,
-        mask_bbox: { x: 0, y: 0, w: 100, h: 100, pct_of_image: 100 },
-        metadata,
-        element_label: '',
-        auto_label: '',
-        element_type: 'other'
-      });
-      return resolve([seg]);
-    }
+async function runSAM2(imagePath, settings, jobId, sourceFilename, metadata) {
+  const modelPath = settings.sam2ModelPath;
 
+  // If SAM2 model is installed, use the Python worker
+  if (modelPath && fs.existsSync(modelPath)) {
+    return runSAM2Python(imagePath, settings, jobId, sourceFilename, metadata);
+  }
+
+  // Otherwise fall back to Claude Vision segmentation (works on Railway with no extra setup)
+  console.log('SAM2 model not found — using Claude Vision segmentation for', sourceFilename);
+  return runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata, settings);
+}
+
+function runSAM2Python(imagePath, settings, jobId, sourceFilename, metadata) {
+  return new Promise((resolve, reject) => {
     const workerPath = path.join(__dirname, '../workers/asset_segmenter.py');
     const args = [
       workerPath,
       '--image', imagePath,
-      '--model', modelPath,
+      '--model', settings.sam2ModelPath,
       '--job-id', jobId,
       '--source-filename', sourceFilename,
       '--min-pct', String(settings.minPct),
@@ -136,10 +132,8 @@ function runSAM2(imagePath, settings, jobId, sourceFilename, metadata) {
       '--confidence', String(settings.confidence),
       '--output-dir', ASSET_TEMP_DIR,
     ];
-
     const py = spawn('python3', args);
-    let stdout = '';
-    let stderr = '';
+    let stdout = '', stderr = '';
     py.stdout.on('data', d => stdout += d.toString());
     py.stderr.on('data', d => stderr += d.toString());
     py.on('close', code => {
@@ -147,20 +141,135 @@ function runSAM2(imagePath, settings, jobId, sourceFilename, metadata) {
       try {
         const result = JSON.parse(stdout);
         const segments = result.segments.map(s => db.createAssetSegment({
-          job_id: jobId,
-          source_filename: sourceFilename,
-          status: 'pending_review',
-          temp_path: s.path,
-          mask_bbox: s.bbox,
-          metadata,
-          element_label: '',
-          auto_label: '',
-          element_type: 'other'
+          job_id: jobId, source_filename: sourceFilename, status: 'pending_review',
+          temp_path: s.path, mask_bbox: s.bbox, metadata,
+          element_label: '', auto_label: '', element_type: 'other'
         }));
         resolve(segments);
       } catch (e) { reject(new Error(`Failed to parse worker output: ${e.message}`)); }
     });
   });
+}
+
+async function runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata, settings) {
+  const apiKey = db.getSetting('anthropic_api_key') || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('No Anthropic API key configured. Add it in Settings to enable segmentation.');
+  }
+
+  // Get image dimensions and base64
+  const imageBuffer = fs.readFileSync(imagePath);
+  const { width: imgW, height: imgH } = await sharp(imageBuffer).metadata();
+  const base64 = imageBuffer.toString('base64');
+  const ext = path.extname(imagePath).toLowerCase();
+  const mediaType = ext === '.png' ? 'image/png' : 'image/jpeg';
+
+  const minPct = settings.minPct || 5;
+  const maxPct = settings.maxPct || 90;
+
+  const client = new Anthropic({ apiKey });
+
+  const prompt = `You are segmenting a Lovepop illustration into its distinct visual elements for an asset library.
+
+Analyze this image and identify ALL clearly distinguishable visual elements (flowers, leaves, characters, objects, decorative accents, etc.). Each element should be a coherent, self-contained part of the illustration.
+
+For each element, output its bounding box as pixel coordinates within the image (width: ${imgW}px, height: ${imgH}px).
+
+Rules:
+- Only include elements that are between ${minPct}% and ${maxPct}% of the total image area
+- Be generous — err on the side of identifying more elements rather than fewer
+- Each element must be visually distinct and separable
+- Do not include the full image or background as a segment unless it's a distinct textured element
+
+Respond with ONLY a JSON array, no other text:
+[
+  { "label": "Pink peony bud", "type": "flower", "x": 120, "y": 80, "w": 210, "h": 195 },
+  { "label": "Green fern frond", "type": "leaf_stem", "x": 340, "y": 200, "w": 150, "h": 280 }
+]
+
+Types must be one of: flower, leaf_stem, accent, foliage, character, background, other`;
+
+  let elements = [];
+  try {
+    const response = await client.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    });
+
+    const text = response.content[0]?.text?.trim() || '[]';
+    // Extract JSON array even if Claude wraps it in backticks
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    elements = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  } catch (err) {
+    console.error('Claude segmentation API error:', err.message);
+    throw new Error(`Claude segmentation failed: ${err.message}`);
+  }
+
+  if (!elements.length) {
+    throw new Error('Claude found no distinct elements in this image. Try an image with more clearly separated components.');
+  }
+
+  // Crop each element using sharp, save as PNG
+  const imgArea = imgW * imgH;
+  const segments = [];
+
+  for (const el of elements) {
+    try {
+      // Clamp coordinates to image bounds
+      const x = Math.max(0, Math.round(el.x));
+      const y = Math.max(0, Math.round(el.y));
+      const w = Math.min(Math.round(el.w), imgW - x);
+      const h = Math.min(Math.round(el.h), imgH - y);
+
+      if (w < 10 || h < 10) continue;
+
+      const pct = ((w * h) / imgArea) * 100;
+
+      // Add a small padding around the crop (10px each side, clamped)
+      const pad = 10;
+      const cx = Math.max(0, x - pad);
+      const cy = Math.max(0, y - pad);
+      const cw = Math.min(w + pad * 2, imgW - cx);
+      const ch = Math.min(h + pad * 2, imgH - cy);
+
+      const segId = require('crypto').randomBytes(8).toString('hex');
+      const outPath = path.join(ASSET_TEMP_DIR, `${segId}.png`);
+
+      await sharp(imageBuffer)
+        .extract({ left: cx, top: cy, width: cw, height: ch })
+        .png()
+        .toFile(outPath);
+
+      const seg = db.createAssetSegment({
+        job_id: jobId,
+        source_filename: sourceFilename,
+        status: 'pending_review',
+        temp_path: outPath,
+        mask_bbox: { x, y, w, h, pct_of_image: Math.round(pct * 10) / 10 },
+        metadata,
+        element_label: el.label || '',
+        auto_label: el.label || '',
+        element_type: el.type || 'other'
+      });
+
+      segments.push(seg);
+    } catch (cropErr) {
+      console.warn(`Failed to crop element "${el.label}":`, cropErr.message);
+    }
+  }
+
+  if (!segments.length) {
+    throw new Error('Segmentation produced no valid crops. Check image dimensions and try again.');
+  }
+
+  return segments;
 }
 
 // GET /api/asset-library/segments/:id/image — serve segment image file
