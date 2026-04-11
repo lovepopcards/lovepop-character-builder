@@ -1059,19 +1059,41 @@
                 <div id="box-status-bar" class="snowflake-status-bar hidden"></div>
               </div>
 
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin:4px 0 12px">SAM 2 Segmentation</div>
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin:4px 0 8px">Segmentation Calibration</div>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">Controls how Claude identifies and crops individual elements from source images.</p>
               <div class="form-row-3">
                 <div class="form-group">
-                  <label class="form-label">Min segment size (%)</label>
-                  <input type="number" id="sf-sam2-min-pct" class="form-input" value="5" min="1" max="50" />
+                  <label class="form-label">Min element size <span style="font-weight:400;color:var(--gray)">% of image width</span></label>
+                  <input type="number" id="sf-sam2-min-pct" class="form-input" value="2" min="1" max="30" step="0.5" />
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Skip elements smaller than this. Lower = capture tiny details.</div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Max segment size (%)</label>
-                  <input type="number" id="sf-sam2-max-pct" class="form-input" value="90" min="10" max="100" />
+                  <label class="form-label">Max element size <span style="font-weight:400;color:var(--gray)">% of image area</span></label>
+                  <input type="number" id="sf-sam2-max-pct" class="form-input" value="60" min="10" max="95" step="5" />
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Skip elements that fill more than this. Filters out full-scene boxes.</div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Confidence threshold</label>
-                  <input type="number" id="sf-sam2-confidence" class="form-input" value="0.88" min="0" max="1" step="0.01" />
+                  <label class="form-label">Crop padding <span style="font-weight:400;color:var(--gray)">px around each box</span></label>
+                  <input type="number" id="sf-seg-crop-padding" class="form-input" value="20" min="0" max="100" step="5" />
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Extra space added around each crop. Increase if elements are getting clipped.</div>
+                </div>
+              </div>
+              <div class="form-row-2" style="margin-top:8px">
+                <div class="form-group">
+                  <label class="form-label">Detail level</label>
+                  <select id="sf-seg-detail-level" class="form-select">
+                    <option value="broad">Broad — 5–12 large elements</option>
+                    <option value="standard" selected>Standard — 10–25 elements</option>
+                    <option value="fine">Fine — 20–40 small details</option>
+                  </select>
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px">How granular the segmentation should be.</div>
+                </div>
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:24px">
+                  <input type="checkbox" id="sf-seg-tight-boxes" checked style="width:16px;height:16px;cursor:pointer" />
+                  <div>
+                    <label for="sf-seg-tight-boxes" class="form-label" style="margin-bottom:2px;cursor:pointer">Tight bounding boxes</label>
+                    <div style="font-size:11px;color:var(--text-muted)">Instructs Claude to hug element edges closely. Uncheck if boxes are cutting off content.</div>
+                  </div>
                 </div>
               </div>
 

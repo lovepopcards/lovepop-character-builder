@@ -173,11 +173,14 @@ const DEFAULTS = {
   box_public_key_id: '',
   box_root_folder: '/Asset Library',
 
-  // SAM2 Segmentation
+  // Segmentation calibration
   sam2_model_size: 'large',
-  sam2_min_segment_pct: '5',
-  sam2_max_segment_pct: '90',
+  sam2_min_segment_pct: '2',      // min element width as % of image width
+  sam2_max_segment_pct: '60',     // max element area as % of total image
   sam2_confidence: '0.88',
+  seg_crop_padding: '20',         // px to add around each bounding box crop
+  seg_detail_level: 'standard',   // broad | standard | fine
+  seg_tight_boxes: 'true',        // instruct Claude to draw tight bounding boxes
 
   // Auto-labeling
   asset_auto_label: 'true',

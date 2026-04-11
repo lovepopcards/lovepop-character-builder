@@ -83,9 +83,11 @@ async function runSegmentation(jobId, files, metadata) {
 
   const settings = {
     sam2ModelPath: db.getSetting('sam2_model_path') || (process.env.SAM2_MODEL_PATH || ''),
-    minPct: parseFloat(db.getSetting('sam2_min_segment_pct') || '5'),
-    maxPct: parseFloat(db.getSetting('sam2_max_segment_pct') || '90'),
-    confidence: parseFloat(db.getSetting('sam2_confidence') || '0.88'),
+    minWidthPct:  parseFloat(db.getSetting('sam2_min_segment_pct') || '2'),   // % of image width
+    maxAreaPct:   parseFloat(db.getSetting('sam2_max_segment_pct') || '60'),  // % of image area
+    cropPadding:  parseInt(db.getSetting('seg_crop_padding') || '20', 10),    // px
+    detailLevel:  db.getSetting('seg_detail_level') || 'standard',
+    tightBoxes:   db.getSetting('seg_tight_boxes') !== 'false',
   };
 
   let totalSegments = 0;
@@ -128,6 +130,7 @@ async function runSAM2(imagePath, settings, jobId, sourceFilename, metadata) {
   // Otherwise fall back to Claude Vision segmentation (works on Railway with no extra setup)
   console.log('SAM2 model not found — using Claude Vision segmentation for', sourceFilename);
   return runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata, settings);
+
 }
 
 function runSAM2Python(imagePath, settings, jobId, sourceFilename, metadata) {
@@ -198,27 +201,42 @@ async function runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata,
 
   // Use raw fetch wrapper — the Anthropic SDK fails on Railway (streaming body incompatibility)
 
-  const prompt = `You are segmenting a Lovepop pop-up card illustration into its individual visual elements for a digital asset library.
+  // Translate settings into prompt guidance
+  const minPxWidth = Math.round(claudeW * (settings.minWidthPct / 100));
+  const detailGuide = {
+    broad:    { range: '5–12',  desc: 'Focus on the largest, most prominent distinct elements. Group smaller related pieces together where possible.' },
+    standard: { range: '10–25', desc: 'Balance between large elements and meaningful smaller details.' },
+    fine:     { range: '20–40', desc: 'Identify as many individual separable elements as possible, including small decorative details.' },
+  }[settings.detailLevel] || { range: '10–25', desc: 'Balance between large elements and meaningful smaller details.' };
 
-The image is ${claudeW}×${claudeH} pixels.
+  const tightBoxInstruction = settings.tightBoxes
+    ? `CRITICAL: Draw the TIGHTEST possible bounding box around each element. The box edges must hug the visible content closely — do NOT pad with empty background space. If a flower ends at pixel 200, the box edge should be at 200, not 220.`
+    : `Draw bounding boxes that fully contain each element with a small amount of breathing room.`;
 
-Identify EVERY distinct visual element — flowers, leaves, stems, characters, animals, objects, ribbons, banners, decorative accents, etc. Be thorough and find as many separable elements as possible. Err heavily on the side of MORE elements.
+  const prompt = `You are segmenting a Lovepop pop-up card illustration into individual visual elements for a digital asset library.
 
-For each element give its tight bounding box in pixels (x, y from top-left corner, w = width, h = height).
+Image dimensions: ${claudeW}×${claudeH} pixels.
 
-Rules:
-- Include every element you can see, no matter how small (minimum bounding box 20×20px)
-- Do NOT include one box covering the entire image
-- Overlapping boxes are fine — elements often overlap
-- Give each element a short descriptive label (3–5 words, color + subject)
+YOUR TASK: Identify ${detailGuide.range} distinct visual elements. ${detailGuide.desc}
 
-Respond with ONLY a valid JSON array — no explanation, no markdown fences:
+BOUNDING BOX RULES:
+- ${tightBoxInstruction}
+- x, y = top-left corner of the box (in pixels from top-left of image)
+- w = width of the box, h = height of the box
+- Minimum element size: ${minPxWidth}px wide (skip anything smaller — it is noise)
+- Maximum element size: do NOT draw a box that covers more than ${settings.maxAreaPct}% of the total image area
+- Do NOT draw a single box covering the whole image or most of it
+- Overlapping boxes are fine — elements naturally overlap
+
+WHAT TO IDENTIFY: flowers, leaves, stems, characters, animals, objects, ribbons, banners, text elements, decorative accents. Label each with 3–5 words including its color.
+
+Respond with ONLY a valid JSON array — no explanation, no markdown fences, no trailing commas:
 [
   {"label":"Pink peony full bloom","type":"flower","x":120,"y":80,"w":210,"h":195},
   {"label":"Green curved stem","type":"leaf_stem","x":180,"y":240,"w":40,"h":160}
 ]
 
-Valid types: flower, leaf_stem, accent, foliage, character, animal, object, background, other`;
+Valid types: flower, leaf_stem, accent, foliage, character, animal, object, text, other`;
 
   let rawText = '';
   let elements = [];
@@ -265,6 +283,7 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
   // Crop each element using sharp, save as PNG
   // Claude saw a resized image; scale its pixel coordinates back to original resolution
   const imgArea = origW * origH;
+  const minPxOrig = Math.round(origW * (settings.minWidthPct / 100));
   const segments = [];
 
   for (const el of elements) {
@@ -275,12 +294,22 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
       const w = Math.min(Math.round(el.w * scaleX), origW - x);
       const h = Math.min(Math.round(el.h * scaleY), origH - y);
 
-      if (w < 10 || h < 10) continue;
+      // Skip elements that are too small
+      if (w < minPxOrig || h < minPxOrig) {
+        console.log(`Skipping "${el.label}" — too small (${w}×${h}px, min ${minPxOrig}px)`);
+        continue;
+      }
 
       const pct = ((w * h) / imgArea) * 100;
 
-      // Add a small padding around the crop (10px each side, clamped)
-      const pad = 10;
+      // Skip elements that cover too much of the image (whole-scene boxes)
+      if (pct > settings.maxAreaPct) {
+        console.log(`Skipping "${el.label}" — too large (${Math.round(pct)}% of image, max ${settings.maxAreaPct}%)`);
+        continue;
+      }
+
+      // Add configurable padding around the crop
+      const pad = settings.cropPadding;
       const cx = Math.max(0, x - pad);
       const cy = Math.max(0, y - pad);
       const cw = Math.min(w + pad * 2, origW - cx);

@@ -1709,9 +1709,11 @@ async function loadSettings() {
     document.getElementById('sf-box-client-secret').value = s.box_client_secret || '';
     document.getElementById('sf-box-enterprise-id').value = s.box_enterprise_id || '';
     document.getElementById('sf-box-root-folder').value = s.box_root_folder || '/Asset Library';
-    document.getElementById('sf-sam2-min-pct').value = s.sam2_min_segment_pct || '5';
-    document.getElementById('sf-sam2-max-pct').value = s.sam2_max_segment_pct || '90';
-    document.getElementById('sf-sam2-confidence').value = s.sam2_confidence || '0.88';
+    document.getElementById('sf-sam2-min-pct').value = s.sam2_min_segment_pct || '2';
+    document.getElementById('sf-sam2-max-pct').value = s.sam2_max_segment_pct || '60';
+    document.getElementById('sf-seg-crop-padding').value = s.seg_crop_padding || '20';
+    document.getElementById('sf-seg-detail-level').value = s.seg_detail_level || 'standard';
+    document.getElementById('sf-seg-tight-boxes').checked = s.seg_tight_boxes !== 'false';
     document.getElementById('sf-asset-auto-label').checked = s.asset_auto_label !== 'false';
     document.getElementById('sf-asset-auto-label-model').value = s.asset_auto_label_model || 'claude-haiku-4-5';
   } catch (err) { console.error('Settings load error:', err); }
@@ -1748,7 +1750,9 @@ async function handleSettingsSave() {
     box_root_folder: document.getElementById('sf-box-root-folder').value,
     sam2_min_segment_pct: document.getElementById('sf-sam2-min-pct').value,
     sam2_max_segment_pct: document.getElementById('sf-sam2-max-pct').value,
-    sam2_confidence: document.getElementById('sf-sam2-confidence').value,
+    seg_crop_padding: document.getElementById('sf-seg-crop-padding').value,
+    seg_detail_level: document.getElementById('sf-seg-detail-level').value,
+    seg_tight_boxes: document.getElementById('sf-seg-tight-boxes').checked ? 'true' : 'false',
     asset_auto_label: document.getElementById('sf-asset-auto-label').checked ? 'true' : 'false',
     asset_auto_label_model: document.getElementById('sf-asset-auto-label-model').value,
   };
