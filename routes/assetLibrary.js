@@ -223,6 +223,7 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
   let rawText = '';
   let elements = [];
   try {
+    console.log(`Calling Claude API with ${Math.round(base64.length / 1024)}KB base64 payload...`);
     const response = await client.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 4096,
@@ -234,6 +235,7 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
         ]
       }]
     });
+    console.log(`Claude API call succeeded, stop_reason: ${response.stop_reason}`);
 
     rawText = response.content[0]?.text?.trim() || '';
     console.log(`Claude segmentation raw response (first 500 chars): ${rawText.slice(0, 500)}`);
@@ -245,8 +247,11 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
       elements = JSON.parse(jsonMatch[0]);
     }
   } catch (err) {
-    console.error('Claude segmentation error:', err.message, '| raw:', rawText.slice(0, 300));
-    throw new Error(`Claude segmentation failed: ${err.message}`);
+    const errDetails = `${err.constructor?.name || 'Error'}: ${err.message}` +
+      (err.status ? ` (HTTP ${err.status})` : '') +
+      (err.error ? ` — ${JSON.stringify(err.error)}` : '');
+    console.error('Claude segmentation error:', errDetails, '| raw:', rawText.slice(0, 300));
+    throw new Error(`Claude segmentation failed: ${errDetails}`);
   }
 
   if (!elements.length) {
