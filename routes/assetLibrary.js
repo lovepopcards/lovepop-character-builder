@@ -169,29 +169,38 @@ async function runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata,
     throw new Error('No Anthropic API key configured. Add it in Settings to enable segmentation.');
   }
 
-  // Get image dimensions — resize if very large to keep base64 payload reasonable
-  let imageBuffer = fs.readFileSync(imagePath);
-  let imgMeta = await sharp(imageBuffer).metadata();
-  let imgW = imgMeta.width;
-  let imgH = imgMeta.height;
+  // Load original image — we crop from this at full resolution
+  const originalBuffer = fs.readFileSync(imagePath);
+  const origMeta = await sharp(originalBuffer).metadata();
+  const origW = origMeta.width;
+  const origH = origMeta.height;
 
-  // Resize to max 2000px on longest side for Claude (keeps payload under ~4MB)
-  if (imgW > 2000 || imgH > 2000) {
-    const scale = 2000 / Math.max(imgW, imgH);
-    imgW = Math.round(imgW * scale);
-    imgH = Math.round(imgH * scale);
-    imageBuffer = await sharp(imageBuffer).resize(imgW, imgH).toBuffer();
-  }
+  // Prepare a smaller JPEG version for sending to Claude.
+  // Anthropic's limit is 5MB base64; JPEG at 1568px stays well under 1MB.
+  // We tell Claude the resized dimensions and scale its coordinates back to
+  // original resolution when cropping.
+  const MAX_DIM = 1568;
+  const scale = Math.min(1, MAX_DIM / Math.max(origW, origH));
+  const claudeW = Math.round(origW * scale);
+  const claudeH = Math.round(origH * scale);
 
-  const base64 = imageBuffer.toString('base64');
-  const ext = path.extname(imagePath).toLowerCase();
-  const mediaType = (ext === '.png') ? 'image/png' : 'image/jpeg';
+  const claudeBuffer = await sharp(originalBuffer)
+    .resize(claudeW, claudeH)
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  const base64 = claudeBuffer.toString('base64');
+  const mediaType = 'image/jpeg';
+  const scaleX = origW / claudeW;   // multiply Claude x/w coords by this to get original px
+  const scaleY = origH / claudeH;
+
+  console.log(`Image: ${origW}×${origH} → Claude payload: ${claudeW}×${claudeH} JPEG (${Math.round(base64.length / 1024)}KB base64)`);
 
   const client = new Anthropic({ apiKey });
 
   const prompt = `You are segmenting a Lovepop pop-up card illustration into its individual visual elements for a digital asset library.
 
-The image is ${imgW}×${imgH} pixels.
+The image is ${claudeW}×${claudeH} pixels.
 
 Identify EVERY distinct visual element — flowers, leaves, stems, characters, animals, objects, ribbons, banners, decorative accents, etc. Be thorough and find as many separable elements as possible. Err heavily on the side of MORE elements.
 
@@ -248,16 +257,17 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
   console.log(`Claude identified ${elements.length} elements in ${sourceFilename}`);
 
   // Crop each element using sharp, save as PNG
-  const imgArea = imgW * imgH;
+  // Claude saw a resized image; scale its pixel coordinates back to original resolution
+  const imgArea = origW * origH;
   const segments = [];
 
   for (const el of elements) {
     try {
-      // Clamp coordinates to image bounds
-      const x = Math.max(0, Math.round(el.x));
-      const y = Math.max(0, Math.round(el.y));
-      const w = Math.min(Math.round(el.w), imgW - x);
-      const h = Math.min(Math.round(el.h), imgH - y);
+      // Scale Claude's coordinates back to original image resolution
+      const x = Math.max(0, Math.round(el.x * scaleX));
+      const y = Math.max(0, Math.round(el.y * scaleY));
+      const w = Math.min(Math.round(el.w * scaleX), origW - x);
+      const h = Math.min(Math.round(el.h * scaleY), origH - y);
 
       if (w < 10 || h < 10) continue;
 
@@ -267,13 +277,13 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
       const pad = 10;
       const cx = Math.max(0, x - pad);
       const cy = Math.max(0, y - pad);
-      const cw = Math.min(w + pad * 2, imgW - cx);
-      const ch = Math.min(h + pad * 2, imgH - cy);
+      const cw = Math.min(w + pad * 2, origW - cx);
+      const ch = Math.min(h + pad * 2, origH - cy);
 
       const segId = require('crypto').randomBytes(8).toString('hex');
       const outPath = path.join(ASSET_TEMP_DIR, `${segId}.png`);
 
-      await sharp(imageBuffer)
+      await sharp(originalBuffer)
         .extract({ left: cx, top: cy, width: cw, height: ch })
         .png()
         .toFile(outPath);
