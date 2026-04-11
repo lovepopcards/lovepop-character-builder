@@ -132,6 +132,37 @@ app.get('/api/settings/api-key-status', (req, res) => {
   res.json({ configured: !!(envKey || dbKey), source: envKey ? 'env' : dbKey ? 'db' : 'none' });
 });
 
+// ── Anthropic connectivity diagnostic ────────────────────────
+app.get('/api/debug/anthropic-test', async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  const result = { apiKey: apiKey ? `${apiKey.slice(0, 10)}…` : 'NOT SET', steps: [] };
+  if (!apiKey) return res.json(result);
+
+  // Step 1: raw DNS/TCP — can we reach api.anthropic.com at all?
+  try {
+    const ping = await fetch('https://api.anthropic.com/', { method: 'HEAD' });
+    result.steps.push({ step: 'reach api.anthropic.com', ok: true, status: ping.status });
+  } catch (e) {
+    result.steps.push({ step: 'reach api.anthropic.com', ok: false, error: e.message });
+    return res.json(result);
+  }
+
+  // Step 2: minimal text-only Anthropic SDK call
+  try {
+    const client = new Anthropic({ apiKey });
+    const resp = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 10,
+      messages: [{ role: 'user', content: 'Say "ok"' }],
+    });
+    result.steps.push({ step: 'SDK text call', ok: true, reply: resp.content[0]?.text });
+  } catch (e) {
+    result.steps.push({ step: 'SDK text call', ok: false, error: `${e.constructor?.name}: ${e.message}`, status: e.status });
+  }
+
+  res.json(result);
+});
+
 // ── AI Generate — shared helper ───────────────────────────────
 async function runAI({ req, res, fieldLabels, instructionPrefix }) {
   const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
