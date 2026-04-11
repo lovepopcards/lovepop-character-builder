@@ -1012,34 +1012,20 @@
             </button>
             <div class="settings-section-body">
 
-              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin-bottom:12px">Box Integration</div>
-              <div class="form-row-2">
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin-bottom:12px">Box Integration <span style="font-size:10px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--gray-light)">(Client Credentials Grant)</span></div>
+              <div class="form-row-3">
                 <div class="form-group">
                   <label class="form-label">Client ID</label>
-                  <input type="text" id="sf-box-client-id" class="form-input" placeholder="Box Client ID" />
+                  <input type="text" id="sf-box-client-id" class="form-input" placeholder="Client ID from Box Developer Console" />
                 </div>
                 <div class="form-group">
                   <label class="form-label">Client Secret</label>
-                  <input type="password" id="sf-box-client-secret" class="form-input" placeholder="Box Client Secret" />
+                  <input type="password" id="sf-box-client-secret" class="form-input" placeholder="Client Secret" />
                 </div>
-              </div>
-              <div class="form-row-3">
                 <div class="form-group">
                   <label class="form-label">Enterprise ID</label>
-                  <input type="text" id="sf-box-enterprise-id" class="form-input" />
+                  <input type="text" id="sf-box-enterprise-id" class="form-input" placeholder="Found in Box Admin Console" />
                 </div>
-                <div class="form-group">
-                  <label class="form-label">JWT Key ID</label>
-                  <input type="text" id="sf-box-jwt-key-id" class="form-input" />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Public Key ID</label>
-                  <input type="text" id="sf-box-public-key-id" class="form-input" />
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Private Key <span style="font-weight:400;color:var(--gray)">(base64 encoded)</span></label>
-                <textarea id="sf-box-private-key" class="form-textarea sf-query-textarea" rows="3" placeholder="base64-encoded private key…"></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">Default Box Root Folder</label>

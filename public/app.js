@@ -1704,9 +1704,6 @@ async function loadSettings() {
     document.getElementById('sf-box-client-id').value = s.box_client_id || '';
     document.getElementById('sf-box-client-secret').value = s.box_client_secret || '';
     document.getElementById('sf-box-enterprise-id').value = s.box_enterprise_id || '';
-    document.getElementById('sf-box-jwt-key-id').value = s.box_jwt_key_id || '';
-    document.getElementById('sf-box-public-key-id').value = s.box_public_key_id || '';
-    document.getElementById('sf-box-private-key').value = s.box_private_key || '';
     document.getElementById('sf-box-root-folder').value = s.box_root_folder || '/Asset Library';
     document.getElementById('sf-sam2-min-pct').value = s.sam2_min_segment_pct || '5';
     document.getElementById('sf-sam2-max-pct').value = s.sam2_max_segment_pct || '90';
@@ -1744,9 +1741,6 @@ async function handleSettingsSave() {
     box_client_id: document.getElementById('sf-box-client-id').value,
     box_client_secret: document.getElementById('sf-box-client-secret').value,
     box_enterprise_id: document.getElementById('sf-box-enterprise-id').value,
-    box_jwt_key_id: document.getElementById('sf-box-jwt-key-id').value,
-    box_public_key_id: document.getElementById('sf-box-public-key-id').value,
-    box_private_key: document.getElementById('sf-box-private-key').value,
     box_root_folder: document.getElementById('sf-box-root-folder').value,
     sam2_min_segment_pct: document.getElementById('sf-sam2-min-pct').value,
     sam2_max_segment_pct: document.getElementById('sf-sam2-max-pct').value,
