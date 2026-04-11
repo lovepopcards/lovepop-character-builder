@@ -2519,6 +2519,7 @@ function bindAssetLibrary() {
   // Segment review modal
   document.getElementById('srm-close-btn')?.addEventListener('click', closeSRM);
   document.getElementById('srm-save-exit-btn')?.addEventListener('click', closeSRM);
+  document.getElementById('srm-send-library-btn')?.addEventListener('click', sendApprovedToLibrary);
   document.getElementById('srm-prev-btn')?.addEventListener('click', () => navigateSRM(-1));
   document.getElementById('srm-next-btn')?.addEventListener('click', () => navigateSRM(1));
   document.getElementById('srm-approve-btn')?.addEventListener('click', () => reviewCurrentSegment('approved'));
@@ -2822,6 +2823,31 @@ function closeSRM() {
   loadAssetJobs();
 }
 
+async function sendApprovedToLibrary() {
+  if (!srmJobId) return;
+  const btn = document.getElementById('srm-send-library-btn');
+  const approvedCount = srmSegments.filter(s => s.status === 'approved').length;
+  if (!approvedCount) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+  try {
+    const res = await fetch(`/api/asset-library/jobs/${srmJobId}/upload-approved`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+
+    // Close modal, switch to Asset Browser to show results
+    closeSRM();
+    switchAssetSubtab('browser');
+    loadAssetLibraryItems();
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="btn-ai-icon">→</span> Send Approved to Library';
+    document.getElementById('srm-send-summary').textContent = `⚠️ ${err.message}`;
+  }
+}
+
 function renderSRMSegment() {
   if (!srmSegments.length) {
     document.getElementById('srm-nav-label').textContent = 'No segments';
@@ -2879,6 +2905,20 @@ function renderSRMSegment() {
   const approveBtn = document.getElementById('srm-approve-btn');
   const rejectBtn = document.getElementById('srm-reject-btn');
   const mergeBtn = document.getElementById('srm-merge-btn');
+
+  // Show/hide the Send to Library bar
+  const sendBar = document.getElementById('srm-send-bar');
+  const sendSummary = document.getElementById('srm-send-summary');
+  if (allDone && sendBar) {
+    const approvedCount = srmSegments.filter(s => s.status === 'approved').length;
+    const rejectedCount = srmSegments.filter(s => s.status === 'rejected').length;
+    sendSummary.textContent = `Review complete · ${approvedCount} approved, ${rejectedCount} rejected`;
+    sendBar.classList.remove('hidden');
+    const sendBtn = document.getElementById('srm-send-library-btn');
+    if (sendBtn) sendBtn.disabled = approvedCount === 0;
+  } else if (sendBar) {
+    sendBar.classList.add('hidden');
+  }
 
   if (allDone) {
     // All segments reviewed — show completion state

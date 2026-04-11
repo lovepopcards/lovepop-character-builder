@@ -778,6 +778,13 @@
           <button class="btn-secondary" id="srm-approve-all-btn" disabled>✓ Approve All Remaining</button>
           <button class="btn-primary" id="srm-save-exit-btn">Save &amp; Exit</button>
         </div>
+        <!-- Shown only when all segments have been reviewed -->
+        <div class="srm-send-bar hidden" id="srm-send-bar">
+          <div class="srm-send-summary" id="srm-send-summary"></div>
+          <button class="btn-ai-generate srm-send-btn" id="srm-send-library-btn">
+            <span class="btn-ai-icon">→</span> Send Approved to Library
+          </button>
+        </div>
       </div>
     </div>
 

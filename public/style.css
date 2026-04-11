@@ -1797,6 +1797,23 @@ html, body {
   padding: 14px 24px; border-top: 1px solid var(--sand-mid); flex-shrink: 0;
 }
 
+/* Send to Library bar — shown when all segments reviewed */
+.srm-send-bar {
+  padding: 16px 24px;
+  background: var(--green-bg);
+  border-top: 2px solid var(--green-border);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  flex-shrink: 0;
+}
+.srm-send-bar.hidden { display: none; }
+.srm-send-summary {
+  font-size: 13px; font-weight: 600; color: var(--green);
+}
+.srm-send-btn {
+  white-space: nowrap; flex-shrink: 0;
+  padding: 10px 24px; font-size: 14px;
+}
+
 /* ── Asset Browser ── */
 .asset-browser-toolbar {
   display: flex; align-items: center; gap: 10px;
