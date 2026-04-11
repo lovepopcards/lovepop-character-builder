@@ -2,9 +2,9 @@ const express = require('express');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
-const Anthropic = require('@anthropic-ai/sdk');
 const sharp = require('sharp');
 const db = require('./database');
+const { anthropicMessages } = require('./utils/anthropic');
 const assetLibraryRouter = require('./routes/assetLibrary');
 
 const app = express();
@@ -189,7 +189,6 @@ async function runAI({ req, res, fieldLabels, instructionPrefix }) {
   const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
   if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
 
-  const anthropic = new Anthropic({ apiKey });
   const settings  = db.getAllSettings();
   const { description = '' } = req.body;
 
@@ -257,9 +256,10 @@ async function runAI({ req, res, fieldLabels, instructionPrefix }) {
   });
 
   try {
-    const response = await anthropic.messages.create({
+    const response = await anthropicMessages({
+      apiKey,
       model: settings.ai_model || db.DEFAULTS.ai_model,
-      max_tokens: 4096,   // raised from 2048 — verbose fields like backstory were consuming the budget before key_passions
+      max_tokens: 4096,
       system: settings.ai_system_prompt || db.DEFAULTS.ai_system_prompt,
       messages: [{ role: 'user', content: userContent }],
     });
@@ -316,7 +316,6 @@ app.post('/api/ai/generate-char-image', uploadMem.array('images', 4), async (req
   let dallePrompt = '';
 
   if (anthropicKey) {
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
     const userContent = [];
 
     // Attach uploaded reference images (up to 4)
@@ -349,7 +348,8 @@ app.post('/api/ai/generate-char-image', uploadMem.array('images', 4), async (req
     });
 
     try {
-      const promptResp = await anthropic.messages.create({
+      const promptResp = await anthropicMessages({
+        apiKey: anthropicKey,
         model: settings.ai_model || db.DEFAULTS.ai_model,
         max_tokens: 512,
         system: 'You write DALL-E 3 image generation prompts for character illustrations. Output only the raw prompt text.',
@@ -460,7 +460,6 @@ app.post('/api/ai/generate-land-image', async (req, res) => {
 
   if (anthropicKey) {
     // Build Claude request — optionally include sample images for style reference
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
     const userContent = [];
 
     // Load up to 3 sample images from disk
@@ -499,7 +498,8 @@ app.post('/api/ai/generate-land-image', async (req, res) => {
     });
 
     try {
-      const promptResp = await anthropic.messages.create({
+      const promptResp = await anthropicMessages({
+        apiKey: anthropicKey,
         model: settings.ai_model || db.DEFAULTS.ai_model,
         max_tokens: 512,
         system: 'You write DALL-E 3 image generation prompts. Output only the raw prompt text.',

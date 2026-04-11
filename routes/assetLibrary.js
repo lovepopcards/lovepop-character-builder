@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const Anthropic = require('@anthropic-ai/sdk');
+const { anthropicMessages } = require('../utils/anthropic');
 const sharp = require('sharp');
 
 // Temp storage for uploaded source images
@@ -196,7 +196,7 @@ async function runClaudeSegmentation(imagePath, jobId, sourceFilename, metadata,
 
   console.log(`Image: ${origW}×${origH} → Claude payload: ${claudeW}×${claudeH} JPEG (${Math.round(base64.length / 1024)}KB base64)`);
 
-  const client = new Anthropic({ apiKey, timeout: 120_000 }); // 2 min timeout
+  // Use raw fetch wrapper — the Anthropic SDK fails on Railway (streaming body incompatibility)
 
   const prompt = `You are segmenting a Lovepop pop-up card illustration into its individual visual elements for a digital asset library.
 
@@ -224,7 +224,8 @@ Valid types: flower, leaf_stem, accent, foliage, character, animal, object, back
   let elements = [];
   try {
     console.log(`Calling Claude API with ${Math.round(base64.length / 1024)}KB base64 payload...`);
-    const response = await client.messages.create({
+    const response = await anthropicMessages({
+      apiKey,
       model: 'claude-opus-4-5',
       max_tokens: 4096,
       messages: [{
@@ -381,9 +382,9 @@ router.post('/auto-label', async (req, res) => {
     const mediaType = ext === '.png' ? 'image/png' : 'image/jpeg';
 
     const model = db.getSetting('asset_auto_label_model') || 'claude-haiku-4-5';
-    const client = new Anthropic({ apiKey });
 
-    const response = await client.messages.create({
+    const response = await anthropicMessages({
+      apiKey,
       model,
       max_tokens: 50,
       messages: [{
