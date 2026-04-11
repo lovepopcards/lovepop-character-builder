@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSettings();
   bindCharArtGenerator();
   bindLandImageGenerator();
+  bindAssetLibrary();
   loadAll();
   checkApiKeyStatus();
 });
@@ -1390,6 +1391,18 @@ function bindSettings() {
     }
   });
 
+  // Box: Test Connection
+  document.getElementById('box-test-btn')?.addEventListener('click', async () => {
+    const bar = document.getElementById('box-status-bar');
+    bar.classList.remove('hidden');
+    bar.textContent = '⏳ Testing Box connection…';
+    try {
+      const res = await fetch('/api/asset-library/box/test');
+      const data = await res.json();
+      bar.textContent = data.ok ? `✅ ${data.message}` : `❌ ${data.message}`;
+    } catch (e) { bar.textContent = `❌ ${e.message}`; }
+  });
+
   // Image sample upload
   document.getElementById('img-samples-upload').addEventListener('change', (e) => {
     if (e.target.files.length) uploadImageSamples(Array.from(e.target.files));
@@ -1686,6 +1699,20 @@ async function loadSettings() {
     oaiBadge.textContent = s.openai_key_configured ? '✓ OpenAI Key Configured' : '✗ OpenAI Key Not Set';
 
     loadImageSamples();
+
+    // Asset Library / Box settings
+    document.getElementById('sf-box-client-id').value = s.box_client_id || '';
+    document.getElementById('sf-box-client-secret').value = s.box_client_secret || '';
+    document.getElementById('sf-box-enterprise-id').value = s.box_enterprise_id || '';
+    document.getElementById('sf-box-jwt-key-id').value = s.box_jwt_key_id || '';
+    document.getElementById('sf-box-public-key-id').value = s.box_public_key_id || '';
+    document.getElementById('sf-box-private-key').value = s.box_private_key || '';
+    document.getElementById('sf-box-root-folder').value = s.box_root_folder || '/Asset Library';
+    document.getElementById('sf-sam2-min-pct').value = s.sam2_min_segment_pct || '5';
+    document.getElementById('sf-sam2-max-pct').value = s.sam2_max_segment_pct || '90';
+    document.getElementById('sf-sam2-confidence').value = s.sam2_confidence || '0.88';
+    document.getElementById('sf-asset-auto-label').checked = s.asset_auto_label !== 'false';
+    document.getElementById('sf-asset-auto-label-model').value = s.asset_auto_label_model || 'claude-haiku-4-5';
   } catch (err) { console.error('Settings load error:', err); }
 }
 
@@ -1714,6 +1741,18 @@ async function handleSettingsSave() {
     snowflake_schema:    getVal('s-sf-schema'),
     snowflake_role:      getVal('s-sf-role'),
     snowflake_query:     getVal('s-sf-query'),
+    box_client_id: document.getElementById('sf-box-client-id').value,
+    box_client_secret: document.getElementById('sf-box-client-secret').value,
+    box_enterprise_id: document.getElementById('sf-box-enterprise-id').value,
+    box_jwt_key_id: document.getElementById('sf-box-jwt-key-id').value,
+    box_public_key_id: document.getElementById('sf-box-public-key-id').value,
+    box_private_key: document.getElementById('sf-box-private-key').value,
+    box_root_folder: document.getElementById('sf-box-root-folder').value,
+    sam2_min_segment_pct: document.getElementById('sf-sam2-min-pct').value,
+    sam2_max_segment_pct: document.getElementById('sf-sam2-max-pct').value,
+    sam2_confidence: document.getElementById('sf-sam2-confidence').value,
+    asset_auto_label: document.getElementById('sf-asset-auto-label').checked ? 'true' : 'false',
+    asset_auto_label_model: document.getElementById('sf-asset-auto-label-model').value,
   };
   const sfPassword = getVal('s-sf-password');
   if (sfPassword) data.snowflake_password = sfPassword;
@@ -2340,3 +2379,552 @@ function fmtDate(iso) {
 }
 function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
 function getVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+// ═══════════════════════════════════════════════════════════
+//  ASSET LIBRARY
+// ═══════════════════════════════════════════════════════════
+
+let assetUploadedFiles = [];         // File[] staged for upload
+let assetSelectedSkus = [];          // [{sku, name}] selected SKUs
+let assetSelectedColors = new Set(); // multi-select
+let assetSelectedContentTypes = new Set();
+let assetJobs = [];
+let assetLibraryItems = [];
+let assetQueueFilter = 'all';
+
+// Segment Review Modal state
+let srmJobId = null;
+let srmSegments = [];
+let srmIndex = 0;
+let srmReviewedCount = 0;
+
+function bindAssetLibrary() {
+  // Sub-tab switching
+  document.querySelectorAll('.asset-subtab').forEach(btn => {
+    btn.addEventListener('click', () => switchAssetSubtab(btn.dataset.subtab));
+  });
+
+  // Drop zone
+  const dropZone = document.getElementById('asset-drop-zone');
+  const fileInput = document.getElementById('asset-file-input');
+  const dropLink = document.getElementById('asset-drop-link');
+
+  dropLink?.addEventListener('click', e => { e.stopPropagation(); fileInput?.click(); });
+  dropZone?.addEventListener('click', () => fileInput?.click());
+  dropZone?.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone?.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    addAssetFiles(Array.from(e.dataTransfer.files));
+  });
+  fileInput?.addEventListener('change', e => {
+    addAssetFiles(Array.from(e.target.files || []));
+    e.target.value = '';
+  });
+
+  // SKU search typeahead
+  const skuSearch = document.getElementById('asset-sku-search');
+  const skuDropdown = document.getElementById('asset-sku-dropdown');
+  let skuSearchTimer;
+  skuSearch?.addEventListener('input', () => {
+    clearTimeout(skuSearchTimer);
+    skuSearchTimer = setTimeout(() => renderAssetSkuDropdown(skuSearch.value), 180);
+  });
+  skuSearch?.addEventListener('blur', () => setTimeout(() => skuDropdown?.classList.add('hidden'), 150));
+
+  // Multi-select chips
+  document.querySelectorAll('#asset-meta-color-chips .asset-chip').forEach(btn =>
+    btn.addEventListener('click', () => toggleAssetChip(btn, assetSelectedColors)));
+  document.querySelectorAll('#asset-meta-content-chips .asset-chip').forEach(btn =>
+    btn.addEventListener('click', () => toggleAssetChip(btn, assetSelectedContentTypes)));
+
+  // Run segmentation button
+  document.getElementById('asset-run-btn')?.addEventListener('click', handleAssetSegmentation);
+
+  // Go to settings link
+  document.getElementById('asset-go-to-settings')?.addEventListener('click', e => {
+    e.preventDefault(); switchView('settings');
+  });
+
+  // View queue button
+  document.getElementById('asset-view-queue-btn')?.addEventListener('click', () => switchAssetSubtab('queue'));
+
+  // Queue refresh
+  document.getElementById('asset-refresh-queue-btn')?.addEventListener('click', loadAssetJobs);
+
+  // Queue filters
+  document.querySelectorAll('.asset-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      assetQueueFilter = btn.dataset.filter;
+      document.querySelectorAll('.asset-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAssetQueue();
+    });
+  });
+
+  // Browser search/filters
+  let browserSearchTimer;
+  document.getElementById('asset-browser-search')?.addEventListener('input', () => {
+    clearTimeout(browserSearchTimer);
+    browserSearchTimer = setTimeout(loadAssetLibraryItems, 280);
+  });
+  ['asset-browser-occasion', 'asset-browser-art-style', 'asset-browser-element-type'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', loadAssetLibraryItems);
+  });
+
+  // Segment review modal
+  document.getElementById('srm-close-btn')?.addEventListener('click', closeSRM);
+  document.getElementById('srm-save-exit-btn')?.addEventListener('click', closeSRM);
+  document.getElementById('srm-prev-btn')?.addEventListener('click', () => navigateSRM(-1));
+  document.getElementById('srm-next-btn')?.addEventListener('click', () => navigateSRM(1));
+  document.getElementById('srm-approve-btn')?.addEventListener('click', () => reviewCurrentSegment('approved'));
+  document.getElementById('srm-reject-btn')?.addEventListener('click', () => reviewCurrentSegment('rejected'));
+  document.getElementById('srm-merge-btn')?.addEventListener('click', mergeCurrentWithNext);
+  document.getElementById('srm-approve-all-btn')?.addEventListener('click', approveAllRemainingSegments);
+  document.getElementById('srm-copy-label-btn')?.addEventListener('click', () => {
+    const autoLabel = document.getElementById('srm-auto-label')?.textContent;
+    if (autoLabel && autoLabel !== '—') {
+      document.getElementById('srm-label-input').value = autoLabel;
+    }
+  });
+  document.getElementById('modal-segment-review')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeSRM();
+  });
+
+  // Asset detail drawer
+  document.getElementById('asset-drawer-close-btn')?.addEventListener('click', closeAssetDrawer);
+}
+
+function switchAssetSubtab(tab) {
+  document.querySelectorAll('.asset-subtab').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.subtab === tab));
+  document.querySelectorAll('.asset-subview').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`asset-sub-${tab}`)?.classList.remove('hidden');
+  if (tab === 'queue') loadAssetJobs();
+  if (tab === 'browser') loadAssetLibraryItems();
+}
+
+// ── Upload panel ──────────────────────────────────────────
+
+function addAssetFiles(files) {
+  const valid = files.filter(f =>
+    /\.(png|jpe?g|webp)$/i.test(f.name) && !assetUploadedFiles.find(x => x.name === f.name)
+  );
+  assetUploadedFiles = [...assetUploadedFiles, ...valid].slice(0, 20);
+  renderAssetFileList();
+  updateAssetRunBtn();
+}
+
+function renderAssetFileList() {
+  const listEl = document.getElementById('asset-file-list');
+  if (!listEl) return;
+  if (!assetUploadedFiles.length) { listEl.classList.add('hidden'); return; }
+  listEl.classList.remove('hidden');
+  listEl.innerHTML = '';
+  assetUploadedFiles.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'asset-file-item';
+    const imgEl = document.createElement('img');
+    imgEl.className = 'asset-file-thumb';
+    const reader = new FileReader();
+    reader.onload = e => { imgEl.src = e.target.result; };
+    reader.readAsDataURL(file);
+    item.appendChild(imgEl);
+    const name = document.createElement('span');
+    name.className = 'asset-file-name'; name.textContent = file.name;
+    item.appendChild(name);
+    const size = document.createElement('span');
+    size.className = 'asset-file-size'; size.textContent = formatBytes(file.size);
+    item.appendChild(size);
+    const rm = document.createElement('button');
+    rm.className = 'asset-file-remove'; rm.textContent = '✕';
+    rm.addEventListener('click', () => { assetUploadedFiles.splice(idx, 1); renderAssetFileList(); updateAssetRunBtn(); });
+    item.appendChild(rm);
+    listEl.appendChild(item);
+  });
+}
+
+function updateAssetRunBtn() {
+  const btn = document.getElementById('asset-run-btn');
+  if (btn) btn.disabled = assetUploadedFiles.length === 0;
+}
+
+function formatBytes(n) {
+  if (n >= 1048576) return `${(n/1048576).toFixed(1)} MB`;
+  return `${Math.round(n/1024)} KB`;
+}
+
+function renderAssetSkuDropdown(query) {
+  const dropdown = document.getElementById('asset-sku-dropdown');
+  if (!dropdown) return;
+  if (!query || query.length < 2) { dropdown.classList.add('hidden'); return; }
+  const matches = allProducts
+    .filter(p =>
+      (p.name || '').toLowerCase().includes(query.toLowerCase()) ||
+      (p.sku || '').toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 12);
+  if (!matches.length) { dropdown.classList.add('hidden'); return; }
+  dropdown.innerHTML = '';
+  matches.forEach(p => {
+    const opt = document.createElement('div');
+    opt.className = 'asset-sku-option';
+    opt.innerHTML = `<span class="asset-sku-option-name">${esc(p.name || p.sku)}</span><span class="asset-sku-option-sku">${esc(p.sku)}</span>`;
+    opt.addEventListener('click', () => {
+      if (!assetSelectedSkus.find(x => x.sku === p.sku)) {
+        assetSelectedSkus.push({ sku: p.sku, name: p.name || p.sku });
+        renderAssetSkuChips();
+      }
+      dropdown.classList.add('hidden');
+      document.getElementById('asset-sku-search').value = '';
+    });
+    dropdown.appendChild(opt);
+  });
+  dropdown.classList.remove('hidden');
+}
+
+function renderAssetSkuChips() {
+  const el = document.getElementById('asset-sku-chips');
+  if (!el) return;
+  el.innerHTML = '';
+  assetSelectedSkus.forEach(({ sku, name }) => {
+    const chip = document.createElement('div');
+    chip.className = 'asset-sku-chip';
+    chip.innerHTML = `${esc(sku)} <button class="asset-sku-chip-remove" title="Remove">×</button>`;
+    chip.querySelector('.asset-sku-chip-remove').addEventListener('click', () => {
+      assetSelectedSkus = assetSelectedSkus.filter(x => x.sku !== sku);
+      renderAssetSkuChips();
+    });
+    el.appendChild(chip);
+  });
+}
+
+function toggleAssetChip(btn, set) {
+  const val = btn.dataset.value;
+  if (set.has(val)) { set.delete(val); btn.classList.remove('selected'); }
+  else { set.add(val); btn.classList.add('selected'); }
+}
+
+async function handleAssetSegmentation() {
+  if (!assetUploadedFiles.length) return;
+  const btn = document.getElementById('asset-run-btn');
+  const cta = document.getElementById('asset-segment-cta');
+  const progress = document.getElementById('asset-progress-panel');
+  const progressList = document.getElementById('asset-progress-list');
+  const progressCount = document.getElementById('asset-progress-count');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting…';
+
+  const metadata = {
+    occasion: document.getElementById('asset-meta-occasion')?.value || '',
+    theme: document.getElementById('asset-meta-theme')?.value || '',
+    sub_theme: document.getElementById('asset-meta-subtheme')?.value || '',
+    art_style: document.getElementById('asset-meta-art-style')?.value || '',
+    color_family: [...assetSelectedColors],
+    content_type: [...assetSelectedContentTypes],
+  };
+
+  const formData = new FormData();
+  assetUploadedFiles.forEach(f => formData.append('files', f));
+  formData.append('metadata', JSON.stringify(metadata));
+  formData.append('sku_ids', JSON.stringify(assetSelectedSkus.map(x => x.sku)));
+  formData.append('box_folder', document.getElementById('asset-box-folder')?.value || '');
+  formData.append('notes', document.getElementById('asset-notes')?.value || '');
+
+  try {
+    const res = await fetch('/api/asset-library/segment', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to start segmentation');
+
+    // Show progress panel
+    cta.classList.add('hidden');
+    progress.classList.remove('hidden');
+    if (progressCount) progressCount.textContent = assetUploadedFiles.length;
+
+    if (progressList) {
+      progressList.innerHTML = '';
+      assetUploadedFiles.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'asset-progress-item';
+        item.innerHTML = `
+          <div class="asset-progress-name">${esc(f.name)}</div>
+          <div class="asset-progress-bar-wrap"><div class="asset-progress-bar" style="width:0%"></div></div>
+          <div class="asset-progress-status">Queued…</div>`;
+        progressList.appendChild(item);
+      });
+      // Animate bars while polling
+      let dots = 0;
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`/api/asset-library/jobs/${data.job_id}`);
+          const job = await pollRes.json();
+          const items = progressList.querySelectorAll('.asset-progress-item');
+          const isComplete = job.status === 'complete' || job.status === 'failed';
+          items.forEach((item, i) => {
+            const bar = item.querySelector('.asset-progress-bar');
+            const status = item.querySelector('.asset-progress-status');
+            if (isComplete) {
+              bar.style.width = '100%';
+              status.textContent = job.status === 'failed' ? '⚠️ Failed' : `${Math.round((job.segment_count||0)/Math.max(items.length,1))} segments found`;
+            } else {
+              bar.style.width = `${Math.min(80 + dots*5, 95)}%`;
+              status.textContent = `Processing… ${'.'.repeat((dots % 3) + 1)}`;
+            }
+          });
+          if (isComplete) {
+            clearInterval(pollInterval);
+            const segCount = job.segment_count || 0;
+            const viewQueueBtn = document.getElementById('asset-view-queue-btn');
+            if (viewQueueBtn) viewQueueBtn.textContent = `${segCount} segments ready for review →`;
+          }
+          dots++;
+        } catch {}
+      }, 1500);
+
+      // Reset upload state
+      assetUploadedFiles = [];
+      renderAssetFileList();
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = '✨ Run Segmentation';
+    alert(`Segmentation failed: ${err.message}`);
+  }
+}
+
+// ── Review Queue ──────────────────────────────────────────
+
+async function loadAssetJobs() {
+  try {
+    const res = await fetch('/api/asset-library/jobs');
+    if (res.ok) { assetJobs = await res.json(); renderAssetQueue(); }
+  } catch {}
+}
+
+function renderAssetQueue() {
+  const list = document.getElementById('asset-queue-list');
+  const empty = document.getElementById('asset-queue-empty');
+  if (!list) return;
+
+  const filtered = assetQueueFilter === 'all'
+    ? assetJobs
+    : assetJobs.filter(j => j.status === assetQueueFilter || j.status?.startsWith(assetQueueFilter));
+
+  if (!filtered.length) { empty?.classList.remove('hidden'); list.innerHTML = ''; return; }
+  empty?.classList.add('hidden');
+  list.innerHTML = '';
+  filtered.forEach(job => {
+    const files = job.source_files || [];
+    const skus = job.sku_ids || [];
+    const row = document.createElement('div');
+    row.className = 'asset-queue-row';
+    const baseStatus = job.status?.split(':')[0] || 'queued';
+    row.innerHTML = `
+      <div class="asset-queue-source">
+        ${files.map(f => esc(f.filename || f)).join(', ') || 'Unknown files'}
+        <div class="asset-queue-source-sub">${new Date(job.created_at).toLocaleString()}</div>
+      </div>
+      ${skus.length ? `<div class="asset-queue-skus">${skus.slice(0,3).map(esc).join(', ')}${skus.length > 3 ? ` +${skus.length-3}` : ''}</div>` : ''}
+      <div class="asset-queue-seg-count">${job.segment_count || 0} segments</div>
+      <span class="asset-queue-status status-${baseStatus}">${baseStatus}</span>
+      ${baseStatus === 'complete' ? `<button class="btn-secondary" data-job-id="${esc(job.id)}" style="font-size:11px;padding:5px 12px;white-space:nowrap">Review →</button>` : ''}`;
+    const reviewBtn = row.querySelector('[data-job-id]');
+    reviewBtn?.addEventListener('click', () => openSRM(job.id));
+    list.appendChild(row);
+  });
+  const count = document.getElementById('assets-count');
+  if (count) count.textContent = `${assetJobs.length} job${assetJobs.length !== 1 ? 's' : ''}`;
+}
+
+// ── Segment Review Modal ──────────────────────────────────
+
+async function openSRM(jobId) {
+  srmJobId = jobId;
+  srmIndex = 0;
+  srmReviewedCount = 0;
+  try {
+    const res = await fetch(`/api/asset-library/jobs/${jobId}`);
+    const job = await res.json();
+    srmSegments = (job.segments || []).filter(s => s.status !== 'library');
+    document.getElementById('srm-source-name').textContent = (job.source_files || []).map(f => f.filename || f).join(', ');
+    document.getElementById('srm-segment-count').textContent = `${srmSegments.length} segments`;
+    document.getElementById('modal-segment-review').classList.remove('hidden');
+    renderSRMSegment();
+  } catch (err) { alert(`Failed to load job: ${err.message}`); }
+}
+
+function closeSRM() {
+  document.getElementById('modal-segment-review').classList.add('hidden');
+  loadAssetJobs();
+}
+
+function renderSRMSegment() {
+  if (!srmSegments.length) {
+    document.getElementById('srm-nav-label').textContent = 'No segments';
+    return;
+  }
+  const seg = srmSegments[srmIndex];
+  document.getElementById('srm-nav-label').textContent = `Segment ${srmIndex + 1} of ${srmSegments.length}`;
+  document.getElementById('srm-prev-btn').disabled = srmIndex === 0;
+  document.getElementById('srm-next-btn').disabled = srmIndex === srmSegments.length - 1;
+
+  // Load segment image
+  const segImg = document.getElementById('srm-segment-img');
+  segImg.src = `/api/asset-library/segments/${seg.id}/image`;
+  segImg.onerror = () => { segImg.alt = 'Image not available'; };
+
+  // Bounding box info
+  const bbox = seg.mask_bbox || {};
+  document.getElementById('srm-meta-bbox').innerHTML =
+    bbox.pct_of_image != null
+      ? `<span class="srm-meta-label">Coverage:</span> ${Math.round(bbox.pct_of_image)}% of image${bbox.w ? ` · ${bbox.w}×${bbox.h}px` : ''}`
+      : '';
+
+  // Auto label
+  const autoLabel = seg.auto_label || '';
+  document.getElementById('srm-auto-label').textContent = autoLabel || '—';
+  document.getElementById('srm-copy-label-btn').style.display = autoLabel ? '' : 'none';
+
+  // Form fields
+  document.getElementById('srm-label-input').value = seg.element_label || '';
+  document.getElementById('srm-notes-input').value = seg.notes || '';
+  const typeVal = seg.element_type || '';
+  document.querySelectorAll('input[name="srm-type"]').forEach(r => { r.checked = r.value === typeVal; });
+
+  // Stats
+  const approved = srmSegments.filter(s => s.status === 'approved').length;
+  const rejected = srmSegments.filter(s => s.status === 'rejected').length;
+  const pending = srmSegments.filter(s => s.status === 'pending_review').length;
+  document.getElementById('srm-stats').textContent = `${approved} ✓  ${rejected} ✗  ${pending} pending`;
+  document.getElementById('srm-approve-all-btn').disabled = srmReviewedCount === 0;
+
+  // Trigger auto-label if not yet done
+  if (!seg.auto_label) fetchAutoLabel(seg.id);
+}
+
+async function fetchAutoLabel(segmentId) {
+  try {
+    const res = await fetch('/api/asset-library/auto-label', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segment_id: segmentId })
+    });
+    const data = await res.json();
+    if (data.label && srmSegments[srmIndex]?.id === segmentId) {
+      srmSegments[srmIndex].auto_label = data.label;
+      document.getElementById('srm-auto-label').textContent = data.label;
+      document.getElementById('srm-copy-label-btn').style.display = '';
+    }
+  } catch {}
+}
+
+async function reviewCurrentSegment(status) {
+  if (!srmSegments.length) return;
+  const seg = srmSegments[srmIndex];
+  const label = document.getElementById('srm-label-input').value.trim();
+  const notes = document.getElementById('srm-notes-input').value.trim();
+  const typeEl = document.querySelector('input[name="srm-type"]:checked');
+  const elementType = typeEl?.value || '';
+  try {
+    await fetch(`/api/asset-library/segments/${seg.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, element_label: label, element_type: elementType, notes })
+    });
+    srmSegments[srmIndex].status = status;
+    srmSegments[srmIndex].element_label = label;
+    srmReviewedCount++;
+    if (srmIndex < srmSegments.length - 1) { srmIndex++; renderSRMSegment(); }
+    else { renderSRMSegment(); }
+  } catch (err) { alert(`Failed to save: ${err.message}`); }
+}
+
+function navigateSRM(delta) {
+  srmIndex = Math.max(0, Math.min(srmSegments.length - 1, srmIndex + delta));
+  renderSRMSegment();
+}
+
+async function mergeCurrentWithNext() {
+  if (srmIndex >= srmSegments.length - 1) return;
+  const segA = srmSegments[srmIndex];
+  const segB = srmSegments[srmIndex + 1];
+  try {
+    const res = await fetch('/api/asset-library/segments/merge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segment_id_a: segA.id, segment_id_b: segB.id })
+    });
+    const data = await res.json();
+    srmSegments[srmIndex].element_label = data.label;
+    srmSegments[srmIndex + 1].status = 'rejected';
+    document.getElementById('srm-label-input').value = data.label;
+    renderSRMSegment();
+  } catch (err) { alert(`Merge failed: ${err.message}`); }
+}
+
+async function approveAllRemainingSegments() {
+  const pending = srmSegments.filter(s => s.status === 'pending_review');
+  for (const seg of pending) {
+    await fetch(`/api/asset-library/segments/${seg.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved' })
+    });
+    seg.status = 'approved';
+  }
+  renderSRMSegment();
+}
+
+// ── Asset Browser ──────────────────────────────────────────
+
+async function loadAssetLibraryItems() {
+  try {
+    const params = new URLSearchParams({
+      search: document.getElementById('asset-browser-search')?.value || '',
+      occasion: document.getElementById('asset-browser-occasion')?.value || '',
+      art_style: document.getElementById('asset-browser-art-style')?.value || '',
+      element_type: document.getElementById('asset-browser-element-type')?.value || '',
+    });
+    const res = await fetch(`/api/asset-library/assets?${params}`);
+    if (res.ok) { assetLibraryItems = await res.json(); renderAssetBrowser(); }
+  } catch {}
+}
+
+function renderAssetBrowser() {
+  const grid = document.getElementById('asset-browser-grid');
+  const empty = document.getElementById('asset-browser-empty');
+  if (!grid) return;
+  if (!assetLibraryItems.length) { empty?.classList.remove('hidden'); grid.innerHTML = ''; return; }
+  empty?.classList.add('hidden');
+  grid.innerHTML = '';
+  assetLibraryItems.forEach(asset => {
+    const card = document.createElement('div');
+    card.className = 'asset-browser-card';
+    card.innerHTML = `
+      <div class="asset-browser-card-img">
+        ${asset.box_url ? `<img src="${esc(asset.box_url)}" alt="${esc(asset.element_label)}" loading="lazy" />` : '🖼'}
+      </div>
+      <div class="asset-browser-card-body">
+        <div class="asset-browser-card-label">${esc(asset.element_label || '—')}</div>
+        <div class="asset-browser-card-meta">${esc(asset.sku_ids?.join(', ') || '')}${asset.occasion ? ` · ${esc(asset.occasion)}` : ''}</div>
+      </div>`;
+    card.addEventListener('click', () => openAssetDrawer(asset));
+    grid.appendChild(card);
+  });
+}
+
+function openAssetDrawer(asset) {
+  document.getElementById('add-preview-img').src = asset.box_url || '';
+  document.getElementById('add-label').textContent = asset.element_label || '—';
+  document.getElementById('add-type').textContent = asset.element_type || '—';
+  document.getElementById('add-skus').textContent = (asset.sku_ids || []).join(', ') || '—';
+  document.getElementById('add-occasion').textContent = asset.occasion || '—';
+  document.getElementById('add-theme').textContent = [asset.theme, asset.sub_theme].filter(Boolean).join(' / ') || '—';
+  document.getElementById('add-art-style').textContent = asset.art_style || '—';
+  document.getElementById('add-source').textContent = asset.source_filename || '—';
+  document.getElementById('add-approved').textContent = asset.approved_at ? new Date(asset.approved_at).toLocaleDateString() : '—';
+  const boxLink = document.getElementById('add-box-link');
+  if (asset.box_url) { boxLink.href = asset.box_url; boxLink.style.display = ''; }
+  else { boxLink.style.display = 'none'; }
+  document.getElementById('asset-detail-drawer').classList.remove('hidden');
+}
+
+function closeAssetDrawer() {
+  document.getElementById('asset-detail-drawer').classList.add('hidden');
+}

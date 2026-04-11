@@ -68,6 +68,70 @@ db.exec(`
   )
 `);
 
+// ── Asset Jobs table ──────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_jobs (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    status TEXT DEFAULT 'queued',
+    source_files TEXT DEFAULT '[]',
+    sku_ids TEXT DEFAULT '[]',
+    metadata TEXT DEFAULT '{}',
+    box_folder TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    segment_count INTEGER DEFAULT 0,
+    error_message TEXT DEFAULT ''
+  )
+`);
+
+// ── Asset Segments table ───────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_segments (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    job_id TEXT REFERENCES asset_jobs(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    source_filename TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending_review',
+    temp_path TEXT DEFAULT '',
+    box_file_id TEXT DEFAULT '',
+    box_url TEXT DEFAULT '',
+    element_label TEXT DEFAULT '',
+    element_type TEXT DEFAULT '',
+    auto_label TEXT DEFAULT '',
+    mask_bbox TEXT DEFAULT '{}',
+    metadata TEXT DEFAULT '{}',
+    notes TEXT DEFAULT '',
+    reviewed_by TEXT DEFAULT '',
+    reviewed_at TEXT DEFAULT ''
+  )
+`);
+
+// ── Asset Library table ───────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_library (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    segment_id TEXT REFERENCES asset_segments(id),
+    created_at TEXT DEFAULT (datetime('now')),
+    box_file_id TEXT DEFAULT '',
+    box_url TEXT DEFAULT '',
+    element_label TEXT DEFAULT '',
+    element_type TEXT DEFAULT '',
+    sku_ids TEXT DEFAULT '[]',
+    occasion TEXT DEFAULT '',
+    theme TEXT DEFAULT '',
+    sub_theme TEXT DEFAULT '',
+    art_style TEXT DEFAULT '',
+    color_family TEXT DEFAULT '[]',
+    content_type TEXT DEFAULT '[]',
+    source_filename TEXT DEFAULT '',
+    approved_by TEXT DEFAULT '',
+    approved_at TEXT DEFAULT '',
+    use_count INTEGER DEFAULT 0
+  )
+`);
+
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -99,6 +163,25 @@ const DEFAULTS = {
   ai_land_instruction_themes_and_content: `List the primary themes, motifs, and content types that appear in this land (e.g. "wildflowers, mushrooms, morning dew, soft woodland creatures, birthday celebrations"). Aim for 6-10 specific elements.`,
 
   ai_model: 'claude-opus-4-5',
+
+  // Box Integration
+  box_client_id: '',
+  box_client_secret: '',
+  box_enterprise_id: '',
+  box_jwt_key_id: '',
+  box_private_key: '',
+  box_public_key_id: '',
+  box_root_folder: '/Asset Library',
+
+  // SAM2 Segmentation
+  sam2_model_size: 'large',
+  sam2_min_segment_pct: '5',
+  sam2_max_segment_pct: '90',
+  sam2_confidence: '0.88',
+
+  // Auto-labeling
+  asset_auto_label: 'true',
+  asset_auto_label_model: 'claude-haiku-4-5',
 
   // Snowflake connection
   snowflake_account:   '',
@@ -155,6 +238,27 @@ const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
 const LAND_TEXT   = ['name','description','visual_style','color_palette','themes_and_content','status'];
 const LAND_JSON   = ['images','product_skus'];
 const LAND_ALL    = [...LAND_TEXT, ...LAND_JSON];
+
+// ── Asset JSON field helpers ──────────────────────────────────
+const parseAssetJob = (row) => row ? ({
+  ...row,
+  source_files: parseJSON(row.source_files, []),
+  sku_ids:      parseJSON(row.sku_ids, []),
+  metadata:     parseJSON(row.metadata, {}),
+}) : null;
+
+const parseAssetSegment = (row) => row ? ({
+  ...row,
+  mask_bbox: parseJSON(row.mask_bbox, {}),
+  metadata:  parseJSON(row.metadata, {}),
+}) : null;
+
+const parseAssetLibraryItem = (row) => row ? ({
+  ...row,
+  sku_ids:      parseJSON(row.sku_ids, []),
+  color_family: parseJSON(row.color_family, []),
+  content_type: parseJSON(row.content_type, []),
+}) : null;
 
 module.exports = {
 
@@ -274,4 +378,93 @@ module.exports = {
   },
 
   DEFAULTS,
+
+  // ── Asset Jobs ────────────────────────────────────────────────
+  createAssetJob(data) {
+    const fields = ['status','source_files','sku_ids','metadata','box_folder','notes','segment_count','error_message'];
+    const jsonFields = ['source_files','sku_ids','metadata'];
+    const vals = fields.map(f => jsonFields.includes(f) ? JSON.stringify(data[f] != null ? data[f] : (f === 'metadata' ? {} : [])) : (data[f] != null ? data[f] : ''));
+    db.prepare(`INSERT INTO asset_jobs (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`).run(...vals);
+    const row = db.prepare('SELECT * FROM asset_jobs ORDER BY rowid DESC LIMIT 1').get();
+    return parseAssetJob(row);
+  },
+  updateAssetJob(id, data) {
+    const jsonFields = ['source_files','sku_ids','metadata'];
+    const fields = [], values = [];
+    for (const [k, v] of Object.entries(data)) {
+      fields.push(`${k} = ?`);
+      values.push(jsonFields.includes(k) ? JSON.stringify(v) : v);
+    }
+    if (!fields.length) return;
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE asset_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  },
+  getAssetJob(id) {
+    return parseAssetJob(db.prepare('SELECT * FROM asset_jobs WHERE id = ?').get(id));
+  },
+  listAssetJobs() {
+    return db.prepare('SELECT * FROM asset_jobs ORDER BY created_at DESC').all().map(parseAssetJob);
+  },
+  deleteAssetJob(id) {
+    return db.prepare('DELETE FROM asset_jobs WHERE id = ?').run(id);
+  },
+
+  // ── Asset Segments ────────────────────────────────────────────
+  createAssetSegment(data) {
+    const fields = ['job_id','source_filename','status','temp_path','box_file_id','box_url','element_label','element_type','auto_label','mask_bbox','metadata','notes','reviewed_by','reviewed_at'];
+    const jsonFields = ['mask_bbox','metadata'];
+    const vals = fields.map(f => jsonFields.includes(f) ? JSON.stringify(data[f] != null ? data[f] : (f === 'metadata' ? {} : {})) : (data[f] != null ? data[f] : ''));
+    db.prepare(`INSERT INTO asset_segments (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`).run(...vals);
+    const row = db.prepare('SELECT * FROM asset_segments ORDER BY rowid DESC LIMIT 1').get();
+    return parseAssetSegment(row);
+  },
+  updateAssetSegment(id, data) {
+    const jsonFields = ['mask_bbox','metadata'];
+    const fields = [], values = [];
+    for (const [k, v] of Object.entries(data)) {
+      fields.push(`${k} = ?`);
+      values.push(jsonFields.includes(k) ? JSON.stringify(v) : v);
+    }
+    if (!fields.length) return;
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE asset_segments SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  },
+  getAssetSegment(id) {
+    return parseAssetSegment(db.prepare('SELECT * FROM asset_segments WHERE id = ?').get(id));
+  },
+  listSegmentsForJob(jobId) {
+    return db.prepare('SELECT * FROM asset_segments WHERE job_id = ? ORDER BY created_at ASC').all(jobId).map(parseAssetSegment);
+  },
+  deleteSegment(id) {
+    return db.prepare('DELETE FROM asset_segments WHERE id = ?').run(id);
+  },
+
+  // ── Asset Library ─────────────────────────────────────────────
+  addToAssetLibrary(data) {
+    const fields = ['segment_id','box_file_id','box_url','element_label','element_type','sku_ids','occasion','theme','sub_theme','art_style','color_family','content_type','source_filename','approved_by','approved_at','use_count'];
+    const jsonFields = ['sku_ids','color_family','content_type'];
+    const vals = fields.map(f => jsonFields.includes(f) ? JSON.stringify(data[f] != null ? data[f] : []) : (data[f] != null ? data[f] : ''));
+    db.prepare(`INSERT INTO asset_library (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`).run(...vals);
+    const row = db.prepare('SELECT * FROM asset_library ORDER BY rowid DESC LIMIT 1').get();
+    return parseAssetLibraryItem(row);
+  },
+  getAssetLibraryItem(id) {
+    return parseAssetLibraryItem(db.prepare('SELECT * FROM asset_library WHERE id = ?').get(id));
+  },
+  listAssetLibrary(filters = {}) {
+    const conditions = [];
+    const params = [];
+    if (filters.occasion) { conditions.push('occasion = ?'); params.push(filters.occasion); }
+    if (filters.art_style) { conditions.push('art_style = ?'); params.push(filters.art_style); }
+    if (filters.element_type) { conditions.push('element_type = ?'); params.push(filters.element_type); }
+    if (filters.color_family) { conditions.push('color_family LIKE ?'); params.push(`%${filters.color_family}%`); }
+    if (filters.search) {
+      conditions.push('(element_label LIKE ? OR source_filename LIKE ? OR theme LIKE ?)');
+      params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    return db.prepare(`SELECT * FROM asset_library ${where} ORDER BY created_at DESC LIMIT 200`).all(...params).map(parseAssetLibraryItem);
+  },
 };

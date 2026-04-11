@@ -21,6 +21,7 @@
       <nav class="header-nav">
         <button class="nav-tab active" data-view="catalog">Lovepop Characters</button>
         <button class="nav-tab" data-view="lands">Lovepop Lands</button>
+        <button class="nav-tab" data-view="assets">Asset Library</button>
         <button class="nav-tab" data-view="settings">Settings</button>
       </nav>
     </div>
@@ -494,6 +495,300 @@
 
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         ASSET LIBRARY VIEW
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="view-assets" class="view hidden">
+
+      <!-- Toolbar -->
+      <div class="view-toolbar">
+        <div class="view-toolbar-left">
+          <h1 class="view-title">Asset Library</h1>
+          <span class="view-count" id="assets-count"></span>
+        </div>
+      </div>
+
+      <!-- Sub-view pill tabs -->
+      <div class="asset-subtabs">
+        <button class="asset-subtab active" data-subtab="upload">Upload &amp; Segment</button>
+        <button class="asset-subtab" data-subtab="queue">Review Queue</button>
+        <button class="asset-subtab" data-subtab="browser">Asset Browser</button>
+      </div>
+
+      <!-- ── Sub-view A: Upload & Segment ── -->
+      <div id="asset-sub-upload" class="asset-subview">
+        <div class="asset-upload-layout">
+
+          <!-- Left panel: file drop zone -->
+          <div class="asset-upload-left">
+            <div class="asset-drop-zone" id="asset-drop-zone">
+              <div class="asset-drop-icon">🖼</div>
+              <div class="asset-drop-title">Drop illustration PNGs here</div>
+              <div class="asset-drop-sub">or <span class="asset-drop-link" id="asset-drop-link">click to select files</span></div>
+              <div class="asset-drop-hint">Accepts .png, .jpg, .webp · Max 20 files</div>
+              <input type="file" id="asset-file-input" multiple accept=".png,.jpg,.jpeg,.webp" style="display:none" />
+            </div>
+
+            <div id="asset-file-list" class="asset-file-list hidden"></div>
+          </div>
+
+          <!-- Right panel: metadata -->
+          <div class="asset-upload-right">
+            <div class="form-section">
+              <div class="form-section-title">SKU Association</div>
+              <div class="asset-sku-search-wrap">
+                <input type="text" id="asset-sku-search" class="form-input" placeholder="Search by name or SKU…" autocomplete="off" />
+                <div id="asset-sku-dropdown" class="asset-sku-dropdown hidden"></div>
+              </div>
+              <div id="asset-sku-chips" class="asset-sku-chips"></div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-title">Taxonomy Tags</div>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label class="form-label">Occasion</label>
+                  <select id="asset-meta-occasion" class="form-select">
+                    <option value="">— select —</option>
+                    <option>Birthday</option><option>Anniversary</option><option>Wedding</option>
+                    <option>Holiday</option><option>Christmas</option><option>Valentine's Day</option>
+                    <option>Mother's Day</option><option>Father's Day</option><option>Baby</option>
+                    <option>Graduation</option><option>Thank You</option><option>Sympathy</option>
+                    <option>Everyday</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Art Style</label>
+                  <select id="asset-meta-art-style" class="form-select">
+                    <option value="">— select —</option>
+                    <option>Watercolor</option><option>Line Art</option><option>Paper Cut</option>
+                    <option>Graphic</option><option>Mixed</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label class="form-label">Theme</label>
+                  <input type="text" id="asset-meta-theme" class="form-input" placeholder="e.g. Floral" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Sub-theme</label>
+                  <input type="text" id="asset-meta-subtheme" class="form-input" placeholder="e.g. Spring Bouquet" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Color Family</label>
+                <div class="asset-chip-group" id="asset-meta-color-chips">
+                  <button class="asset-chip" data-value="Warm">Warm</button>
+                  <button class="asset-chip" data-value="Cool">Cool</button>
+                  <button class="asset-chip" data-value="Neutral">Neutral</button>
+                  <button class="asset-chip" data-value="Pastel">Pastel</button>
+                  <button class="asset-chip" data-value="Bold">Bold</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Content Type</label>
+                <div class="asset-chip-group" id="asset-meta-content-chips">
+                  <button class="asset-chip" data-value="Floral">Floral</button>
+                  <button class="asset-chip" data-value="Character">Character</button>
+                  <button class="asset-chip" data-value="Botanical">Botanical</button>
+                  <button class="asset-chip" data-value="Abstract">Abstract</button>
+                  <button class="asset-chip" data-value="Landscape">Landscape</button>
+                  <button class="asset-chip" data-value="Typography">Typography</button>
+                  <button class="asset-chip" data-value="Texture">Texture</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-title">Box Destination Folder</div>
+              <div class="form-group">
+                <input type="text" id="asset-box-folder" class="form-input" placeholder="/Asset Library/Florals/2024" />
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-section-title">Notes <span style="font-weight:400;color:var(--gray)">(optional)</span></div>
+              <textarea id="asset-notes" class="form-textarea" rows="3" placeholder="Any notes about this batch…"></textarea>
+            </div>
+
+            <!-- CTA -->
+            <div id="asset-segment-cta">
+              <button class="btn-ai-generate" id="asset-run-btn" disabled style="width:100%;margin-top:8px">
+                ✨ Run Segmentation
+              </button>
+              <div id="asset-box-warning" class="asset-banner hidden">
+                ⚠️ Box credentials not configured. <a href="#" id="asset-go-to-settings">Add them in Settings →</a>
+              </div>
+            </div>
+
+            <!-- Progress panel (shown during segmentation) -->
+            <div id="asset-progress-panel" class="hidden">
+              <div class="asset-progress-title">Segmenting <span id="asset-progress-count"></span> images…</div>
+              <div id="asset-progress-list" class="asset-progress-list"></div>
+              <button class="btn-secondary" id="asset-view-queue-btn" style="margin-top:16px;width:100%">View Review Queue →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Sub-view B: Review Queue ── -->
+      <div id="asset-sub-queue" class="asset-subview hidden">
+        <div class="asset-queue-toolbar">
+          <div class="asset-queue-filters">
+            <button class="asset-filter-btn active" data-filter="all">All</button>
+            <button class="asset-filter-btn" data-filter="queued">Queued</button>
+            <button class="asset-filter-btn" data-filter="processing">Processing</button>
+            <button class="asset-filter-btn" data-filter="complete">Complete</button>
+            <button class="asset-filter-btn" data-filter="failed">Failed</button>
+          </div>
+          <button class="btn-secondary" id="asset-refresh-queue-btn" style="font-size:12px;padding:6px 12px">↻ Refresh</button>
+        </div>
+        <div id="asset-queue-empty" class="empty-state hidden">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">No jobs yet</div>
+          <div class="empty-sub">Upload illustrations in the Upload &amp; Segment tab to get started.</div>
+        </div>
+        <div id="asset-queue-list" class="asset-queue-list"></div>
+      </div>
+
+      <!-- ── Sub-view C: Asset Browser ── -->
+      <div id="asset-sub-browser" class="asset-subview hidden">
+        <div class="asset-browser-toolbar">
+          <input type="text" id="asset-browser-search" class="form-input" placeholder="Search label, SKU, theme…" style="flex:1;max-width:320px" />
+          <select id="asset-browser-occasion" class="form-select" style="width:150px">
+            <option value="">All Occasions</option>
+            <option>Birthday</option><option>Anniversary</option><option>Wedding</option>
+            <option>Holiday</option><option>Christmas</option><option>Valentine's Day</option>
+            <option>Mother's Day</option><option>Father's Day</option><option>Baby</option>
+            <option>Graduation</option><option>Thank You</option><option>Sympathy</option><option>Everyday</option>
+          </select>
+          <select id="asset-browser-art-style" class="form-select" style="width:140px">
+            <option value="">All Styles</option>
+            <option>Watercolor</option><option>Line Art</option><option>Paper Cut</option>
+            <option>Graphic</option><option>Mixed</option>
+          </select>
+          <select id="asset-browser-element-type" class="form-select" style="width:140px">
+            <option value="">All Types</option>
+            <option value="flower">Flower</option><option value="leaf_stem">Leaf/Stem</option>
+            <option value="accent">Accent</option><option value="foliage">Foliage</option>
+            <option value="background">Background</option><option value="other">Other</option>
+          </select>
+        </div>
+        <div id="asset-browser-empty" class="empty-state hidden">
+          <div class="empty-icon">🗃</div>
+          <div class="empty-title">No assets in library yet</div>
+          <div class="empty-sub">Approve segments in the Review Queue to populate the library.</div>
+        </div>
+        <div id="asset-browser-grid" class="asset-browser-grid"></div>
+      </div>
+
+    </div>
+
+    <!-- ══ Segment Review Modal ══════════════════════════════════════ -->
+    <div id="modal-segment-review" class="modal-overlay hidden">
+      <div class="segment-review-modal">
+        <div class="segment-review-header">
+          <div class="segment-review-title">
+            <span id="srm-source-name">Reviewing…</span>
+            <span id="srm-segment-count" class="segment-review-count"></span>
+          </div>
+          <div class="segment-review-stats" id="srm-stats"></div>
+          <button class="modal-x-btn" id="srm-close-btn">✕</button>
+        </div>
+
+        <div class="segment-review-body">
+          <!-- Left: source image with mask overlay -->
+          <div class="srm-left">
+            <div class="srm-source-label">SOURCE IMAGE</div>
+            <div class="srm-source-wrap">
+              <img id="srm-source-img" src="" alt="Source" class="srm-source-img" />
+              <canvas id="srm-mask-canvas" class="srm-mask-canvas"></canvas>
+            </div>
+          </div>
+
+          <!-- Right: isolated segment + controls -->
+          <div class="srm-right">
+            <div class="srm-nav">
+              <button class="srm-nav-btn" id="srm-prev-btn">←</button>
+              <span id="srm-nav-label">Segment 1 of 8</span>
+              <button class="srm-nav-btn" id="srm-next-btn">→</button>
+            </div>
+
+            <div class="srm-segment-wrap">
+              <img id="srm-segment-img" src="" alt="Segment" class="srm-segment-img" />
+            </div>
+
+            <div class="srm-meta">
+              <div class="srm-meta-row" id="srm-meta-bbox"></div>
+              <div class="srm-meta-row" id="srm-auto-label-row">
+                <span class="srm-meta-label">Auto-detected:</span>
+                <span id="srm-auto-label" class="srm-auto-label-text">—</span>
+                <button class="srm-copy-label-btn" id="srm-copy-label-btn" title="Use this label">↑ Use</button>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px">
+              <label class="form-label">Element Label</label>
+              <input type="text" id="srm-label-input" class="form-input" placeholder="e.g. Pink Rose — Full Bloom" />
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px">
+              <label class="form-label">Element Type</label>
+              <div class="srm-type-grid">
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="flower" /> Flower</label>
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="leaf_stem" /> Leaf/Stem</label>
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="accent" /> Accent</label>
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="foliage" /> Foliage</label>
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="background" /> Background</label>
+                <label class="srm-type-opt"><input type="radio" name="srm-type" value="other" /> Other</label>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:16px">
+              <label class="form-label">Notes</label>
+              <input type="text" id="srm-notes-input" class="form-input" placeholder="Optional notes…" />
+            </div>
+
+            <div class="srm-actions">
+              <button class="srm-btn srm-btn-approve" id="srm-approve-btn">✓ Approve</button>
+              <button class="srm-btn srm-btn-reject" id="srm-reject-btn">✗ Reject</button>
+            </div>
+            <button class="srm-btn srm-btn-merge" id="srm-merge-btn" style="width:100%;margin-top:8px">⊕ Merge with Next</button>
+          </div>
+        </div>
+
+        <div class="segment-review-footer">
+          <button class="btn-secondary" id="srm-approve-all-btn" disabled>✓ Approve All Remaining</button>
+          <button class="btn-primary" id="srm-save-exit-btn">Save &amp; Exit</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Asset Detail Drawer ════════════════════════════════════════ -->
+    <div id="asset-detail-drawer" class="asset-drawer hidden">
+      <div class="asset-drawer-header">
+        <button class="btn-back" id="asset-drawer-close-btn">✕ Close</button>
+      </div>
+      <div class="asset-drawer-body">
+        <div class="asset-drawer-preview">
+          <img id="add-preview-img" src="" alt="" />
+        </div>
+        <div class="form-group"><div class="form-label">Label</div><div id="add-label" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Element Type</div><div id="add-type" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">SKUs</div><div id="add-skus" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Occasion</div><div id="add-occasion" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Theme</div><div id="add-theme" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Art Style</div><div id="add-art-style" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Source</div><div id="add-source" class="asset-drawer-val"></div></div>
+        <div class="form-group"><div class="form-label">Approved</div><div id="add-approved" class="asset-drawer-val"></div></div>
+        <div class="asset-drawer-actions">
+          <a id="add-box-link" href="#" target="_blank" class="btn-secondary" style="display:none">Open in Box ↗</a>
+          <a id="add-download-link" href="#" download class="btn-primary" style="display:none">Download PNG</a>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── SETTINGS VIEW ─────────────────────────────────────── -->
     <div id="view-settings" class="view">
       <div class="view-toolbar">
@@ -523,6 +818,7 @@
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">Data</div>
             <a class="settings-nav-item" href="#s-section-snowflake" data-section="s-section-snowflake">❄️ Snowflake</a>
+            <a class="settings-nav-item" href="#s-section-asset-library" data-section="s-section-asset-library">🖼 Asset Library</a>
           </div>
         </nav>
 
@@ -704,6 +1000,85 @@
                 <button class="btn-secondary" id="sf-test-btn">Test Connection</button>
                 <button class="btn-primary" id="sf-refresh-btn">Sync Sales Data</button>
                 <span id="sf-last-sync" class="sf-last-sync"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Asset Library Settings -->
+          <div class="settings-section collapsed" id="s-section-asset-library">
+            <button class="settings-section-toggle" data-target="s-section-asset-library">
+              <span class="settings-section-toggle-title">🖼 Asset Library</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin-bottom:12px">Box Integration</div>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label class="form-label">Client ID</label>
+                  <input type="text" id="sf-box-client-id" class="form-input" placeholder="Box Client ID" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Client Secret</label>
+                  <input type="password" id="sf-box-client-secret" class="form-input" placeholder="Box Client Secret" />
+                </div>
+              </div>
+              <div class="form-row-3">
+                <div class="form-group">
+                  <label class="form-label">Enterprise ID</label>
+                  <input type="text" id="sf-box-enterprise-id" class="form-input" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">JWT Key ID</label>
+                  <input type="text" id="sf-box-jwt-key-id" class="form-input" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Public Key ID</label>
+                  <input type="text" id="sf-box-public-key-id" class="form-input" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Private Key <span style="font-weight:400;color:var(--gray)">(base64 encoded)</span></label>
+                <textarea id="sf-box-private-key" class="form-textarea sf-query-textarea" rows="3" placeholder="base64-encoded private key…"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Default Box Root Folder</label>
+                <input type="text" id="sf-box-root-folder" class="form-input" placeholder="/Asset Library" />
+              </div>
+              <div class="sf-actions" style="margin-bottom:24px">
+                <button class="btn-secondary" id="box-test-btn">Test Box Connection</button>
+                <div id="box-status-bar" class="snowflake-status-bar hidden"></div>
+              </div>
+
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin:4px 0 12px">SAM 2 Segmentation</div>
+              <div class="form-row-3">
+                <div class="form-group">
+                  <label class="form-label">Min segment size (%)</label>
+                  <input type="number" id="sf-sam2-min-pct" class="form-input" value="5" min="1" max="50" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Max segment size (%)</label>
+                  <input type="number" id="sf-sam2-max-pct" class="form-input" value="90" min="10" max="100" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Confidence threshold</label>
+                  <input type="number" id="sf-sam2-confidence" class="form-input" value="0.88" min="0" max="1" step="0.01" />
+                </div>
+              </div>
+
+              <div style="font-size:12px;font-weight:700;letter-spacing:0.5px;color:var(--gray);text-transform:uppercase;margin:4px 0 12px">Auto-Labeling</div>
+              <div class="form-row-2">
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:20px">
+                  <input type="checkbox" id="sf-asset-auto-label" style="width:16px;height:16px;cursor:pointer" />
+                  <label for="sf-asset-auto-label" class="form-label" style="margin-bottom:0;cursor:pointer">Use Claude to auto-suggest element labels</label>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Auto-label model</label>
+                  <select id="sf-asset-auto-label-model" class="form-select">
+                    <option value="claude-haiku-4-5">claude-haiku-4-5 (fastest)</option>
+                    <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>

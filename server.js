@@ -4,6 +4,7 @@ const multer = require('multer');
 const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 const db = require('./database');
+const assetLibraryRouter = require('./routes/assetLibrary');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -579,6 +580,9 @@ app.get('/api/debug/db-path', (req, res) => {
     env_DB_PATH: process.env.DB_PATH || '(not set)',
   });
 });
+
+// Asset Library routes
+app.use('/api/asset-library', assetLibraryRouter);
 
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
