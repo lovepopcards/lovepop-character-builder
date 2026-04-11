@@ -362,7 +362,23 @@
             <span class="ai-panel-title">✨ Story Builder</span>
             <span class="ai-panel-sub">Add notes to generate your land profile</span>
           </div>
-          <div class="product-browse-divider land-ai-ref-divider" style="margin-top:0"><span>add a reference image</span></div>
+          <!-- Product reference status — kept in sync with Land Products tab -->
+          <div id="land-sb-product-ref" class="land-sb-product-ref land-sb-no-products">
+            <div class="land-sb-product-ref-empty">
+              <span class="land-sb-product-ref-icon">🛍️</span>
+              <span class="land-sb-product-ref-msg">Add products in <strong>Land Products</strong> to give the AI visual context for this land</span>
+              <button class="land-sb-goto-products" id="land-sb-goto-products-btn">→ Add Products</button>
+            </div>
+            <div class="land-sb-product-ref-filled hidden">
+              <div class="land-sb-product-ref-row">
+                <span class="land-sb-product-ref-count-badge" id="land-sb-product-count-badge"></span>
+                <span class="land-sb-product-ref-label">products added as reference</span>
+                <button class="land-sb-goto-products land-sb-edit-link" id="land-sb-edit-products-btn">Edit →</button>
+              </div>
+              <div class="land-sb-product-thumbs" id="land-sb-product-thumbs"></div>
+            </div>
+          </div>
+          <div class="product-browse-divider land-ai-ref-divider" style="margin-top:8px"><span>add a reference image</span></div>
           <div class="ai-image-zone ai-image-zone-compact" id="land-ai-image-zone">
             <input type="file" id="land-ai-image-input" accept="image/*" style="display:none" />
             <div class="ai-image-placeholder ai-image-placeholder-compact" id="land-ai-image-placeholder">

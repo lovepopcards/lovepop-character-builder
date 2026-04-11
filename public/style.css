@@ -1249,6 +1249,120 @@ html, body {
   margin-top: 12px; margin-bottom: 4px;
 }
 
+/* ── Story Builder: Product Reference Block ─────────────────── */
+.land-sb-product-ref {
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  transition: background 0.2s;
+}
+
+/* Empty state — no products selected */
+.land-sb-product-ref.land-sb-no-products {
+  background: var(--coral-light);
+  border: 1.5px dashed var(--coral-border);
+}
+
+/* Filled state — products selected */
+.land-sb-product-ref.land-sb-has-products {
+  background: var(--green-bg);
+  border: 1.5px solid var(--green-border);
+}
+
+.land-sb-product-ref-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.land-sb-product-ref-icon { font-size: 18px; }
+
+.land-sb-product-ref-msg {
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.45;
+}
+
+.land-sb-goto-products {
+  background: var(--coral);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 2px;
+  transition: background 0.15s;
+}
+.land-sb-goto-products:hover { background: var(--coral-hover); }
+
+/* Edit link style (in filled state) */
+.land-sb-goto-products.land-sb-edit-link {
+  background: transparent;
+  color: var(--green);
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  margin-top: 0;
+}
+.land-sb-goto-products.land-sb-edit-link:hover { background: transparent; color: var(--navy); }
+
+.land-sb-product-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.land-sb-product-ref-count-badge {
+  background: var(--green);
+  color: #fff;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 22px;
+  text-align: center;
+}
+
+.land-sb-product-ref-label {
+  font-size: 12px;
+  color: var(--green);
+  font-weight: 600;
+  flex: 1;
+}
+
+.land-sb-product-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.land-sb-product-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1.5px solid var(--green-border);
+  background: var(--white);
+}
+
+.land-sb-product-thumb-placeholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  border: 1.5px dashed var(--green-border);
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--gray);
+}
+
 /* ── Character Artwork Generator (AI panel) ─────────────────── */
 
 /* Multi-image upload zone */

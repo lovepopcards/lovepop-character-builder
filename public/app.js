@@ -995,6 +995,10 @@ function bindLandAIPanel() {
   document.getElementById('land-ai-generate-btn').addEventListener('click', handleLandAIGenerate);
   document.getElementById('land-ai-apply-all-btn').addEventListener('click', () => applyAllAI(LAND_FIELD_META, landAiGeneratedData));
   document.getElementById('land-ai-goto-settings').addEventListener('click', (e) => { e.preventDefault(); switchView('settings'); loadSettings(); });
+
+  // Story Builder → Land Products tab shortcuts
+  document.getElementById('land-sb-goto-products-btn').addEventListener('click', () => switchLandEditorTab('land-products'));
+  document.getElementById('land-sb-edit-products-btn').addEventListener('click', () => switchLandEditorTab('land-products'));
 }
 
 function clearLandAIPanel() {
@@ -2146,6 +2150,52 @@ async function confirmProductSelection() {
 
 function renderLandProductSelection() {
   const n = landSelectedProducts.length;
+
+  // ── Story Builder product reference block (Land Profile tab) ──
+  const refBlock     = document.getElementById('land-sb-product-ref');
+  const refEmpty     = refBlock?.querySelector('.land-sb-product-ref-empty');
+  const refFilled    = refBlock?.querySelector('.land-sb-product-ref-filled');
+  const countBadge   = document.getElementById('land-sb-product-count-badge');
+  const thumbsEl     = document.getElementById('land-sb-product-thumbs');
+  if (refBlock) {
+    if (n) {
+      refBlock.classList.remove('land-sb-no-products');
+      refBlock.classList.add('land-sb-has-products');
+      refEmpty.classList.add('hidden');
+      refFilled.classList.remove('hidden');
+      if (countBadge) countBadge.textContent = n;
+      if (thumbsEl) {
+        thumbsEl.innerHTML = '';
+        landSelectedProducts.slice(0, 8).forEach(p => {
+          if (p.image_url) {
+            const img = document.createElement('img');
+            img.className = 'land-sb-product-thumb';
+            img.src = esc(p.image_url);
+            img.alt = p.name || p.sku;
+            img.title = p.name || p.sku;
+            thumbsEl.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'land-sb-product-thumb-placeholder';
+            ph.title = p.sku;
+            ph.textContent = '📦';
+            thumbsEl.appendChild(ph);
+          }
+        });
+        if (n > 8) {
+          const more = document.createElement('div');
+          more.className = 'land-sb-product-thumb-placeholder';
+          more.textContent = `+${n - 8}`;
+          thumbsEl.appendChild(more);
+        }
+      }
+    } else {
+      refBlock.classList.add('land-sb-no-products');
+      refBlock.classList.remove('land-sb-has-products');
+      refEmpty.classList.remove('hidden');
+      refFilled.classList.add('hidden');
+    }
+  }
 
   // ── AI panel compact badge ──────────────────────────────────
   const badge     = document.getElementById('land-product-selection');
