@@ -668,6 +668,23 @@ app.get('/api/products', async (req, res) => {
     if (!upstream.ok) throw new Error(`Upstream responded ${upstream.status}`);
     _productCache = await upstream.json();
     _productCacheTs = now;
+
+    // Populate sales cache from merch tool revenue data (revenue: { t12m, units })
+    try {
+      const salesRows = _productCache
+        .filter(p => p.revenue && (p.revenue.t12m || p.revenue.units))
+        .map(p => ({
+          sku: p.sku,
+          t12m_revenue: p.revenue.t12m || 0,
+          t12m_units:   p.revenue.units || 0,
+          asp: p.revenue.t12m && p.revenue.units ? p.revenue.t12m / p.revenue.units : 0,
+        }));
+      if (salesRows.length) {
+        db.upsertSalesCache(salesRows);
+        console.log(`[products] populated sales cache with ${salesRows.length} SKUs from merch tool`);
+      }
+    } catch (e) { console.warn('[products] sales cache populate error:', e.message); }
+
     res.json(_productCache);
   } catch (err) {
     console.error('Products proxy error:', err.message);
