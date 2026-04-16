@@ -34,6 +34,7 @@ const CHAR_FIELD_META = [
   { key: 'key_passions',         label: 'Key Passions',           inputId: 'f-key-passions' },
   { key: 'what_they_care_about', label: 'What They Care About',   inputId: 'f-what-they-care-about' },
   { key: 'tone_and_voice',       label: 'Tone & Voice',           inputId: 'f-tone-and-voice' },
+  { key: 'hook_and_audience',    label: 'My Hook & Audience',     inputId: 'f-hook-and-audience' },
 ];
 
 const LAND_FIELD_META = [
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindLandImageGenerator();
   bindAssetLibrary();
   bindCharStories();
+  bindBulkEdit();
   loadAll();
   checkApiKeyStatus();
 });
@@ -1162,7 +1164,7 @@ function openDetailModal(id) {
 
   document.getElementById('detail-name').textContent = char.name;
   document.getElementById('detail-meta').textContent = [char.species, char.role].filter(Boolean).join(' · ');
-  ['backstory','personality','key_passions','what_they_care_about','tone_and_voice','first_appeared'].forEach(f => {
+  ['backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared'].forEach(f => {
     document.getElementById(`detail-${f.replace(/_/g,'-')}`).textContent = char[f] || '—';
   });
   document.getElementById('detail-status').innerHTML = `<span class="status-badge status-${char.status}">${cap(char.status)}</span>`;
@@ -1570,7 +1572,8 @@ async function generateCharArt() {
   const backstory   = (document.getElementById('f-backstory')?.value || '').trim();
   const personality = (document.getElementById('f-personality')?.value || '').trim();
   const key_passions    = (document.getElementById('f-key-passions')?.value || '').trim();
-  const tone_and_voice  = (document.getElementById('f-tone-and-voice')?.value || '').trim();
+  const tone_and_voice    = (document.getElementById('f-tone-and-voice')?.value || '').trim();
+  const hook_and_audience = (document.getElementById('f-hook-and-audience')?.value || '').trim();
 
   btn.disabled = true;
   preview.classList.add('hidden');
@@ -1588,6 +1591,7 @@ async function generateCharArt() {
     fd.append('personality', personality);
     fd.append('key_passions', key_passions);
     fd.append('tone_and_voice', tone_and_voice);
+    fd.append('hook_and_audience', hook_and_audience);
     fd.append('notes', notes);
 
     const res  = await fetch('/api/ai/generate-char-image', { method: 'POST', body: fd });
@@ -1674,6 +1678,7 @@ async function loadSettings() {
     setVal('s-instruction-key-passions', s.ai_instruction_key_passions);
     setVal('s-instruction-what-they-care-about', s.ai_instruction_what_they_care_about);
     setVal('s-instruction-tone-and-voice', s.ai_instruction_tone_and_voice);
+    setVal('s-instruction-hook-and-audience', s.ai_instruction_hook_and_audience);
     setVal('s-land-instruction-name', s.ai_land_instruction_name);
     setVal('s-land-instruction-description', s.ai_land_instruction_description);
     setVal('s-land-instruction-visual-style', s.ai_land_instruction_visual_style);
@@ -1734,6 +1739,7 @@ async function handleSettingsSave() {
     ai_instruction_key_passions: getVal('s-instruction-key-passions'),
     ai_instruction_what_they_care_about: getVal('s-instruction-what-they-care-about'),
     ai_instruction_tone_and_voice: getVal('s-instruction-tone-and-voice'),
+    ai_instruction_hook_and_audience: getVal('s-instruction-hook-and-audience'),
     ai_land_instruction_name: getVal('s-land-instruction-name'),
     ai_land_instruction_description: getVal('s-land-instruction-description'),
     ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
@@ -2304,6 +2310,7 @@ function exportCharactersToExcel() {
       'Key Passions':        c.key_passions || '',
       'What They Care About':c.what_they_care_about || '',
       'Tone & Voice':        c.tone_and_voice || '',
+      'My Hook & Audience':  c.hook_and_audience || '',
       'Status':              c.status || '',
       'First Appeared':      c.first_appeared || '',
       'Images':              (c.images || []).join(', '),
@@ -2380,6 +2387,7 @@ async function exportSettingsToExcel() {
       ['Key Passions',         'ai_instruction_key_passions'],
       ['What They Care About', 'ai_instruction_what_they_care_about'],
       ['Tone & Voice',         'ai_instruction_tone_and_voice'],
+      ['My Hook & Audience',   'ai_instruction_hook_and_audience'],
     ];
     const charRows = charInstructionKeys.map(([label, key]) => ({
       'Field': label, 'AI Instruction': s[key] || '',
@@ -3306,4 +3314,73 @@ function useDraftStory() {
   document.getElementById('cstory-delete-btn').style.display = 'none';
   document.getElementById('cstory-editor').classList.remove('hidden');
   document.getElementById('cstory-draft-panel').classList.add('hidden');
+}
+
+// ── Bulk Edit (lives in Settings → Data Tools) ───────────────
+function bindBulkEdit() {
+  const applyBtn  = document.getElementById('bulk-edit-apply-btn');
+  const fieldSel  = document.getElementById('bulk-edit-field');
+  const valueGrp  = document.getElementById('bulk-edit-value-group');
+  const statusGrp = document.getElementById('bulk-edit-status-group');
+  const preview   = document.getElementById('bulk-edit-preview');
+
+  function updatePreview() {
+    const count = characters.length;
+    const fieldLabel = fieldSel.options[fieldSel.selectedIndex].text;
+    preview.textContent = count
+      ? `This will update "${fieldLabel}" on all ${count} character${count === 1 ? '' : 's'}.`
+      : 'No characters in the library yet.';
+  }
+
+  function toggleValueInput() {
+    const isStatus = fieldSel.value === 'status';
+    valueGrp.style.display  = isStatus ? 'none' : '';
+    statusGrp.style.display = isStatus ? '' : 'none';
+    updatePreview();
+  }
+
+  fieldSel.addEventListener('change', toggleValueInput);
+  // Update preview whenever the settings section becomes visible
+  document.querySelector('[data-section="s-section-bulk-edit"]')?.addEventListener('click', updatePreview);
+
+  applyBtn.addEventListener('click', async () => {
+    if (!characters.length) {
+      alert('No characters in the library yet.');
+      return;
+    }
+    const field = fieldSel.value;
+    const value = field === 'status'
+      ? document.getElementById('bulk-edit-status-value').value
+      : document.getElementById('bulk-edit-value').value.trim();
+    const fieldLabel = fieldSel.options[fieldSel.selectedIndex].text;
+    const count = characters.length;
+
+    if (!confirm(`Apply "${value || '(empty)'}" to "${fieldLabel}" on all ${count} character${count === 1 ? '' : 's'}?\n\nThis cannot be undone.`)) return;
+
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Applying…';
+    let success = 0, failed = 0;
+
+    for (const char of characters) {
+      try {
+        const res = await fetch(`${API}/${char.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value }),
+        });
+        if (res.ok) success++;
+        else failed++;
+      } catch { failed++; }
+    }
+
+    applyBtn.disabled = false;
+    applyBtn.textContent = 'Apply to All Characters';
+    document.getElementById('bulk-edit-value').value = '';
+    updatePreview();
+
+    if (failed) alert(`Done: ${success} updated, ${failed} failed.`);
+    else alert(`Done: ${success} character${success === 1 ? '' : 's'} updated.`);
+
+    await loadCharacters();
+  });
 }

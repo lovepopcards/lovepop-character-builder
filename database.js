@@ -29,7 +29,7 @@ db.exec(`
 
 // Migrate: add new columns to characters if missing
 const existingCharCols = db.prepare("PRAGMA table_info(characters)").all().map(r => r.name);
-const newCharCols = { species: 'TEXT DEFAULT ""', role: 'TEXT DEFAULT ""', backstory: 'TEXT DEFAULT ""', personality: 'TEXT DEFAULT ""', key_passions: 'TEXT DEFAULT ""', what_they_care_about: 'TEXT DEFAULT ""', tone_and_voice: 'TEXT DEFAULT ""', product_skus: 'TEXT DEFAULT "[]"' };
+const newCharCols = { species: 'TEXT DEFAULT ""', role: 'TEXT DEFAULT ""', backstory: 'TEXT DEFAULT ""', personality: 'TEXT DEFAULT ""', key_passions: 'TEXT DEFAULT ""', what_they_care_about: 'TEXT DEFAULT ""', tone_and_voice: 'TEXT DEFAULT ""', hook_and_audience: 'TEXT DEFAULT ""', product_skus: 'TEXT DEFAULT "[]"' };
 for (const [col, def] of Object.entries(newCharCols)) {
   if (!existingCharCols.includes(col)) db.exec(`ALTER TABLE characters ADD COLUMN ${col} ${def}`);
 }
@@ -169,6 +169,7 @@ const DEFAULTS = {
   ai_instruction_key_passions: `List 3 core passions or hobbies, each with a brief (1 sentence) explanation of why it matters to this character. Number them 1, 2, 3.`,
   ai_instruction_what_they_care_about: `1-2 sentences capturing the character's deepest values and what motivates them at their core — the "why" behind everything they do.`,
   ai_instruction_tone_and_voice: `Describe how the character speaks: their tone, cadence, vocabulary quirks, signature phrases, and overall communication style. Include an example quote.`,
+  ai_instruction_hook_and_audience: `In 2-3 sentences, describe who this character most resonates with and what makes them distinctly compelling — the emotional "hook" that draws an audience in. Be specific about the type of person who would connect most deeply with this character and why.`,
 
   // Land instructions
   ai_land_instruction_name: `A beautiful, evocative name for this Lovepop Land. Should feel like a storybook place name — warm, whimsical, and memorable.`,
@@ -249,7 +250,7 @@ const serializeLand = (row) => ({
   product_skus: parseJSON(row.product_skus),
 });
 
-const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','first_appeared','status'];
+const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared','status'];
 const CHAR_JSON   = ['images','products','quotes','art_styles','product_skus'];
 const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
 

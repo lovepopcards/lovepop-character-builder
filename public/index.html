@@ -214,6 +214,10 @@
               <label class="form-label">Tone &amp; Voice</label>
               <textarea id="f-tone-and-voice" class="form-textarea" rows="3" placeholder="How they speak, their signature style, example quotes…"></textarea>
             </div>
+            <div class="form-group">
+              <label class="form-label">My Hook &amp; Audience</label>
+              <textarea id="f-hook-and-audience" class="form-textarea" rows="3" placeholder="Who does this character resonate with most? What's the emotional hook that draws people in?"></textarea>
+            </div>
           </div>
           <div class="form-section">
             <div class="form-section-title">Details</div>
@@ -976,6 +980,10 @@
             <a class="settings-nav-item" href="#s-section-snowflake" data-section="s-section-snowflake">❄️ Snowflake</a>
             <a class="settings-nav-item" href="#s-section-asset-library" data-section="s-section-asset-library">🖼 Asset Library</a>
           </div>
+          <div class="settings-nav-group">
+            <div class="settings-nav-group-label">Data Tools</div>
+            <a class="settings-nav-item" href="#s-section-bulk-edit" data-section="s-section-bulk-edit">✏ Bulk Edit</a>
+          </div>
         </nav>
 
         <!-- ── Collapsible sections ──────────────────────────────── -->
@@ -1022,6 +1030,7 @@
                 <div class="field-instruction-row"><div class="field-instruction-label">Key Passions</div><textarea id="s-instruction-key-passions" class="form-textarea" rows="3"></textarea></div>
                 <div class="field-instruction-row"><div class="field-instruction-label">What They Care About</div><textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea></div>
                 <div class="field-instruction-row"><div class="field-instruction-label">Tone &amp; Voice</div><textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">My Hook &amp; Audience</div><textarea id="s-instruction-hook-and-audience" class="form-textarea" rows="3"></textarea></div>
               </div>
             </div>
           </div>
@@ -1247,6 +1256,50 @@
             </div>
           </div>
 
+          <!-- Bulk Edit -->
+          <div class="settings-section collapsed" id="s-section-bulk-edit">
+            <button class="settings-section-toggle" data-target="s-section-bulk-edit">
+              <span class="settings-section-toggle-title">✏ Bulk Edit Characters</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Apply the same value to a single field across all characters in the library. Use with caution — this cannot be undone.</p>
+              <div style="margin-top:20px;display:flex;flex-direction:column;gap:14px;max-width:540px">
+                <div class="form-group">
+                  <label class="form-label">Field to update</label>
+                  <select id="bulk-edit-field" class="form-select">
+                    <option value="species">Species</option>
+                    <option value="role">Role</option>
+                    <option value="backstory">Backstory</option>
+                    <option value="personality">Personality</option>
+                    <option value="key_passions">Key Passions</option>
+                    <option value="what_they_care_about">What They Care About</option>
+                    <option value="tone_and_voice">Tone &amp; Voice</option>
+                    <option value="hook_and_audience">My Hook &amp; Audience</option>
+                    <option value="first_appeared">First Appeared In</option>
+                    <option value="status">Status</option>
+                  </select>
+                </div>
+                <div class="form-group" id="bulk-edit-value-group">
+                  <label class="form-label">New value</label>
+                  <textarea id="bulk-edit-value" class="form-textarea" rows="4" placeholder="Enter the new value to apply across all characters…"></textarea>
+                </div>
+                <div class="form-group" id="bulk-edit-status-group" style="display:none">
+                  <label class="form-label">New status</label>
+                  <select id="bulk-edit-status-value" class="form-select">
+                    <option value="active">Active</option>
+                    <option value="draft">Draft</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+                <div id="bulk-edit-preview" class="form-hint"></div>
+                <div>
+                  <button class="btn-primary" id="bulk-edit-apply-btn" style="background:var(--coral)">Apply to All Characters</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div><!-- /settings-content -->
       </div><!-- /settings-shell -->
     </div>
@@ -1275,6 +1328,7 @@
           <div class="detail-section"><div class="detail-section-label">Key Passions</div><div class="detail-section-content" id="detail-key-passions">—</div></div>
           <div class="detail-section"><div class="detail-section-label">What They Care About</div><div class="detail-section-content" id="detail-what-they-care-about">—</div></div>
           <div class="detail-section"><div class="detail-section-label">Tone &amp; Voice</div><div class="detail-section-content" id="detail-tone-and-voice">—</div></div>
+          <div class="detail-section"><div class="detail-section-label">My Hook &amp; Audience</div><div class="detail-section-content" id="detail-hook-and-audience">—</div></div>
           <div class="detail-row-2">
             <div class="detail-section"><div class="detail-section-label">First Appeared</div><div class="detail-section-content" id="detail-first-appeared">—</div></div>
             <div class="detail-section"><div class="detail-section-label">Status</div><div id="detail-status"></div></div>

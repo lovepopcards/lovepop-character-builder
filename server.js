@@ -380,6 +380,7 @@ app.post('/api/ai/generate', uploadMem.single('image'), (req, res) =>
     name: 'Name', species: 'Species', role: 'Role', backstory: 'Backstory',
     personality: 'Personality', key_passions: 'Key Passions',
     what_they_care_about: 'What They Care About', tone_and_voice: 'Tone & Voice',
+    hook_and_audience: 'My Hook & Audience',
   }})
 );
 
@@ -399,7 +400,7 @@ app.post('/api/ai/generate-char-image', uploadMem.array('images', 4), async (req
 
   const settings = db.getAllSettings();
   const { name = '', species = '', role = '', backstory = '', personality = '',
-          key_passions = '', tone_and_voice = '', notes = '' } = req.body;
+          key_passions = '', tone_and_voice = '', hook_and_audience = '', notes = '' } = req.body;
 
   // ── Step 1: Build the DALL-E prompt via Claude ────────────────
   let dallePrompt = '';
@@ -428,6 +429,7 @@ app.post('/api/ai/generate-char-image', uploadMem.array('images', 4), async (req
         personality ? `Personality: ${personality}` : '',
         key_passions ? `Key Passions: ${key_passions}` : '',
         tone_and_voice ? `Tone & Voice: ${tone_and_voice}` : '',
+        hook_and_audience ? `Hook & Audience: ${hook_and_audience}` : '',
         notes       ? `\nAdditional artwork notes: ${notes}` : '',
         `\nWrite a single, detailed DALL-E 3 image generation prompt (120–200 words) for a piece of character artwork.`,
         `The artwork should feel like Lovepop's warm, whimsical, paper-art illustration style — expressive, charming, full of personality.`,
