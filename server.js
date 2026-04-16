@@ -105,7 +105,7 @@ app.delete('/api/characters/:id/stories/:storyId', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// AI: generate a story draft for a character
+// AI: generate a quote draft for a character
 app.post('/api/characters/:id/stories/generate', async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
   if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
@@ -113,21 +113,13 @@ app.post('/api/characters/:id/stories/generate', async (req, res) => {
   const char = db.getCharacter(req.params.id);
   if (!char) return res.status(404).json({ error: 'Character not found' });
 
-  const { occasion = '', land_id = '', direction = '' } = req.body;
+  const { occasion = '', direction = '' } = req.body;
 
-  // Optionally include the land's world details
-  let landContext = '';
-  if (land_id) {
-    const land = db.getLand(land_id);
-    if (land) {
-      landContext = `\nSETTING — ${land.name}: ${land.description || ''}${land.visual_style ? ` Visual style: ${land.visual_style}.` : ''}${land.themes_and_content ? ` Key themes: ${land.themes_and_content}.` : ''}`;
-    }
-  }
-
+  const systemPrompt = db.getSetting('ai_quote_instructions') || db.DEFAULTS.ai_quote_instructions;
   const occasionLine = occasion ? `\nOCCASION: ${occasion}` : '';
-  const directionLine = direction ? `\nDIRECTION FROM WRITER: ${direction}` : '';
+  const directionLine = direction ? `\nDIRECTION / NOTES: ${direction}` : '';
 
-  const prompt = `You are a creative storyteller for Lovepop, a premium pop-up greeting card company. Write a short, vivid narrative episode starring the character below. The story should feel warm, whimsical, and emotionally resonant — the kind of vignette that could inspire a greeting card, social post, or brand content piece.
+  const prompt = `${systemPrompt}
 
 CHARACTER:
 Name: ${char.name || 'Unknown'}
@@ -138,32 +130,29 @@ Personality: ${char.personality || ''}
 Key Passions: ${char.key_passions || ''}
 What They Care About: ${char.what_they_care_about || ''}
 Tone & Voice: ${char.tone_and_voice || ''}
-${occasionLine}${landContext}${directionLine}
-
-Write a narrative story episode of 3–4 paragraphs (150–250 words). Use the character's voice and personality. Ground it in a specific moment or scene. End on something emotionally satisfying — a realisation, a gesture, a quiet joy.
-
-Then provide a suggested title (5 words or fewer).
+Hook & Audience: ${char.hook_and_audience || ''}
+${occasionLine}${directionLine}
 
 Respond with valid JSON only:
 {
-  "title": "...",
-  "story_body": "..."
+  "quote": "...",
+  "context": "..."
 }`;
 
   try {
     const response = await anthropicMessages({
       apiKey,
       model: db.getSetting('ai_model') || db.DEFAULTS.ai_model,
-      max_tokens: 1024,
+      max_tokens: 512,
       messages: [{ role: 'user', content: prompt }],
     });
     const raw = response.content[0]?.text?.trim() || '';
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('No JSON in response');
     const parsed = JSON.parse(match[0]);
-    res.json({ title: parsed.title || '', story_body: parsed.story_body || '' });
+    res.json({ quote: parsed.quote || '', context: parsed.context || '' });
   } catch (e) {
-    console.error('Story generation error:', e.message);
+    console.error('Quote generation error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

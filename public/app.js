@@ -1679,6 +1679,7 @@ async function loadSettings() {
     setVal('s-instruction-what-they-care-about', s.ai_instruction_what_they_care_about);
     setVal('s-instruction-tone-and-voice', s.ai_instruction_tone_and_voice);
     setVal('s-instruction-hook-and-audience', s.ai_instruction_hook_and_audience);
+    setVal('s-quote-instructions', s.ai_quote_instructions);
     setVal('s-land-instruction-name', s.ai_land_instruction_name);
     setVal('s-land-instruction-description', s.ai_land_instruction_description);
     setVal('s-land-instruction-visual-style', s.ai_land_instruction_visual_style);
@@ -1740,6 +1741,7 @@ async function handleSettingsSave() {
     ai_instruction_what_they_care_about: getVal('s-instruction-what-they-care-about'),
     ai_instruction_tone_and_voice: getVal('s-instruction-tone-and-voice'),
     ai_instruction_hook_and_audience: getVal('s-instruction-hook-and-audience'),
+    ai_quote_instructions: getVal('s-quote-instructions'),
     ai_land_instruction_name: getVal('s-land-instruction-name'),
     ai_land_instruction_description: getVal('s-land-instruction-description'),
     ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
@@ -3137,25 +3139,7 @@ async function loadCharStories() {
     const res = await fetch(`/api/characters/${editorCharId}/stories`);
     charStories = await res.json();
     renderStoryList();
-    // populate land dropdowns
-    populateStoryLandDropdowns();
   } catch (e) { console.error('loadCharStories error:', e); }
-}
-
-function populateStoryLandDropdowns() {
-  ['cstory-land-select', 'cstory-editor-land'].forEach(id => {
-    const sel = document.getElementById(id);
-    const current = sel.value;
-    // keep the first "no land" option, replace the rest
-    while (sel.options.length > 1) sel.remove(1);
-    lands.forEach(l => {
-      const opt = document.createElement('option');
-      opt.value = l.id;
-      opt.textContent = l.name;
-      sel.appendChild(opt);
-    });
-    sel.value = current;
-  });
 }
 
 function renderStoryList() {
@@ -3180,13 +3164,15 @@ function renderStoryList() {
       ? `<span class="cstory-card-occasion">${esc(story.occasion)}</span>` : '';
     const statusBadge = story.status === 'ready'
       ? `<span class="cstory-card-occasion cstory-card-status-ready">Ready</span>` : '';
-    const snippet = (story.story_body || '').replace(/\n/g, ' ').slice(0, 120);
+    // Show quote as the card "title", context as the snippet
+    const quoteText = story.quote || story.title || 'Untitled Quote';
+    const snippetText = (story.context || story.story_body || '').replace(/\n/g, ' ').slice(0, 100);
 
     card.innerHTML = `
       <div class="cstory-card-body">
-        <div class="cstory-card-title">${esc(story.title || 'Untitled Story')}</div>
+        <div class="cstory-card-title cstory-card-quote">${esc(quoteText)}</div>
         <div class="cstory-card-meta">${occasionBadge}${statusBadge}</div>
-        <div class="cstory-card-snippet">${esc(snippet)}${snippet.length >= 120 ? '…' : ''}</div>
+        ${snippetText ? `<div class="cstory-card-snippet">${esc(snippetText)}${snippetText.length >= 100 ? '…' : ''}</div>` : ''}
       </div>`;
 
     card.addEventListener('click', () => openStoryEditor(story));
@@ -3196,11 +3182,10 @@ function renderStoryList() {
 
 function openNewStory() {
   activeStoryId = null;
-  document.getElementById('cstory-editor-label').textContent = 'New Story';
+  document.getElementById('cstory-editor-label').textContent = 'New Quote';
   document.getElementById('cstory-title-input').value = '';
   document.getElementById('cstory-body-input').value = '';
   document.getElementById('cstory-editor-occasion').value = '';
-  document.getElementById('cstory-editor-land').value = '';
   document.getElementById('cstory-status-select').value = 'draft';
   document.getElementById('cstory-delete-btn').style.display = 'none';
   document.getElementById('cstory-editor').classList.remove('hidden');
@@ -3210,15 +3195,15 @@ function openNewStory() {
 
 function openStoryEditor(story) {
   activeStoryId = story.id;
-  document.getElementById('cstory-editor-label').textContent = 'Editing Story';
-  document.getElementById('cstory-title-input').value = story.title || '';
-  document.getElementById('cstory-body-input').value = story.story_body || '';
+  document.getElementById('cstory-editor-label').textContent = 'Editing Quote';
+  // quote field mapped to cstory-title-input, context to cstory-body-input
+  document.getElementById('cstory-title-input').value = story.quote || story.title || '';
+  document.getElementById('cstory-body-input').value = story.context || story.story_body || '';
   document.getElementById('cstory-editor-occasion').value = story.occasion || '';
-  document.getElementById('cstory-editor-land').value = story.land_id || '';
   document.getElementById('cstory-status-select').value = story.status || 'draft';
   document.getElementById('cstory-delete-btn').style.display = '';
   document.getElementById('cstory-editor').classList.remove('hidden');
-  renderStoryList(); // refresh active highlight
+  renderStoryList();
 }
 
 function closeStoryEditor() {
@@ -3228,13 +3213,12 @@ function closeStoryEditor() {
 }
 
 async function saveStory() {
-  const title      = document.getElementById('cstory-title-input').value.trim();
-  const story_body = document.getElementById('cstory-body-input').value.trim();
-  const occasion   = document.getElementById('cstory-editor-occasion').value;
-  const land_id    = document.getElementById('cstory-editor-land').value;
-  const status     = document.getElementById('cstory-status-select').value;
+  const quote   = document.getElementById('cstory-title-input').value.trim();
+  const context = document.getElementById('cstory-body-input').value.trim();
+  const occasion = document.getElementById('cstory-editor-occasion').value;
+  const status   = document.getElementById('cstory-status-select').value;
 
-  if (!story_body) { document.getElementById('cstory-body-input').focus(); return; }
+  if (!quote) { document.getElementById('cstory-title-input').focus(); return; }
 
   const btn = document.getElementById('cstory-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -3243,23 +3227,23 @@ async function saveStory() {
     if (activeStoryId) {
       await fetch(`/api/characters/${editorCharId}/stories/${activeStoryId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, story_body, occasion, land_id, status }),
+        body: JSON.stringify({ quote, context, occasion, status }),
       });
     } else {
       await fetch(`/api/characters/${editorCharId}/stories`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, story_body, occasion, land_id, status }),
+        body: JSON.stringify({ quote, context, occasion, status }),
       });
     }
     await loadCharStories();
     closeStoryEditor();
   } catch (e) { console.error('saveStory error:', e); }
-  finally { btn.disabled = false; btn.textContent = 'Save Story'; }
+  finally { btn.disabled = false; btn.textContent = 'Save Quote'; }
 }
 
 async function deleteStory() {
   if (!activeStoryId) return;
-  if (!confirm('Delete this story? This cannot be undone.')) return;
+  if (!confirm('Delete this quote? This cannot be undone.')) return;
   await fetch(`/api/characters/${editorCharId}/stories/${activeStoryId}`, { method: 'DELETE' });
   await loadCharStories();
   closeStoryEditor();
@@ -3272,44 +3256,38 @@ async function generateStory() {
   btn.innerHTML = '<span class="spinner"></span> Generating…';
 
   const occasion  = document.getElementById('cstory-occasion-select').value;
-  const land_id   = document.getElementById('cstory-land-select').value;
   const direction = document.getElementById('cstory-direction').value.trim();
 
   try {
     const res = await fetch(`/api/characters/${editorCharId}/stories/generate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ occasion, land_id, direction }),
+      body: JSON.stringify({ occasion, direction }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Generation failed');
 
-    document.getElementById('cstory-draft-title').textContent = data.title || '';
-    document.getElementById('cstory-draft-body').textContent = data.story_body || '';
+    // draft-title shows the quote, draft-body shows the context
+    document.getElementById('cstory-draft-title').textContent = data.quote || '';
+    document.getElementById('cstory-draft-body').textContent = data.context || '';
     document.getElementById('cstory-draft-panel').classList.remove('hidden');
-    // pre-fill the editor with the occasion/land used
-    document.getElementById('cstory-occasion-select').value = occasion;
-    document.getElementById('cstory-land-select').value = land_id;
   } catch (e) {
-    alert('Story generation failed: ' + e.message);
+    alert('Quote generation failed: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<span class="btn-ai-icon">✨</span> Generate Story';
+    btn.innerHTML = '<span class="btn-ai-icon">✨</span> Generate Quote';
   }
 }
 
 function useDraftStory() {
-  const title = document.getElementById('cstory-draft-title').textContent;
-  const body  = document.getElementById('cstory-draft-body').textContent;
+  const quote   = document.getElementById('cstory-draft-title').textContent;
+  const context = document.getElementById('cstory-draft-body').textContent;
   const occasion = document.getElementById('cstory-occasion-select').value;
-  const land_id  = document.getElementById('cstory-land-select').value;
 
-  // Open new story editor pre-filled with the draft
   activeStoryId = null;
-  document.getElementById('cstory-editor-label').textContent = 'New Story';
-  document.getElementById('cstory-title-input').value = title;
-  document.getElementById('cstory-body-input').value = body;
+  document.getElementById('cstory-editor-label').textContent = 'New Quote';
+  document.getElementById('cstory-title-input').value = quote;
+  document.getElementById('cstory-body-input').value = context;
   document.getElementById('cstory-editor-occasion').value = occasion;
-  document.getElementById('cstory-editor-land').value = land_id;
   document.getElementById('cstory-status-select').value = 'draft';
   document.getElementById('cstory-delete-btn').style.display = 'none';
   document.getElementById('cstory-editor').classList.remove('hidden');

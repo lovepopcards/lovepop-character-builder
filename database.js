@@ -132,7 +132,7 @@ db.exec(`
   )
 `);
 
-// ── Character Stories table ───────────────────────────────────
+// ── Character Stories/Quotes table ───────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS character_stories (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -141,11 +141,18 @@ db.exec(`
     occasion TEXT DEFAULT '',
     land_id TEXT DEFAULT '',
     story_body TEXT DEFAULT '',
+    quote TEXT DEFAULT '',
+    context TEXT DEFAULT '',
     status TEXT DEFAULT 'draft',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )
 `);
+
+// Migrate: add quote + context columns if they don't exist
+const existingStoryCols = db.prepare('PRAGMA table_info(character_stories)').all().map(r => r.name);
+if (!existingStoryCols.includes('quote'))   db.exec(`ALTER TABLE character_stories ADD COLUMN quote TEXT DEFAULT ''`);
+if (!existingStoryCols.includes('context')) db.exec(`ALTER TABLE character_stories ADD COLUMN context TEXT DEFAULT ''`);
 
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
@@ -218,6 +225,11 @@ const DEFAULTS = {
 FROM your_sales_table
 WHERE order_date >= DATEADD('month', -12, CURRENT_DATE())
 GROUP BY sku`,
+
+  // Quote generator
+  ai_quote_instructions: `You are a creative voice for Lovepop, a premium pop-up greeting card company. Generate an authentic, in-character quote for the character described below — the kind of thing they might say on a greeting card or in a brand story. The quote should be warm, specific, and feel genuinely like this character's voice. It should resonate emotionally and be shareable.
+
+Also write a brief context note (1–2 sentences) describing the situation or moment the character is speaking from — setting the scene without retelling the quote itself.`,
 
   // Land headline image generator
   ai_image_gen_instructions: `You are creating a headline image for a Lovepop greeting card world. Lovepop makes beautiful, intricate paper pop-up art — the images should evoke that same sense of wonder, precision, and warmth.
@@ -414,7 +426,7 @@ module.exports = {
     return db.prepare('SELECT * FROM character_stories WHERE rowid = last_insert_rowid()').get();
   },
   updateStory(id, data) {
-    const allowed = ['title','occasion','land_id','story_body','status'];
+    const allowed = ['title','occasion','land_id','story_body','quote','context','status'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) { fields.push(`${key} = ?`); values.push(data[key]); }

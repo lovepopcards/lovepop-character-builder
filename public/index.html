@@ -134,7 +134,7 @@
         <button class="editor-tab active" data-tab="story">Character Profile</button>
         <button class="editor-tab" data-tab="artwork">Character Artwork</button>
         <button class="editor-tab" data-tab="products">Character Products</button>
-        <button class="editor-tab" data-tab="char-stories">Character Stories</button>
+        <button class="editor-tab" data-tab="char-stories">Character Quotes</button>
       </div>
 
       <!-- ══ Tab: Character Profile ════════════════════════════════ -->
@@ -260,14 +260,14 @@
         </div>
       </div>
 
-      <!-- ══ Tab: Character Stories ══════════════════════════════════ -->
+      <!-- ══ Tab: Character Quotes ═════════════════════════════════ -->
       <div id="editor-tab-char-stories" class="editor-tab-panel editor-layout hidden">
 
-        <!-- Left: AI Story Generator -->
+        <!-- Left: AI Quote Generator -->
         <aside class="ai-panel">
           <div class="ai-panel-header">
-            <span class="ai-panel-title">✨ Story Generator</span>
-            <span class="ai-panel-sub">Generate narrative episodes from this character's profile</span>
+            <span class="ai-panel-title">✨ Quote Generator</span>
+            <span class="ai-panel-sub">Generate in-character quotes from this character's profile</span>
           </div>
 
           <div class="ai-desc-section">
@@ -289,20 +289,13 @@
           </div>
 
           <div class="ai-desc-section">
-            <label class="form-label">Setting / Land <span style="font-weight:400;color:var(--gray)">(optional)</span></label>
-            <select id="cstory-land-select" class="form-select">
-              <option value="">— No specific land —</option>
-            </select>
-          </div>
-
-          <div class="ai-desc-section">
             <label class="form-label">Direction &amp; notes</label>
             <textarea id="cstory-direction" class="form-textarea" rows="4"
-              placeholder="Any specific scene, mood, or moment you want the story to explore…"></textarea>
+              placeholder="Any specific tone, moment, or message you want the quote to capture…"></textarea>
           </div>
 
           <button class="btn-ai-generate" id="cstory-generate-btn">
-            <span class="btn-ai-icon">✨</span> Generate Story
+            <span class="btn-ai-icon">✨</span> Generate Quote
           </button>
 
           <!-- Generated draft preview -->
@@ -313,30 +306,30 @@
             </div>
             <div class="cstory-draft-title" id="cstory-draft-title"></div>
             <div class="cstory-draft-body" id="cstory-draft-body"></div>
-            <button class="btn-primary" id="cstory-draft-use-btn" style="width:100%;margin-top:10px">Use This Story →</button>
+            <button class="btn-primary" id="cstory-draft-use-btn" style="width:100%;margin-top:10px">Use This Quote →</button>
           </div>
         </aside>
 
-        <!-- Right: Story list + editor -->
+        <!-- Right: Quote list + editor -->
         <div class="editor-form cstory-right">
 
-          <!-- Story list -->
+          <!-- Quote list -->
           <div class="cstory-list-header">
-            <span class="cstory-list-title">Stories</span>
-            <button class="btn-secondary cstory-new-btn" id="cstory-new-btn">+ New Story</button>
+            <span class="cstory-list-title">Quotes</span>
+            <button class="btn-secondary cstory-new-btn" id="cstory-new-btn">+ New Quote</button>
           </div>
 
           <div id="cstory-empty" class="cstory-empty">
-            <div class="cstory-empty-icon">📖</div>
-            <div class="cstory-empty-msg">No stories yet — generate one with AI or write your own.</div>
+            <div class="cstory-empty-icon">💬</div>
+            <div class="cstory-empty-msg">No quotes yet — generate one with AI or write your own.</div>
           </div>
 
           <div id="cstory-list" class="cstory-list hidden"></div>
 
-          <!-- Story editor (shown when a story is selected or new) -->
+          <!-- Quote editor (shown when a quote is selected or new) -->
           <div id="cstory-editor" class="cstory-editor hidden">
             <div class="cstory-editor-header">
-              <span class="cstory-editor-label" id="cstory-editor-label">New Story</span>
+              <span class="cstory-editor-label" id="cstory-editor-label">New Quote</span>
               <div class="cstory-editor-actions">
                 <select id="cstory-status-select" class="form-select" style="font-size:12px;padding:4px 8px;width:auto">
                   <option value="draft">Draft</option>
@@ -347,14 +340,14 @@
             </div>
 
             <div class="form-group" style="margin-bottom:12px">
-              <label class="form-label">Title</label>
-              <input type="text" id="cstory-title-input" class="form-input" placeholder="e.g. Oliver's Morning Garden Rounds" />
+              <label class="form-label">Quote</label>
+              <textarea id="cstory-title-input" class="form-textarea cstory-quote-textarea"
+                rows="3" placeholder="The character's words…"></textarea>
             </div>
 
-            <div class="form-row-2" style="margin-bottom:12px">
-              <div class="form-group">
-                <label class="form-label">Occasion</label>
-                <select id="cstory-editor-occasion" class="form-select">
+            <div class="form-group" style="margin-bottom:12px">
+              <label class="form-label">Occasion</label>
+              <select id="cstory-editor-occasion" class="form-select">
                   <option value="">— Everyday —</option>
                   <option value="Birthday">Birthday</option>
                   <option value="Valentine's Day">Valentine's Day</option>
@@ -368,24 +361,21 @@
                   <option value="New Baby">New Baby</option>
                   <option value="Everyday Adventure">Everyday Adventure</option>
                 </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Setting / Land</label>
-                <select id="cstory-editor-land" class="form-select">
-                  <option value="">— No specific land —</option>
-                </select>
-              </div>
+            </div>
+
+            <div style="display:none"><!-- land field kept for data compat -->
+              <select id="cstory-editor-land"></select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Story</label>
+              <label class="form-label">Context</label>
               <textarea id="cstory-body-input" class="form-textarea cstory-body-textarea"
-                rows="14" placeholder="Write the story here, or generate one with AI and click 'Use This Story'…"></textarea>
+                rows="14" placeholder="Describe the situation or moment this quote comes from — setting the scene without retelling the quote itself…"></textarea>
             </div>
 
             <div class="cstory-editor-footer">
               <button class="btn-secondary" id="cstory-cancel-btn">Cancel</button>
-              <button class="btn-primary" id="cstory-save-btn">Save Story</button>
+              <button class="btn-primary" id="cstory-save-btn">Save Quote</button>
             </div>
           </div>
 
@@ -967,6 +957,7 @@
             <div class="settings-nav-group-label">AI Behavior</div>
             <a class="settings-nav-item active" href="#s-section-system" data-section="s-section-system">⚙️ System Prompt &amp; Model</a>
             <a class="settings-nav-item" href="#s-section-char-ai" data-section="s-section-char-ai">✨ Character Generator</a>
+            <a class="settings-nav-item" href="#s-section-quote-ai" data-section="s-section-quote-ai">💬 Quote Generator</a>
             <a class="settings-nav-item" href="#s-section-land-ai" data-section="s-section-land-ai">🌍 Land Generator</a>
             <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
           </div>
@@ -1031,6 +1022,20 @@
                 <div class="field-instruction-row"><div class="field-instruction-label">What They Care About</div><textarea id="s-instruction-what-they-care-about" class="form-textarea" rows="2"></textarea></div>
                 <div class="field-instruction-row"><div class="field-instruction-label">Tone &amp; Voice</div><textarea id="s-instruction-tone-and-voice" class="form-textarea" rows="3"></textarea></div>
                 <div class="field-instruction-row"><div class="field-instruction-label">My Hook &amp; Audience</div><textarea id="s-instruction-hook-and-audience" class="form-textarea" rows="3"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quote Generator Instructions -->
+          <div class="settings-section collapsed" id="s-section-quote-ai">
+            <button class="settings-section-toggle" data-target="s-section-quote-ai">
+              <span class="settings-section-toggle-title">💬 Quote Generator Instructions</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">System instructions for the AI when generating character quotes. Defines voice, tone, format, and what makes a great Lovepop quote.</p>
+              <div class="form-group" style="margin-top:18px">
+                <textarea id="s-quote-instructions" class="form-textarea" rows="8"></textarea>
               </div>
             </div>
           </div>

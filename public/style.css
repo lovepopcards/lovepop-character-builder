@@ -1940,6 +1940,8 @@ html, body {
 .cstory-editor-label { font-size: 13px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: .5px; }
 .cstory-editor-actions { display: flex; align-items: center; gap: 8px; }
 .cstory-body-textarea { min-height: 260px; resize: vertical; font-size: 14px; line-height: 1.7; }
+.cstory-quote-textarea { min-height: 76px; resize: vertical; font-size: 15px; font-style: italic; line-height: 1.6; }
+.cstory-card-quote { white-space: normal; font-style: italic; line-height: 1.4; }
 .cstory-editor-footer {
   display: flex; justify-content: flex-end; gap: 10px;
   padding-top: 14px; margin-top: auto; flex-shrink: 0;
