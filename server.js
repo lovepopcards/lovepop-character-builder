@@ -42,7 +42,15 @@ const uploadSample = multer({ storage: sampleStorage, limits: { fileSize: 15 * 1
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
 app.use('/uploads', express.static(UPLOADS_DIR));
-app.use(express.static(path.join(__dirname, 'public')));
+// No-cache for HTML and JS so all users always get the latest version after a deploy
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+  },
+}));
 
 // ── Characters API ────────────────────────────────────────────
 app.get('/api/characters', (req, res) => res.json(db.getAllCharacters()));

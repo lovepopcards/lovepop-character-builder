@@ -1158,14 +1158,16 @@ function bindDetailModal() {
 }
 
 function openDetailModal(id) {
-  const char = characters.find(c => c.id === id);
+  // Coerce both sides to string — guards against integer vs string type mismatch
+  const char = characters.find(c => String(c.id) === String(id));
   if (!char) return;
   activeDetailId = id;
 
   document.getElementById('detail-name').textContent = char.name;
   document.getElementById('detail-meta').textContent = [char.species, char.role].filter(Boolean).join(' · ');
   ['backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared'].forEach(f => {
-    document.getElementById(`detail-${f.replace(/_/g,'-')}`).textContent = char[f] || '—';
+    const el = document.getElementById(`detail-${f.replace(/_/g,'-')}`);
+    if (el) el.textContent = char[f] || '—';   // null-safe: element may not exist in cached HTML
   });
   document.getElementById('detail-status').innerHTML = `<span class="status-badge status-${char.status}">${cap(char.status)}</span>`;
 
