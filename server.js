@@ -665,7 +665,9 @@ app.get('/api/products', async (req, res) => {
     }
     const upstream = await fetch('https://lovepop-merch-tool-production.up.railway.app/api/products');
     if (!upstream.ok) throw new Error(`Upstream responded ${upstream.status}`);
-    _productCache = await upstream.json();
+    const upstreamData = await upstream.json();
+    if (!Array.isArray(upstreamData)) throw new Error('Upstream returned non-array product data');
+    _productCache = upstreamData;
     _productCacheTs = now;
 
     // Populate sales cache from merch tool revenue data (revenue: { t12m, units })

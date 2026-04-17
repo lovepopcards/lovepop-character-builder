@@ -1085,7 +1085,7 @@ function renderCharDetailProducts(char) {
   if (countEl) countEl.textContent = `${skus.length} SKU${skus.length !== 1 ? 's' : ''}`;
   container.innerHTML = '';
   skus.forEach(sku => {
-    const product = productsLoaded ? allProducts.find(p => p.sku === sku) : null;
+    const product = (productsLoaded && Array.isArray(allProducts)) ? allProducts.find(p => p.sku === sku) : null;
     const p = product || { sku, name: sku, image_url: '' };
     const card = document.createElement('div');
     card.className = 'land-pf-card';
@@ -1277,7 +1277,7 @@ function renderLandDetailProducts(land) {
   if (countEl) countEl.textContent = `${skus.length} SKU${skus.length !== 1 ? 's' : ''}`;
   container.innerHTML = '';
   skus.forEach(sku => {
-    const product = productsLoaded ? allProducts.find(p => p.sku === sku) : null;
+    const product = (productsLoaded && Array.isArray(allProducts)) ? allProducts.find(p => p.sku === sku) : null;
     const card = document.createElement('div');
     card.className = 'land-pf-card';
     if (product && product.image_url) {
@@ -1986,7 +1986,9 @@ async function loadProducts() {
   try {
     const res = await fetch('/api/products');
     if (!res.ok) throw new Error(`${res.status}`);
-    allProducts = await res.json();
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('Products API returned unexpected format');
+    allProducts = data;
     productsLoaded = true;
     populateProductFilters();
   } catch (err) {
