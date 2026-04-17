@@ -47,22 +47,17 @@ const LAND_FIELD_META = [
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  bindNav();
-  bindCatalog();
-  bindEditor();
-  bindAIPanel();
-  bindLands();
-  bindLandEditor();
-  bindLandAIPanel();
-  bindProductPicker();
-  bindDetailModal();
-  bindLandDetailModal();
-  bindSettings();
-  bindCharArtGenerator();
-  bindLandImageGenerator();
-  bindAssetLibrary();
-  bindCharStories();
-  bindBulkEdit();
+  const bindFns = [
+    bindNav, bindCatalog, bindEditor, bindAIPanel,
+    bindLands, bindLandEditor, bindLandAIPanel, bindProductPicker,
+    bindDetailModal, bindLandDetailModal, bindSettings,
+    bindCharArtGenerator, bindLandImageGenerator, bindAssetLibrary,
+    bindCharStories, bindBulkEdit,
+  ];
+  for (const fn of bindFns) {
+    try { fn(); }
+    catch (err) { console.error(`[init] ${fn.name} threw:`, err); }
+  }
   loadAll();
   checkApiKeyStatus();
 });
@@ -1158,9 +1153,11 @@ function bindDetailModal() {
 }
 
 function openDetailModal(id) {
+  console.log('[modal] openDetailModal called, id=', id, 'chars loaded=', characters.length);
+  try {
   // Coerce both sides to string — guards against integer vs string type mismatch
   const char = characters.find(c => String(c.id) === String(id));
-  if (!char) return;
+  if (!char) { console.warn('[modal] char not found for id=', id); return; }
   activeDetailId = id;
 
   document.getElementById('detail-name').textContent = char.name;
@@ -1174,12 +1171,16 @@ function openDetailModal(id) {
   renderDetailImages(char);
   renderCharDetailProducts(char);
   document.getElementById('modal-detail').classList.remove('hidden');
+  console.log('[modal] modal shown for', char.name);
 
   const skus = char.product_skus || [];
   if (skus.length && !productsLoaded) {
     loadProducts().then(() => {
       if (activeDetailId === id) renderCharDetailProducts(char);
     }).catch(() => {});
+  }
+  } catch (err) {
+    console.error('[modal] openDetailModal error:', err);
   }
 }
 
