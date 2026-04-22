@@ -2292,19 +2292,6 @@ async function confirmProductSelection() {
     return;
   }
 
-  if (pickerContext === 'art-style-ref') {
-    // ── Art Style reference products (up to 4, used for AI) ──
-    artStyleRefProductSkus = new Set(selectedProductSkus);
-    artStyleRefProducts = [...artStyleRefProductSkus].map(
-      sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' }
-    );
-    artStyleAiProductImageUrls = artStyleRefProducts.filter(p => p.image_url).map(p => p.image_url);
-    selectedProductSkus = _pickerSavedLandSkus;
-    document.getElementById('modal-product-picker').classList.add('hidden');
-    renderArtStyleProductSelection();
-    return;
-  }
-
   // ── Land products (original behaviour) ──────────────────────
   const products = [...selectedProductSkus]
     .map(sku => allProducts.find(p => p.sku === sku))
@@ -2857,11 +2844,6 @@ function bindArtStyleEditor() {
     openProductPicker('art-style', landId);
   });
 
-  // "Add Reference Products" — open picker for ref products (up to 4, used for AI)
-  document.getElementById('art-style-browse-ref-products-btn').addEventListener('click', () => {
-    openProductPicker('art-style-ref');
-  });
-
   // Sidebar shortcuts
   document.getElementById('art-style-sb-goto-products-btn').addEventListener('click', () => switchArtStyleEditorTab('art-style-products'));
   document.getElementById('art-style-sb-edit-products-btn').addEventListener('click', () => switchArtStyleEditorTab('art-style-products'));
@@ -3285,6 +3267,79 @@ function renderArtStyleProductSection(products, emptyId, scrollId, cardsId, coun
   });
 }
 
+function renderArtStyleRefSelector() {
+  const container = document.getElementById('art-style-ref-selector');
+  if (!container) return;
+
+  const countEl = document.getElementById('art-style-editor-ref-pf-count');
+  const nRef    = artStyleRefProductSkus.size;
+  const atMax   = nRef >= 4;
+
+  if (countEl) {
+    if (nRef) {
+      countEl.textContent = `${nRef} of 4 reference product${nRef !== 1 ? 's' : ''} selected`;
+      countEl.classList.remove('hidden');
+    } else {
+      countEl.classList.add('hidden');
+    }
+  }
+
+  if (!artStyleSelectedProducts.length) {
+    container.innerHTML = '<div class="art-style-ref-selector-empty">Add included products (below) first — then click to mark up to 4 as AI reference</div>';
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'art-style-ref-tile-grid';
+
+  artStyleSelectedProducts.forEach(p => {
+    const isRef = artStyleRefProductSkus.has(p.sku);
+    const tile  = document.createElement('div');
+    tile.className = `art-style-ref-tile${isRef ? ' is-ref' : ''}${atMax && !isRef ? ' is-maxed' : ''}`;
+    tile.title = (p.name || p.sku) + (isRef ? ' (reference ✓)' : atMax ? ' (max 4 reached)' : ' — click to set as reference');
+
+    if (p.image_url) {
+      const img = document.createElement('img');
+      img.className = 'art-style-ref-tile-img';
+      img.src = esc(p.image_url); img.alt = p.name || p.sku; img.loading = 'lazy';
+      tile.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'art-style-ref-tile-placeholder';
+      ph.textContent = '📦';
+      tile.appendChild(ph);
+    }
+
+    const check = document.createElement('div');
+    check.className = 'art-style-ref-tile-check';
+    check.textContent = '✓';
+    tile.appendChild(check);
+
+    const nameTag = document.createElement('div');
+    nameTag.className = 'art-style-ref-tile-name';
+    nameTag.textContent = p.name || p.sku;
+    tile.appendChild(nameTag);
+
+    tile.addEventListener('click', () => {
+      if (isRef) {
+        artStyleRefProductSkus.delete(p.sku);
+      } else {
+        if (atMax) return; // already at 4, ignore click
+        artStyleRefProductSkus.add(p.sku);
+      }
+      // Rebuild from included products to preserve order
+      artStyleRefProducts = artStyleSelectedProducts.filter(x => artStyleRefProductSkus.has(x.sku));
+      artStyleAiProductImageUrls = artStyleRefProducts.filter(x => x.image_url).map(x => x.image_url);
+      renderArtStyleProductSelection();
+    });
+
+    grid.appendChild(tile);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(grid);
+}
+
 function renderArtStyleProductSelection() {
   const nRef = artStyleRefProducts.length;
 
@@ -3320,20 +3375,8 @@ function renderArtStyleProductSelection() {
     }
   }
 
-  // ── Reference products section ──────────────────────────────
-  renderArtStyleProductSection(
-    artStyleRefProducts,
-    'art-style-editor-ref-pf-empty',
-    'art-style-editor-ref-pf-scroll',
-    'art-style-editor-ref-pf-cards',
-    'art-style-editor-ref-pf-count',
-    (sku) => {
-      artStyleRefProductSkus.delete(sku);
-      artStyleRefProducts = artStyleRefProducts.filter(x => x.sku !== sku);
-      artStyleAiProductImageUrls = artStyleRefProducts.filter(x => x.image_url).map(x => x.image_url);
-      renderArtStyleProductSelection();
-    }
-  );
+  // ── Reference selector (inline tile grid) ───────────────────
+  renderArtStyleRefSelector();
 
   // ── Included products section ───────────────────────────────
   renderArtStyleProductSection(
@@ -3345,6 +3388,12 @@ function renderArtStyleProductSelection() {
     (sku) => {
       artStyleSelectedProductSkus.delete(sku);
       artStyleSelectedProducts = artStyleSelectedProducts.filter(x => x.sku !== sku);
+      // Also remove from reference if it was there
+      if (artStyleRefProductSkus.has(sku)) {
+        artStyleRefProductSkus.delete(sku);
+        artStyleRefProducts = artStyleRefProducts.filter(x => x.sku !== sku);
+        artStyleAiProductImageUrls = artStyleRefProducts.filter(x => x.image_url).map(x => x.image_url);
+      }
       renderArtStyleProductSelection();
     }
   );

@@ -706,10 +706,10 @@
           </div>
 
           <!-- Product reference strip -->
-          <div id="art-style-ai-products-ref" class="land-sb-product-ref land-sb-no-products">
+          <div id="art-style-ai-products-ref" class="land-sb-product-ref land-sb-no-products as-ai-product-ref">
             <div class="land-sb-product-ref-empty">
               <span class="land-sb-product-ref-icon">🛍️</span>
-              <span class="land-sb-product-ref-msg">Add products in <strong>Art Style Products</strong> to give the AI visual context</span>
+              <span class="land-sb-product-ref-msg">Add included products in <strong>Art Style Products</strong>, then select up to 4 as reference</span>
               <button class="land-sb-goto-products" id="art-style-sb-goto-products-btn">→ Add Products</button>
             </div>
             <div class="land-sb-product-ref-filled hidden">
@@ -855,22 +855,12 @@
             </div>
           </div>
 
-          <!-- Reference Products (AI) -->
+          <!-- Reference Products (AI) — selected inline from Included Products -->
           <div class="form-section" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
             <div class="form-section-title">Reference Products <span style="font-size:11px;font-weight:500;color:var(--coral)">(up to 4 · used for AI)</span></div>
-            <div class="form-hint" style="margin-bottom:14px">Images from these products are sent to the AI for style articulation and mood board generation.</div>
-
-            <div id="art-style-editor-ref-pf-empty" class="land-editor-pf-empty">
-              <span class="land-editor-pf-empty-icon">🎨</span>
-              <span>No reference products yet</span>
-            </div>
-            <div id="art-style-editor-ref-pf-scroll" class="land-pf-scroll-wrap hidden">
-              <div id="art-style-editor-ref-pf-cards" class="land-pf-cards"></div>
-            </div>
-            <div class="land-editor-pf-actions">
-              <button class="btn-sku-add" id="art-style-browse-ref-products-btn">+ Add Reference Products</button>
-              <span id="art-style-editor-ref-pf-count" class="land-editor-pf-count hidden"></span>
-            </div>
+            <div class="form-hint" style="margin-bottom:12px">Click products from your included list below to designate them as AI reference (up to 4). Their images are sent to Claude for style articulation and mood board generation.</div>
+            <span id="art-style-editor-ref-pf-count" class="land-editor-pf-count hidden" style="display:block;margin-bottom:8px"></span>
+            <div id="art-style-ref-selector"></div>
           </div>
 
           <!-- Included Products (associated, not AI) -->
