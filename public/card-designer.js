@@ -101,6 +101,7 @@
     // New design buttons
     qs('#cd-new-btn')?.addEventListener('click', newDesign);
     qs('#cd-new-btn-ws')?.addEventListener('click', newDesign);
+    qs('#cd-empty-new-btn')?.addEventListener('click', newDesign);
 
     // Back to dashboard
     qs('#cd-back-btn')?.addEventListener('click', showDashboard);
@@ -807,7 +808,7 @@
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Update failed');
-      activeDesign = data.design;
+      activeDesign = data;
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       renderSketchRounds();
       updateRefineBar();
@@ -945,7 +946,7 @@
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/promote-sketch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sketch_card_id: focusedSketchCard.id }),
+        body: JSON.stringify({ card_id: focusedSketchCard.id }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Promote failed');
