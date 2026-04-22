@@ -1989,12 +1989,12 @@ html, body {
 .btn-articulate {
   display: flex; align-items: center; justify-content: center; gap: 7px;
   width: 100%; padding: 10px 16px; margin-top: 12px;
-  background: var(--surface-2); color: var(--text);
-  border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--navy); color: white;
+  border: 1.5px solid var(--navy); border-radius: 8px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   transition: background .15s, border-color .15s;
 }
-.btn-articulate:hover { background: var(--sand-mid); border-color: var(--sand-dark); }
+.btn-articulate:hover { background: #1a2a4a; border-color: #1a2a4a; }
 .btn-articulate:disabled { opacity: .5; cursor: not-allowed; }
 
 #art-style-articulation-panel {

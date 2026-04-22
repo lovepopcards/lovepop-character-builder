@@ -146,13 +146,15 @@ db.exec(`
     status TEXT DEFAULT 'active',
     images TEXT DEFAULT '[]',
     product_skus TEXT DEFAULT '[]',
+    reference_product_skus TEXT DEFAULT '[]',
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )
 `);
 
-// Add theme_agnostic_name column to existing art_styles tables (migration)
+// Migrations for art_styles
 try { db.exec(`ALTER TABLE art_styles ADD COLUMN theme_agnostic_name TEXT DEFAULT ''`); } catch {}
+try { db.exec(`ALTER TABLE art_styles ADD COLUMN reference_product_skus TEXT DEFAULT '[]'`); } catch {}
 
 
 // ── Character Stories/Quotes table ───────────────────────────
@@ -334,7 +336,7 @@ const LAND_JSON   = ['images','product_skus'];
 const LAND_ALL    = [...LAND_TEXT, ...LAND_JSON];
 
 const ARTSTYLE_TEXT = ['name','theme_agnostic_name','description','visual_technique','color_palette','mood_and_feel','characteristic_elements','status'];
-const ARTSTYLE_JSON = ['images','product_skus'];
+const ARTSTYLE_JSON = ['images','product_skus','reference_product_skus'];
 const ARTSTYLE_ALL  = [...ARTSTYLE_TEXT, ...ARTSTYLE_JSON];
 
 // ── Asset JSON field helpers ──────────────────────────────────

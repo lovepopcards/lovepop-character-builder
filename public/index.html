@@ -855,14 +855,32 @@
             </div>
           </div>
 
-          <!-- Manual product selection -->
+          <!-- Reference Products (AI) -->
+          <div class="form-section" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+            <div class="form-section-title">Reference Products <span style="font-size:11px;font-weight:500;color:var(--coral)">(up to 4 · used for AI)</span></div>
+            <div class="form-hint" style="margin-bottom:14px">Images from these products are sent to the AI for style articulation and mood board generation.</div>
+
+            <div id="art-style-editor-ref-pf-empty" class="land-editor-pf-empty">
+              <span class="land-editor-pf-empty-icon">🎨</span>
+              <span>No reference products yet</span>
+            </div>
+            <div id="art-style-editor-ref-pf-scroll" class="land-pf-scroll-wrap hidden">
+              <div id="art-style-editor-ref-pf-cards" class="land-pf-cards"></div>
+            </div>
+            <div class="land-editor-pf-actions">
+              <button class="btn-sku-add" id="art-style-browse-ref-products-btn">+ Add Reference Products</button>
+              <span id="art-style-editor-ref-pf-count" class="land-editor-pf-count hidden"></span>
+            </div>
+          </div>
+
+          <!-- Included Products (associated, not AI) -->
           <div class="form-section">
-            <div class="form-section-title">Art Style Products</div>
-            <div class="form-hint" style="margin-bottom:14px">Products associated with this art style. Selected SKUs are also used as visual reference for AI generation.</div>
+            <div class="form-section-title">Included Products</div>
+            <div class="form-hint" style="margin-bottom:14px">All products associated with this art style. Not sent to AI generation.</div>
 
             <div id="art-style-editor-pf-empty" class="land-editor-pf-empty">
               <span class="land-editor-pf-empty-icon">📦</span>
-              <span>No products selected yet</span>
+              <span>No products added yet</span>
             </div>
             <div id="art-style-editor-pf-scroll" class="land-pf-scroll-wrap hidden">
               <div id="art-style-editor-pf-cards" class="land-pf-cards"></div>

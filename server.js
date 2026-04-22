@@ -758,11 +758,15 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
   // ── Step 1: DALL-E generates the mood board ───────────────────
   // Build a text prompt: image instructions + user notes
   const articulationsText = req.body.articulations_text || '';
-  const dallePromptText = [
+  const dallePromptRaw = [
     articulationsText ? `REFERENCE STYLE ANALYSIS:\n${articulationsText}\n` : '',
     moodBoardInstructions,
     prompt ? `\nAdditional direction from the user:\n${prompt}` : '',
   ].filter(Boolean).join('\n');
+  // DALL-E 3 has a 4000 character prompt limit — truncate gracefully
+  const dallePromptText = dallePromptRaw.length > 3900
+    ? dallePromptRaw.slice(0, 3900) + '…'
+    : dallePromptRaw;
 
   let imageUrl = null;
   let moodBoardBase64 = null;
