@@ -717,14 +717,17 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
   // Each entry: { pngBuf, jpegBuf, label }
   const rawImages = [];
 
+  // Image resize targets:
+  //   pngBuf  → sent to gpt-image-1: 2048px max, lossless PNG — preserves fine line detail
+  //   jpegBuf → sent to Claude:      1536px max, JPEG q90    — high fidelity for analysis
+  const toPng  = buf => sharp(buf).resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).png().toBuffer();
+  const toJpeg = buf => sharp(buf).resize(1536, 1536, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+
   // 1. Uploaded reference image files (from the AI panel drop zone)
   if (req.files && req.files.length) {
     for (const file of req.files.slice(0, 4)) {
       try {
-        const [pngBuf, jpegBuf] = await Promise.all([
-          sharp(file.buffer).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
-          sharp(file.buffer).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
-        ]);
+        const [pngBuf, jpegBuf] = await Promise.all([toPng(file.buffer), toJpeg(file.buffer)]);
         rawImages.push({ pngBuf, jpegBuf, label: file.originalname || 'Uploaded reference' });
       } catch (e) { console.warn('[artstyle] uploaded file error:', e.message); }
     }
@@ -740,10 +743,7 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
           const r = await fetch(url);
           if (!r.ok) continue;
           const srcBuf = Buffer.from(await r.arrayBuffer());
-          const [pngBuf, jpegBuf] = await Promise.all([
-            sharp(srcBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
-            sharp(srcBuf).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
-          ]);
+          const [pngBuf, jpegBuf] = await Promise.all([toPng(srcBuf), toJpeg(srcBuf)]);
           rawImages.push({ pngBuf, jpegBuf, label: url });
         } catch (e) { console.warn('[artstyle] product URL error:', e.message); }
       }
@@ -757,10 +757,7 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
     if (!fs.existsSync(fullPath)) continue;
     try {
       const srcBuf = fs.readFileSync(fullPath);
-      const [pngBuf, jpegBuf] = await Promise.all([
-        sharp(srcBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
-        sharp(srcBuf).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
-      ]);
+      const [pngBuf, jpegBuf] = await Promise.all([toPng(srcBuf), toJpeg(srcBuf)]);
       rawImages.push({ pngBuf, jpegBuf, label: 'Sample style reference' });
     } catch (e) { console.warn('[artstyle] sample load error:', e.message); }
   }
@@ -814,7 +811,8 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
       const filename = `artstyle-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
       fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
       imageUrl = `/uploads/${filename}`;
-      const resizedForClaude = await sharp(imgBuf).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+      // Send the mood board to Claude at high fidelity so it can read fine detail
+      const resizedForClaude = await sharp(imgBuf).resize(1536, 1536, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
       moodBoardBase64 = resizedForClaude.toString('base64');
 
     } else {
