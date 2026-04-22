@@ -878,6 +878,22 @@ let _productCache = null;
 let _productCacheTs = 0;
 const PRODUCT_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
+// Warm in-memory cache from the database on startup (survives Railway restarts)
+try {
+  const stored = db.getSetting('products_cache');
+  const storedTs = db.getSetting('products_cache_ts');
+  if (stored && stored !== '') {
+    const parsed = JSON.parse(stored);
+    if (Array.isArray(parsed) && parsed.length) {
+      _productCache = parsed;
+      _productCacheTs = storedTs ? Number(storedTs) : 0;
+      console.log(`[products] loaded ${parsed.length} products from DB cache (ts=${new Date(_productCacheTs).toISOString()})`);
+    }
+  }
+} catch (e) {
+  console.warn('[products] could not restore DB cache on startup:', e.message);
+}
+
 app.get('/api/products', async (req, res) => {
   try {
     const now = Date.now();
@@ -890,6 +906,12 @@ app.get('/api/products', async (req, res) => {
     if (!Array.isArray(upstreamData)) throw new Error('Upstream returned non-array product data');
     _productCache = upstreamData;
     _productCacheTs = now;
+
+    // Persist the fresh cache to the database so it survives server restarts
+    try {
+      db.setSetting('products_cache', JSON.stringify(_productCache));
+      db.setSetting('products_cache_ts', String(_productCacheTs));
+    } catch (e) { console.warn('[products] could not persist cache to DB:', e.message); }
 
     // Populate sales cache from merch tool revenue data (revenue: { t12m, units })
     try {
@@ -910,7 +932,7 @@ app.get('/api/products', async (req, res) => {
     res.json(_productCache);
   } catch (err) {
     console.error('Products proxy error:', err.message);
-    if (_productCache) return res.json(_productCache); // serve stale cache on upstream error
+    if (_productCache) return res.json(_productCache); // serve stale/DB-restored cache on upstream error
     res.status(502).json({ error: 'Could not load product library: ' + err.message });
   }
 });
