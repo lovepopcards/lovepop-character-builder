@@ -697,123 +697,164 @@ Respond with a JSON array only — no markdown fences, no extra text.`,
   }
 });
 
-// ── Art Style AI Generator (DALL-E mood board → Claude profile) ─
+// ── Art Style AI Generator (gpt-image-1 mood board → Claude profile) ─
 app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (req, res) => {
   const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
   const openaiKey    = process.env.OPENAI_API_KEY    || db.getSetting('openai_api_key');
   if (!anthropicKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
-  if (!openaiKey)    return res.status(400).json({ error: 'OpenAI API key not configured. DALL-E is required for mood board generation.' });
+  if (!openaiKey)    return res.status(400).json({ error: 'OpenAI API key not configured.' });
 
   const settings = db.getAllSettings();
   const moodBoardInstructions = settings.ai_artstyle_image_instructions || db.DEFAULTS.ai_artstyle_image_instructions;
   const profileInstructions   = settings.ai_artstyle_instructions       || db.DEFAULTS.ai_artstyle_instructions;
-  const { prompt = '' } = req.body;
+  const articulationsText     = req.body.articulations_text || '';
+  const { prompt = '' }       = req.body;
 
-  // ── Helper: fetch + resize an image URL to base64 ────────────
-  async function fetchImageAsBase64(url) {
-    try {
-      if (new URL(url).protocol !== 'https:') return null;
-      const r = await fetch(url);
-      if (!r.ok) return null;
-      const buf = Buffer.from(await r.arrayBuffer());
-      const resized = await sharp(buf).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer();
-      return { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') };
-    } catch { return null; }
-  }
+  // ── Collect raw image buffers from all sources ────────────────
+  // Each entry: { pngBuf, jpegBuf, label }
+  const rawImages = [];
 
-  // ── Collect all reference images (uploaded + product URLs + samples) ─
-  const refImages = []; // { type, source } blocks for Claude
-
+  // 1. Uploaded reference image files (from the AI panel drop zone)
   if (req.files && req.files.length) {
     for (const file of req.files.slice(0, 4)) {
       try {
-        const resized = await sharp(file.buffer).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer();
-        refImages.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') } });
-      } catch (e) { console.warn('[artstyle] ref image resize error:', e.message); }
+        const [pngBuf, jpegBuf] = await Promise.all([
+          sharp(file.buffer).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
+          sharp(file.buffer).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
+        ]);
+        rawImages.push({ pngBuf, jpegBuf, label: file.originalname || 'Uploaded reference' });
+      } catch (e) { console.warn('[artstyle] uploaded file error:', e.message); }
     }
   }
 
+  // 2. Reference product image URLs (from the Products tab)
   if (req.body.image_urls) {
     try {
       const urls = JSON.parse(req.body.image_urls);
-      for (const url of urls.slice(0, 5)) {
-        const img = await fetchImageAsBase64(url);
-        if (img) refImages.push({ type: 'image', source: img });
+      for (const url of urls.slice(0, Math.max(0, 8 - rawImages.length))) {
+        try {
+          if (new URL(url).protocol !== 'https:') continue;
+          const r = await fetch(url);
+          if (!r.ok) continue;
+          const srcBuf = Buffer.from(await r.arrayBuffer());
+          const [pngBuf, jpegBuf] = await Promise.all([
+            sharp(srcBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
+            sharp(srcBuf).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
+          ]);
+          rawImages.push({ pngBuf, jpegBuf, label: url });
+        } catch (e) { console.warn('[artstyle] product URL error:', e.message); }
       }
     } catch (e) { console.warn('[artstyle] image_urls parse error:', e.message); }
   }
 
-  const rawSamples  = db.getSetting('ai_artstyle_samples');
-  const samplePaths = (() => { try { return JSON.parse(rawSamples || '[]'); } catch { return []; } })();
+  // 3. Sample art style images from settings (up to 3, appended last)
+  const samplePaths = (() => { try { return JSON.parse(db.getSetting('ai_artstyle_samples') || '[]'); } catch { return []; } })();
   for (const sp of samplePaths.slice(0, 3)) {
     const fullPath = path.join(ARTSTYLE_SAMPLES_DIR, path.basename(sp));
     if (!fs.existsSync(fullPath)) continue;
     try {
-      const buf  = fs.readFileSync(fullPath);
-      const ext  = path.extname(fullPath).slice(1).toLowerCase();
-      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-      refImages.push({ type: 'image', source: { type: 'base64', media_type: mime, data: buf.toString('base64') } });
+      const srcBuf = fs.readFileSync(fullPath);
+      const [pngBuf, jpegBuf] = await Promise.all([
+        sharp(srcBuf).resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).png().toBuffer(),
+        sharp(srcBuf).resize(800,  800,  { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
+      ]);
+      rawImages.push({ pngBuf, jpegBuf, label: 'Sample style reference' });
     } catch (e) { console.warn('[artstyle] sample load error:', e.message); }
   }
 
-  // ── Step 1: DALL-E generates the mood board ───────────────────
-  // Build a text prompt: image instructions + user notes
-  const articulationsText = req.body.articulations_text || '';
-  const dallePromptRaw = [
-    articulationsText ? `REFERENCE STYLE ANALYSIS:\n${articulationsText}\n` : '',
+  // Build Claude-format image blocks from the JPEG buffers
+  const refImagesForClaude = rawImages.map(({ jpegBuf }) => ({
+    type: 'image',
+    source: { type: 'base64', media_type: 'image/jpeg', data: jpegBuf.toString('base64') },
+  }));
+
+  // ── Build the image generation prompt ────────────────────────
+  const imageGenPrompt = [
+    articulationsText ? `STYLE ANALYSIS FROM REFERENCE IMAGES:\n${articulationsText}\n` : '',
     moodBoardInstructions,
     prompt ? `\nAdditional direction from the user:\n${prompt}` : '',
   ].filter(Boolean).join('\n');
-  // DALL-E 3 has a 4000 character prompt limit — truncate gracefully
-  const dallePromptText = dallePromptRaw.length > 3900
-    ? dallePromptRaw.slice(0, 3900) + '…'
-    : dallePromptRaw;
 
   let imageUrl = null;
   let moodBoardBase64 = null;
 
   try {
-    const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'dall-e-3', prompt: dallePromptText, size: '1024x1024', quality: 'hd', n: 1 }),
-    });
-    if (!dalleResp.ok) {
-      const errBody = await dalleResp.json().catch(() => ({}));
-      throw new Error(errBody.error?.message || `DALL-E responded ${dalleResp.status}`);
-    }
-    const dalleData = await dalleResp.json();
-    const tempUrl = dalleData.data[0].url;
+    if (rawImages.length > 0) {
+      // ── gpt-image-1: image-conditioned mood board generation ──
+      // Uses /v1/images/edits which accepts image inputs + prompt
+      const form = new FormData();
+      form.append('model', 'gpt-image-1');
+      form.append('prompt', imageGenPrompt);
+      form.append('n', '1');
+      form.append('size', '1024x1536');   // portrait mood board
+      form.append('quality', 'high');
 
-    // Download mood board, save to disk, and keep as base64 for Claude
-    const imgResp = await fetch(tempUrl);
-    if (imgResp.ok) {
-      const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+      for (let i = 0; i < rawImages.length; i++) {
+        const blob = new Blob([rawImages[i].pngBuf], { type: 'image/png' });
+        form.append('image[]', blob, `ref_${i}.png`);
+      }
+
+      const genResp = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}` },
+        body: form,
+      });
+
+      if (!genResp.ok) {
+        const errBody = await genResp.json().catch(() => ({}));
+        throw new Error(errBody.error?.message || `gpt-image-1 responded ${genResp.status}`);
+      }
+
+      const genData = await genResp.json();
+      const b64 = genData.data[0].b64_json;
+      const imgBuf = Buffer.from(b64, 'base64');
       const filename = `artstyle-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
       fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
       imageUrl = `/uploads/${filename}`;
-      // Resize for Claude
       const resizedForClaude = await sharp(imgBuf).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
       moodBoardBase64 = resizedForClaude.toString('base64');
+
+    } else {
+      // ── Fallback: no reference images → DALL-E 3 text-only ───
+      const truncated = imageGenPrompt.length > 3900 ? imageGenPrompt.slice(0, 3900) + '…' : imageGenPrompt;
+      const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'dall-e-3', prompt: truncated, size: '1024x1024', quality: 'hd', n: 1 }),
+      });
+      if (!dalleResp.ok) {
+        const errBody = await dalleResp.json().catch(() => ({}));
+        throw new Error(errBody.error?.message || `DALL-E responded ${dalleResp.status}`);
+      }
+      const dalleData = await dalleResp.json();
+      const imgResp = await fetch(dalleData.data[0].url);
+      if (imgResp.ok) {
+        const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+        const filename = `artstyle-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+        fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
+        imageUrl = `/uploads/${filename}`;
+        const resizedForClaude = await sharp(imgBuf).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+        moodBoardBase64 = resizedForClaude.toString('base64');
+      }
     }
   } catch (err) {
-    console.error('[artstyle] DALL-E error:', err.message);
+    console.error('[artstyle] image generation error:', err.message);
     return res.status(500).json({ error: 'Mood board generation failed: ' + err.message });
   }
 
-  // ── Step 2: Claude reviews the mood board → writes the profile ─
+  // ── Step 2: Claude reviews mood board + originals → writes profile ─
   const claudeContent = [];
 
   // Lead with the generated mood board
   if (moodBoardBase64) {
-    claudeContent.push({ type: 'text', text: 'Here is the mood board that was just generated for this art style:' });
+    claudeContent.push({ type: 'text', text: 'Here is the mood board just generated for this art style:' });
     claudeContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: moodBoardBase64 } });
   }
 
-  // Then include original reference images if any
-  if (refImages.length) {
-    claudeContent.push({ type: 'text', text: `\nHere are the ${refImages.length} original reference image${refImages.length > 1 ? 's' : ''} that inspired the mood board:` });
-    claudeContent.push(...refImages);
+  // Follow with the original reference images so Claude can see both
+  if (refImagesForClaude.length) {
+    claudeContent.push({ type: 'text', text: `\nHere are the ${refImagesForClaude.length} original reference illustration${refImagesForClaude.length > 1 ? 's' : ''} that the mood board was derived from:` });
+    claudeContent.push(...refImagesForClaude);
   }
 
   claudeContent.push({

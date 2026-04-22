@@ -1038,15 +1038,15 @@
               <span class="settings-section-chevron">▾</span>
             </button>
             <div class="settings-section-body">
-              <p class="settings-card-desc">Two-step generator: DALL-E creates a mood board from your references and instructions, then Claude reviews the mood board and writes the art style profile.</p>
+              <p class="settings-card-desc">Two-step generator: <strong>gpt-image-1</strong> creates a mood board by directly analyzing your reference illustrations, then <strong>Claude</strong> reviews both the mood board and originals and writes the art style profile. When no reference images are available, falls back to DALL-E 3 text-only generation.</p>
               <div class="form-group" style="margin-top:18px">
-                <label class="form-label">Step 1 — DALL-E Mood Board Instructions</label>
-                <div class="form-hint" style="margin-bottom:8px">Sent to DALL-E 3 to generate the visual mood board. Describe the desired composition, layout, format, and quality. User notes and product context are appended automatically.</div>
+                <label class="form-label">Step 1 — Mood Board Instructions</label>
+                <div class="form-hint" style="margin-bottom:8px">Sent to <strong>gpt-image-1</strong> along with your reference illustrations. Describe the desired composition, layout, format, and quality of the mood board. Articulation analysis and user notes are prepended automatically.</div>
                 <textarea id="s-artstyle-image-instructions" class="form-textarea" rows="6"></textarea>
               </div>
               <div class="form-group">
                 <label class="form-label">Step 2 — Claude Profile Instructions</label>
-                <div class="form-hint" style="margin-bottom:8px">Passed to Claude as the system prompt when reviewing the generated mood board and writing the art style profile (name, description, visual technique, etc.).</div>
+                <div class="form-hint" style="margin-bottom:8px">Passed to Claude as the system prompt. Claude sees both the generated mood board and the original reference illustrations before writing the profile fields.</div>
                 <textarea id="s-artstyle-instructions" class="form-textarea" rows="6"></textarea>
               </div>
               <div class="form-group">
