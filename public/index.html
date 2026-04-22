@@ -829,6 +829,21 @@
       <!-- ══ Tab: Art Style Products ════════════════════════════════ -->
       <div id="art-style-editor-tab-products" class="editor-tab-panel hidden">
         <div class="products-tab-body">
+
+          <!-- Load from a Land -->
+          <div class="form-section" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
+            <div class="form-section-title">Load from a Land</div>
+            <div class="form-hint" style="margin-bottom:12px">Select a Lovepop Land to add all of its products, or browse just that land's product library.</div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <select id="as-land-select" class="form-select" style="flex:1;min-width:180px">
+                <option value="">— choose a land —</option>
+              </select>
+              <button class="btn-secondary" id="as-add-all-land-btn" disabled>+ Add All Land Products</button>
+              <button class="btn-secondary" id="as-browse-land-btn" disabled>Browse Land Products</button>
+            </div>
+          </div>
+
+          <!-- Manual product selection -->
           <div class="form-section">
             <div class="form-section-title">Art Style Products</div>
             <div class="form-hint" style="margin-bottom:14px">Products associated with this art style. Selected SKUs are also used as visual reference for AI generation.</div>
@@ -1715,6 +1730,7 @@
         <input type="text" id="product-search" class="form-input" placeholder="Search by name, SKU, or occasion…" />
         <select id="product-format-filter" class="form-select"><option value="">All Formats</option></select>
         <select id="product-occasion-filter" class="form-select"><option value="">All Occasions</option></select>
+        <select id="product-land-filter" class="form-select hidden"><option value="">All Lands</option></select>
       </div>
       <div class="product-picker-toggles">
         <label class="picker-toggle-label">

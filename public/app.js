@@ -2012,6 +2012,7 @@ let charSelectedProductSkus = new Set(); // character: persistent selected SKUs
 let charSelectedProducts = [];           // character: full product objects for display
 let pickerContext = 'land';              // 'land' | 'character' | 'art-style' — set when opening picker
 let _pickerSavedLandSkus = new Set();    // backup of land SKUs while character/art-style picker is open
+let _pickerPresetLandId = null;          // if set, pre-filter picker by this land ID
 let productSearchTimer = null;
 const PRODUCT_GRID_LIMIT = 200;
 
@@ -2047,8 +2048,18 @@ function getFilteredProducts() {
   const format   = document.getElementById('product-format-filter').value;
   const occasion = document.getElementById('product-occasion-filter').value;
   const hideSentiment = document.getElementById('product-hide-sentiment')?.checked;
+  const landFilterEl = document.getElementById('product-land-filter');
+  const landId = landFilterEl && !landFilterEl.classList.contains('hidden') ? landFilterEl.value : '';
+
+  // Build land SKU set for fast lookup if a land is selected
+  let landSkuSet = null;
+  if (landId) {
+    const land = lands.find(l => String(l.id) === String(landId));
+    landSkuSet = new Set(land ? (land.product_skus || []) : []);
+  }
 
   return allProducts.filter(p => {
+    if (landSkuSet && !landSkuSet.has(p.sku)) return false;
     if (format   && p.format   !== format)   return false;
     if (occasion && p.occasion !== occasion) return false;
     if (hideSentiment && p.product_configuration && p.product_configuration.includes('Sentiment')) return false;
@@ -2132,8 +2143,9 @@ function handleProductTileClick(product) {
   updateConfirmBtn();
 }
 
-async function openProductPicker(context = 'land') {
+async function openProductPicker(context = 'land', presetLandId = null) {
   pickerContext = context;
+  _pickerPresetLandId = presetLandId;
 
   if (context === 'character') {
     // Swap in character SKUs; save land SKUs to restore on close/cancel
@@ -2149,6 +2161,25 @@ async function openProductPicker(context = 'land') {
   document.getElementById('product-search').value = '';
   document.getElementById('product-format-filter').value = '';
   document.getElementById('product-occasion-filter').value = '';
+
+  // Show / populate land filter only for art-style context
+  const landFilterEl = document.getElementById('product-land-filter');
+  if (context === 'art-style') {
+    // Populate land options
+    landFilterEl.innerHTML = '<option value="">All Lands</option>';
+    lands.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name || `Land ${l.id}`;
+      landFilterEl.appendChild(opt);
+    });
+    if (presetLandId) landFilterEl.value = presetLandId;
+    landFilterEl.classList.remove('hidden');
+  } else {
+    landFilterEl.value = '';
+    landFilterEl.classList.add('hidden');
+  }
+
   updateConfirmBtn();
   document.getElementById('modal-product-picker').classList.remove('hidden');
 
@@ -2158,8 +2189,16 @@ async function openProductPicker(context = 'land') {
     try {
       await loadProducts();
     } catch {
-      document.getElementById('product-picker-grid').innerHTML =
-        '<div class="product-picker-empty">⚠️ Could not load products. Check your connection and try again.</div>';
+      const errDiv = document.createElement('div');
+      errDiv.className = 'product-picker-empty';
+      errDiv.innerHTML = '⚠️ Could not load products. Check your connection and try again.<br><br>';
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn-secondary';
+      retryBtn.textContent = '↻ Retry';
+      retryBtn.addEventListener('click', () => openProductPicker(context, presetLandId));
+      errDiv.appendChild(retryBtn);
+      document.getElementById('product-picker-grid').innerHTML = '';
+      document.getElementById('product-picker-grid').appendChild(errDiv);
       return;
     }
   }
@@ -2343,6 +2382,7 @@ function bindProductPicker() {
   document.getElementById('product-format-filter').addEventListener('change', renderProductGrid);
   document.getElementById('product-occasion-filter').addEventListener('change', renderProductGrid);
   document.getElementById('product-hide-sentiment').addEventListener('change', renderProductGrid);
+  document.getElementById('product-land-filter').addEventListener('change', renderProductGrid);
 }
 
 // ── Excel Export ──────────────────────────────────────────────
@@ -2619,6 +2659,21 @@ function openArtStyleEditorView(mode, id = null) {
     renderArtStyleEditorImages([]);
   }
 
+  // Populate land selector
+  const landSel = document.getElementById('as-land-select');
+  if (landSel) {
+    landSel.innerHTML = '<option value="">— choose a land —</option>';
+    lands.forEach(l => {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name || `Land ${l.id}`;
+      landSel.appendChild(opt);
+    });
+    // Reset land action buttons
+    document.getElementById('as-add-all-land-btn').disabled = true;
+    document.getElementById('as-browse-land-btn').disabled = true;
+  }
+
   document.getElementById('art-style-editor-save-status').textContent = '';
   switchArtStyleEditorTab('art-style-profile');
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -2668,6 +2723,44 @@ function bindArtStyleEditor() {
       renderArtStyleEditorImages([]);
     }
     e.target.value = '';
+  });
+
+  // Land selector: enable/disable action buttons
+  document.getElementById('as-land-select').addEventListener('change', function () {
+    const hasVal = !!this.value;
+    document.getElementById('as-add-all-land-btn').disabled = !hasVal;
+    document.getElementById('as-browse-land-btn').disabled = !hasVal;
+  });
+
+  // "Add All Land Products" — bulk-add every SKU from the selected land
+  document.getElementById('as-add-all-land-btn').addEventListener('click', async () => {
+    const landId = document.getElementById('as-land-select').value;
+    if (!landId) return;
+    const land = lands.find(l => String(l.id) === String(landId));
+    if (!land) return;
+
+    // Make sure products are loaded so we can look up full objects
+    if (!productsLoaded) {
+      const btn = document.getElementById('as-add-all-land-btn');
+      btn.disabled = true; btn.textContent = 'Loading…';
+      try { await loadProducts(); } catch { alert('Could not load products. Check your connection.'); return; }
+      finally { btn.disabled = false; btn.textContent = '+ Add All Land Products'; }
+    }
+
+    const landSkus = land.product_skus || [];
+    landSkus.forEach(sku => artStyleSelectedProductSkus.add(sku));
+    artStyleSelectedProducts = [...artStyleSelectedProductSkus].map(
+      sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' }
+    );
+    artStyleAiProductImageUrls = artStyleSelectedProducts.filter(p => p.image_url).map(p => p.image_url);
+    renderArtStyleProductSelection();
+  });
+
+  // "Browse Land Products" — open picker pre-filtered to the selected land
+  document.getElementById('as-browse-land-btn').addEventListener('click', () => {
+    const landId = document.getElementById('as-land-select').value;
+    if (!landId) return;
+    openProductPicker('art-style', landId);
   });
 
   // Sidebar shortcuts
