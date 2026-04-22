@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const db = require('./database');
 const { anthropicMessages } = require('./utils/anthropic');
 const assetLibraryRouter = require('./routes/assetLibrary');
+const cardDesignerRouter = require('./routes/cardDesigner');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -710,15 +711,16 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
   let imageUrl = null;
   if (openaiKey) {
     try {
+      const artstyleImageInstructions = settings.ai_artstyle_image_instructions || db.DEFAULTS.ai_artstyle_image_instructions;
       const dallePromptText = [
-        `Create a stunning visual representation of this Lovepop art style:`,
-        textResult.name ? `Style name: "${textResult.name}"` : '',
+        `Art style: "${textResult.name || 'Lovepop Style'}"`,
         textResult.description ? `Description: ${textResult.description}` : '',
         textResult.visual_technique ? `Technique: ${textResult.visual_technique}` : '',
         textResult.color_palette ? `Color palette: ${textResult.color_palette}` : '',
         textResult.mood_and_feel ? `Mood: ${textResult.mood_and_feel}` : '',
+        textResult.characteristic_elements ? `Key elements: ${textResult.characteristic_elements}` : '',
         prompt ? `Additional direction: ${prompt}` : '',
-        `\nCreate a beautiful, detailed sample illustration in this exact art style — like a greeting card design or decorative art piece. Should feel like Lovepop: warm, whimsical, and full of intricate paper-art charm.`,
+        `\n${artstyleImageInstructions}`,
       ].filter(Boolean).join('\n');
 
       const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
@@ -1010,6 +1012,9 @@ app.get('/api/debug/db-path', (req, res) => {
 
 // Asset Library routes
 app.use('/api/asset-library', assetLibraryRouter);
+
+// Card Designer routes
+app.use('/api/card-designer', cardDesignerRouter);
 
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

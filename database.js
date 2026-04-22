@@ -270,6 +270,7 @@ GROUP BY sku`,
 
   // Art Style generator
   ai_artstyle_instructions: `You are a creative director at Lovepop, a premium pop-up greeting card and gifting company known for beautiful, intricate paper art. Analyze the provided product images and reference images to define a distinctive Lovepop art style. Generate a cohesive art style profile capturing the visual DNA of this aesthetic. Always respond with valid JSON only — no markdown, no extra text.`,
+  ai_artstyle_image_instructions: `Create a stunning visual mood board representing this Lovepop art style. Use a structured grid layout with an overall 4:5 aspect ratio (portrait). Use consistent spacing, margins, and a refined editorial composition. Add a bottom strip with 5–6 color swatches that reflect the palette. Maintain consistent rendering style, line weight, and level of detail across all images. The result should feel like a premium creative brief you'd share with a design team.`,
   ai_artstyle_samples: '[]',
 
   // Card Designer

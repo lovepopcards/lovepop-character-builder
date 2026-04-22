@@ -1749,6 +1749,7 @@ async function loadSettings() {
     loadImageSamples();
     loadArtStyleSamples();
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
+    setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
 
     // Asset Library / Box settings
     document.getElementById('sf-box-client-id').value = s.box_client_id || '';
@@ -1786,6 +1787,7 @@ async function handleSettingsSave() {
     ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
     ai_image_gen_instructions: getVal('s-image-gen-instructions'),
     ai_artstyle_instructions: getVal('s-artstyle-instructions'),
+    ai_artstyle_image_instructions: getVal('s-artstyle-image-instructions'),
     snowflake_account:   getVal('s-sf-account'),
     snowflake_username:  getVal('s-sf-username'),
     snowflake_warehouse: getVal('s-sf-warehouse'),
@@ -2426,7 +2428,7 @@ function exportCharactersToExcel() {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Characters');
-    xlsxDownload(wb, `lovepop-characters-${datestamp()}.xlsx`);
+    xlsxDownload(wb, `lovepop-character-library-characters-${datestamp()}.xlsx`);
   } finally {
     btn.disabled = false; btn.innerHTML = '⬇ Export to Excel';
   }
@@ -2455,7 +2457,37 @@ function exportLandsToExcel() {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Lands');
-    xlsxDownload(wb, `lovepop-lands-${datestamp()}.xlsx`);
+    xlsxDownload(wb, `lovepop-character-library-lands-${datestamp()}.xlsx`);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '⬇ Export to Excel';
+  }
+}
+
+function exportArtStylesToExcel() {
+  const btn = document.getElementById('art-styles-export-btn');
+  btn.disabled = true; btn.textContent = '⬇ Exporting…';
+  try {
+    const rows = artStyles.map(s => ({
+      'Name':                    s.name || '',
+      'Theme-agnostic Name':     s.theme_agnostic_name || '',
+      'Description':             s.description || '',
+      'Visual Technique':        s.visual_technique || '',
+      'Color Palette':           s.color_palette || '',
+      'Mood & Feel':             s.mood_and_feel || '',
+      'Characteristic Elements': s.characteristic_elements || '',
+      'Status':                  s.status || '',
+      'Images':                  (s.images || []).join(', '),
+      'Created At':              fmtExportDate(s.created_at),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 26 }, { wch: 30 }, { wch: 60 }, { wch: 50 },
+      { wch: 40 }, { wch: 40 }, { wch: 60 }, { wch: 10 }, { wch: 40 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Art Styles');
+    xlsxDownload(wb, `lovepop-character-library-art-styles-${datestamp()}.xlsx`);
   } finally {
     btn.disabled = false; btn.innerHTML = '⬇ Export to Excel';
   }
@@ -2512,7 +2544,7 @@ async function exportSettingsToExcel() {
     XLSX.utils.book_append_sheet(wb, wsGeneral, 'General');
     XLSX.utils.book_append_sheet(wb, wsChar,    'Character Instructions');
     XLSX.utils.book_append_sheet(wb, wsLand,    'Land Instructions');
-    xlsxDownload(wb, `lovepop-settings-${datestamp()}.xlsx`);
+    xlsxDownload(wb, `lovepop-character-library-settings-${datestamp()}.xlsx`);
   } catch (err) {
     alert('Export failed: ' + err.message);
   } finally {
