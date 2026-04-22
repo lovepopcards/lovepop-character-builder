@@ -912,6 +912,8 @@
         <!-- ── Collapsible sections ──────────────────────────────── -->
         <div class="settings-content">
 
+          <div class="settings-group-divider">AI Behavior</div>
+
           <!-- System Prompt & Model -->
           <div class="settings-section" id="s-section-system">
             <button class="settings-section-toggle" data-target="s-section-system">
@@ -1043,6 +1045,48 @@
             </div>
           </div>
 
+          <!-- Card Designer Generator (AI Behavior) — moved inline -->
+          <div class="settings-section collapsed" id="s-section-cd-ai">
+            <button class="settings-section-toggle" data-target="s-section-cd-ai">
+              <span class="settings-section-toggle-title">🎴 Card Designer Generator</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Model selection, per-field copy instructions, and concept sketch prompt for the Card Designer module.</p>
+
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Gemini Model</label>
+                <select id="cd-s-gemini-model" class="form-select">
+                  <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview (fast · $0.045/img)</option>
+                  <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview (best quality · $0.134/img)</option>
+                  <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (cheapest · $0.039/img)</option>
+                </select>
+              </div>
+
+              <div style="margin-top:24px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--text)">Copy Instructions</div>
+              <div class="field-instructions-grid">
+                <div class="field-instruction-row"><div class="field-instruction-label">Cover</div><textarea id="cd-s-copy-cover" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Inside Left</div><textarea id="cd-s-copy-inside-left" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Inside Right</div><textarea id="cd-s-copy-inside-right" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Sculpture</div><textarea id="cd-s-copy-sculpture" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Back of Card</div><textarea id="cd-s-copy-back" class="form-textarea" rows="2"></textarea></div>
+              </div>
+
+              <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Concept Sketch System Prompt</label>
+                <div class="form-hint" style="margin-bottom:8px">Instructions sent to Gemini when generating architectural concept sketches.</div>
+                <textarea id="cd-s-sketch-prompt" class="form-textarea" rows="5"></textarea>
+              </div>
+
+              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
+                <button class="btn-primary" id="cd-settings-save-btn">Save Card Designer Settings</button>
+                <span id="cd-settings-save-status" style="font-size:13px;color:var(--gray)"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group-divider">API Keys</div>
+
           <!-- Anthropic API Key -->
           <div class="settings-section collapsed" id="s-section-anthropic">
             <button class="settings-section-toggle" data-target="s-section-anthropic">
@@ -1054,7 +1098,7 @@
               <div id="api-key-status-badge" class="api-key-badge"></div>
               <div class="form-group" style="margin-top:14px">
                 <label class="form-label">API Key <span class="form-hint-inline">(stored in DB if set here — prefer env var in production)</span></label>
-                <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="off" />
+                <input type="password" id="s-api-key" class="form-input" placeholder="sk-ant-…" autocomplete="new-password" data-lpignore="true" data-1p-ignore />
               </div>
             </div>
           </div>
@@ -1070,10 +1114,31 @@
               <div id="openai-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
               <div class="form-group" style="margin-top:14px">
                 <label class="form-label">API Key <span class="form-hint-inline">(prefer env var in production)</span></label>
-                <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="off" />
+                <input type="password" id="s-openai-api-key" class="form-input" placeholder="sk-…" autocomplete="new-password" data-lpignore="true" data-1p-ignore />
               </div>
             </div>
           </div>
+
+          <!-- Gemini API Key — moved inline -->
+          <div class="settings-section collapsed" id="s-section-gemini">
+            <button class="settings-section-toggle" data-target="s-section-gemini">
+              <span class="settings-section-toggle-title">🔷 Gemini (Nanobanana)</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Gemini API key for image generation in the Card Designer (Concept Sketch and Detailed Concept sub-modules).</p>
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Gemini API Key</label>
+                <input type="password" id="cd-s-gemini-key" class="form-input" placeholder="AIza…" autocomplete="new-password" data-lpignore="true" data-1p-ignore />
+              </div>
+              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
+                <button class="btn-primary" id="cd-gemini-key-save-btn">Save Gemini Key</button>
+                <span id="cd-gemini-key-save-status" style="font-size:13px;color:var(--gray)"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group-divider">Data</div>
 
           <!-- Snowflake Data Connection -->
           <div class="settings-section collapsed" id="s-section-snowflake">
@@ -1099,7 +1164,7 @@
               <div class="form-row-2">
                 <div class="form-group">
                   <label class="form-label">Password</label>
-                  <input type="password" id="s-sf-password" class="form-input" placeholder="••••••••" autocomplete="off" />
+                  <input type="password" id="s-sf-password" class="form-input" placeholder="••••••••" autocomplete="new-password" data-lpignore="true" data-1p-ignore />
                 </div>
                 <div class="form-group">
                   <label class="form-label">Role <span class="form-hint-inline">(optional)</span></label>
@@ -1135,6 +1200,8 @@
             </div>
           </div>
 
+
+          <div class="settings-group-divider">Data Tools</div>
 
           <!-- Bulk Edit -->
           <div class="settings-section collapsed" id="s-section-bulk-edit">
@@ -1176,65 +1243,6 @@
                 <div>
                   <button class="btn-primary" id="bulk-edit-apply-btn" style="background:var(--coral)">Apply to All Characters</button>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card Designer Generator (AI Behavior) -->
-          <div class="settings-section collapsed" id="s-section-cd-ai">
-            <button class="settings-section-toggle" data-target="s-section-cd-ai">
-              <span class="settings-section-toggle-title">🎴 Card Designer Generator</span>
-              <span class="settings-section-chevron">▾</span>
-            </button>
-            <div class="settings-section-body">
-              <p class="settings-card-desc">Model selection, per-field copy instructions, and concept sketch prompt for the Card Designer module.</p>
-
-              <div class="form-group" style="margin-top:18px">
-                <label class="form-label">Gemini Model</label>
-                <select id="cd-s-gemini-model" class="form-select">
-                  <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview (fast · $0.045/img)</option>
-                  <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview (best quality · $0.134/img)</option>
-                  <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (cheapest · $0.039/img)</option>
-                </select>
-              </div>
-
-              <div style="margin-top:24px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--text)">Copy Instructions</div>
-              <div class="field-instructions-grid">
-                <div class="field-instruction-row"><div class="field-instruction-label">Cover</div><textarea id="cd-s-copy-cover" class="form-textarea" rows="2"></textarea></div>
-                <div class="field-instruction-row"><div class="field-instruction-label">Inside Left</div><textarea id="cd-s-copy-inside-left" class="form-textarea" rows="2"></textarea></div>
-                <div class="field-instruction-row"><div class="field-instruction-label">Inside Right</div><textarea id="cd-s-copy-inside-right" class="form-textarea" rows="2"></textarea></div>
-                <div class="field-instruction-row"><div class="field-instruction-label">Sculpture</div><textarea id="cd-s-copy-sculpture" class="form-textarea" rows="2"></textarea></div>
-                <div class="field-instruction-row"><div class="field-instruction-label">Back of Card</div><textarea id="cd-s-copy-back" class="form-textarea" rows="2"></textarea></div>
-              </div>
-
-              <div class="form-group" style="margin-top:20px">
-                <label class="form-label">Concept Sketch System Prompt</label>
-                <div class="form-hint" style="margin-bottom:8px">Instructions sent to Gemini when generating architectural concept sketches.</div>
-                <textarea id="cd-s-sketch-prompt" class="form-textarea" rows="5"></textarea>
-              </div>
-
-              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
-                <button class="btn-primary" id="cd-settings-save-btn">Save Card Designer Settings</button>
-                <span id="cd-settings-save-status" style="font-size:13px;color:var(--gray)"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Gemini API Key (API Keys section) -->
-          <div class="settings-section collapsed" id="s-section-gemini">
-            <button class="settings-section-toggle" data-target="s-section-gemini">
-              <span class="settings-section-toggle-title">🔷 Gemini (Nanobanana)</span>
-              <span class="settings-section-chevron">▾</span>
-            </button>
-            <div class="settings-section-body">
-              <p class="settings-card-desc">Gemini API key for image generation in the Card Designer (Concept Sketch and Detailed Concept sub-modules).</p>
-              <div class="form-group" style="margin-top:18px">
-                <label class="form-label">Gemini API Key</label>
-                <input type="password" id="cd-s-gemini-key" class="form-input" placeholder="AIza…" autocomplete="off" />
-              </div>
-              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
-                <button class="btn-primary" id="cd-gemini-key-save-btn">Save Gemini Key</button>
-                <span id="cd-gemini-key-save-status" style="font-size:13px;color:var(--gray)"></span>
               </div>
             </div>
           </div>

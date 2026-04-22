@@ -648,6 +648,18 @@ html, body {
 /* Collapsible sections */
 .settings-content { display: flex; flex-direction: column; gap: 8px; }
 
+/* Group divider between major settings sections */
+.settings-group-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 20px 0 10px;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.settings-group-divider::before, .settings-group-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--sand-mid);
+}
+.settings-group-divider:first-child { margin-top: 0; }
+
 .settings-section {
   background: white;
   border: 1px solid var(--sand-mid);
