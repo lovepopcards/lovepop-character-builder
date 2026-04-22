@@ -2739,63 +2739,79 @@ function buildArtStyleTile(as) {
 
 // ── Art Style Editor ──────────────────────────────────────────
 function openArtStyleEditorView(mode, id = null) {
-  artStyleEditorMode = mode;
-  artStyleEditorId = id;
-  artStyleAiGenData = {};
-  artStyleAiGenImageUrl = null;
-  artStyleAiRefFiles = [];
-  artStyleArticulations = [];
-  pendingArtStyleImages = [];
-  pendingArtStyleGenUrls = [];
-  clearArtStyleProductSelection();
+  try {
+    artStyleEditorMode = mode;
+    artStyleEditorId = id;
+    artStyleAiGenData = {};
+    artStyleAiGenImageUrl = null;
+    artStyleAiRefFiles = [];
+    artStyleArticulations = [];
+    pendingArtStyleImages = [];
+    pendingArtStyleGenUrls = [];
+    clearArtStyleProductSelection();
 
-  document.getElementById('art-style-draft-panel')?.classList.add('hidden');
-  renderArtStyleAiRefStrip();
+    document.getElementById('art-style-draft-panel')?.classList.add('hidden');
+    renderArtStyleAiRefStrip();
 
-  if (mode === 'edit' && id) {
-    const as = artStyles.find(a => String(a.id) === String(id));
-    if (!as) return;
-    document.getElementById('art-style-editor-title').textContent = as.name || 'Edit Art Style';
-    ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = as[f.key] || ''; });
-    document.getElementById('fas-status').value = as.status || 'active';
-    renderArtStyleEditorImages(as.images || []);
-    restoreArtStyleProductSelection(as.product_skus || [], as.reference_product_skus || []);
-  } else {
-    document.getElementById('art-style-editor-title').textContent = 'New Art Style';
-    ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
-    document.getElementById('fas-status').value = 'active';
-    renderArtStyleEditorImages([]);
+    if (mode === 'edit' && id) {
+      const as = artStyles.find(a => String(a.id) === String(id));
+      if (!as) {
+        console.warn('[openArtStyleEditorView] art style not found for id=', id, 'artStyles.length=', artStyles.length);
+        return;
+      }
+      const titleEl = document.getElementById('art-style-editor-title');
+      if (titleEl) titleEl.textContent = as.name || 'Edit Art Style';
+      ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = as[f.key] || ''; });
+      const statusEl = document.getElementById('fas-status');
+      if (statusEl) statusEl.value = as.status || 'active';
+      renderArtStyleEditorImages(as.images || []);
+      restoreArtStyleProductSelection(as.product_skus || [], as.reference_product_skus || []);
+    } else {
+      const titleEl = document.getElementById('art-style-editor-title');
+      if (titleEl) titleEl.textContent = 'New Art Style';
+      ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
+      const statusEl = document.getElementById('fas-status');
+      if (statusEl) statusEl.value = 'active';
+      renderArtStyleEditorImages([]);
+    }
+
+    // Populate land selector
+    const landSel = document.getElementById('as-land-select');
+    if (landSel) {
+      landSel.innerHTML = '<option value="">— choose a land —</option>';
+      lands.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.id;
+        opt.textContent = l.name || `Land ${l.id}`;
+        landSel.appendChild(opt);
+      });
+      // Reset land action buttons
+      const addAllBtn = document.getElementById('as-add-all-land-btn');
+      const browseLandBtn = document.getElementById('as-browse-land-btn');
+      if (addAllBtn) addAllBtn.disabled = true;
+      if (browseLandBtn) browseLandBtn.disabled = true;
+    }
+
+    const saveStatus = document.getElementById('art-style-editor-save-status');
+    if (saveStatus) saveStatus.textContent = '';
+    switchArtStyleEditorTab('art-style-profile');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const editorView = document.getElementById('view-art-style-editor');
+    if (editorView) editorView.classList.add('active');
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    currentView = 'art-style-editor';
+    window.scrollTo(0, 0);
+  } catch (err) {
+    console.error('[openArtStyleEditorView] unexpected error:', err);
+    alert('Could not open art style editor: ' + err.message + '\n\nCheck the browser console for details.');
   }
-
-  // Populate land selector
-  const landSel = document.getElementById('as-land-select');
-  if (landSel) {
-    landSel.innerHTML = '<option value="">— choose a land —</option>';
-    lands.forEach(l => {
-      const opt = document.createElement('option');
-      opt.value = l.id;
-      opt.textContent = l.name || `Land ${l.id}`;
-      landSel.appendChild(opt);
-    });
-    // Reset land action buttons
-    document.getElementById('as-add-all-land-btn').disabled = true;
-    document.getElementById('as-browse-land-btn').disabled = true;
-  }
-
-  document.getElementById('art-style-editor-save-status').textContent = '';
-  switchArtStyleEditorTab('art-style-profile');
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-art-style-editor').classList.add('active');
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  currentView = 'art-style-editor';
-  window.scrollTo(0, 0);
 }
 
 function switchArtStyleEditorTab(tab) {
   document.querySelectorAll('#view-art-style-editor .editor-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
-  document.getElementById('art-style-editor-tab-profile').classList.toggle('hidden', tab !== 'art-style-profile');
-  document.getElementById('art-style-editor-tab-artwork').classList.toggle('hidden', tab !== 'art-style-artwork');
-  document.getElementById('art-style-editor-tab-products').classList.toggle('hidden', tab !== 'art-style-products');
+  document.getElementById('art-style-editor-tab-profile')?.classList.toggle('hidden', tab !== 'art-style-profile');
+  document.getElementById('art-style-editor-tab-artwork')?.classList.toggle('hidden', tab !== 'art-style-artwork');
+  document.getElementById('art-style-editor-tab-products')?.classList.toggle('hidden', tab !== 'art-style-products');
 }
 
 function bindArtStyleEditor() {
@@ -3268,13 +3284,13 @@ function renderArtStyleProductSection(products, emptyId, scrollId, cardsId, coun
 
   if (!n) {
     emptyEl.classList.remove('hidden');
-    scrollEl.classList.add('hidden');
+    if (scrollEl) scrollEl.classList.add('hidden');
     if (countEl) countEl.classList.add('hidden');
     return;
   }
 
   emptyEl.classList.add('hidden');
-  scrollEl.classList.remove('hidden');
+  if (scrollEl) scrollEl.classList.remove('hidden');
   if (countEl) { countEl.textContent = `${n} SKU${n !== 1 ? 's' : ''} selected`; countEl.classList.remove('hidden'); }
 
   cardsEl.innerHTML = '';
