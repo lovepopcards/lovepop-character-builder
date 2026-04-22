@@ -31,6 +31,7 @@ let pendingCharGenUrls = [];     // already-on-server URLs from accepted generat
 let pendingLandImages = [];      // File[] queued for upload on create
 let pendingLandGenUrls = [];     // already-on-server URLs from accepted generated images
 let artStyleAiRefFiles = [];     // reference images for AI
+let artStyleArticulations = []; // array of { label, style_family, rendering_mode, ... }
 let artStyleAiGenData = {};      // generated text data
 let artStyleAiGenImageUrl = null; // generated DALL-E image URL
 let artStyleSelectedProducts = [];
@@ -59,6 +60,20 @@ const ARTSTYLE_FIELD_META = [
   { key: 'color_palette',           label: 'Color Palette',           inputId: 'fas-color-palette' },
   { key: 'mood_and_feel',           label: 'Mood & Feel',             inputId: 'fas-mood-and-feel' },
   { key: 'characteristic_elements', label: 'Characteristic Elements', inputId: 'fas-characteristic-elements' },
+];
+
+const ARTICULATION_FIELDS = [
+  { key: 'style_family',            label: 'Style Family' },
+  { key: 'rendering_mode',          label: 'Rendering Mode' },
+  { key: 'line_quality',            label: 'Line Quality' },
+  { key: 'shape_language',          label: 'Shape Language' },
+  { key: 'composition_patterns',    label: 'Composition Patterns' },
+  { key: 'palette',                 label: 'Palette' },
+  { key: 'texture_treatment',       label: 'Texture Treatment' },
+  { key: 'subject_categories',      label: 'Subject Categories' },
+  { key: 'motif_library',           label: 'Motif Library' },
+  { key: 'tone_emotional_register', label: 'Tone / Register' },
+  { key: 'do_not_include',          label: 'Do Not Include' },
 ];
 
 const LAND_FIELD_META = [
@@ -2670,6 +2685,7 @@ function openArtStyleEditorView(mode, id = null) {
   artStyleAiGenData = {};
   artStyleAiGenImageUrl = null;
   artStyleAiRefFiles = [];
+  artStyleArticulations = [];
   pendingArtStyleImages = [];
   pendingArtStyleGenUrls = [];
   clearArtStyleProductSelection();
@@ -2946,6 +2962,7 @@ function bindArtStyleAIPanel() {
     if (files.length) addArtStyleRefFiles(files);
   });
 
+  document.getElementById('art-style-ai-articulate-btn').addEventListener('click', handleArtStyleArticulate);
   document.getElementById('art-style-ai-generate-btn').addEventListener('click', handleArtStyleAIGenerate);
   document.getElementById('art-style-draft-use-btn').addEventListener('click', useDraftArtStyle);
   document.getElementById('art-style-draft-discard-btn').addEventListener('click', () => {
@@ -3004,6 +3021,103 @@ function renderArtStyleAiRefStrip() {
   }
 }
 
+async function handleArtStyleArticulate() {
+  const btn = document.getElementById('art-style-ai-articulate-btn');
+  const panel = document.getElementById('art-style-articulation-panel');
+
+  if (!artStyleAiRefFiles.length && !artStyleAiProductImageUrls.length) {
+    alert('Add product images or reference images first.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Articulating…';
+  panel.classList.add('hidden');
+  panel.innerHTML = '';
+
+  try {
+    const fd = new FormData();
+    artStyleAiRefFiles.forEach(f => fd.append('ref_images', f));
+    if (artStyleAiProductImageUrls.length) {
+      fd.append('image_urls', JSON.stringify(artStyleAiProductImageUrls));
+      // Pass product names for better labels
+      const names = artStyleSelectedProducts.map(p => p.name || p.sku).filter(Boolean);
+      if (names.length) fd.append('image_names', JSON.stringify(names));
+    }
+
+    const res = await fetch('/api/ai/articulate-references', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Articulation failed');
+
+    artStyleArticulations = data.articulations || [];
+    renderArticulationCards();
+  } catch (err) {
+    alert('Articulation failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📋 Articulate Reference Styles';
+  }
+}
+
+function renderArticulationCards() {
+  const panel = document.getElementById('art-style-articulation-panel');
+  if (!artStyleArticulations.length) { panel.classList.add('hidden'); return; }
+
+  panel.innerHTML = '';
+  panel.classList.remove('hidden');
+
+  const header = document.createElement('div');
+  header.className = 'articulation-panel-header';
+  header.innerHTML = `
+    <span style="font-size:12px;font-weight:600;color:var(--text)">📋 Reference Style Characterizations</span>
+    <button class="btn-ghost btn-sm" id="articulation-clear-btn">Clear</button>`;
+  panel.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'articulation-body';
+
+  artStyleArticulations.forEach((art, cardIdx) => {
+    const card = document.createElement('div');
+    card.className = 'articulation-card';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'articulation-card-label';
+    labelEl.textContent = art.label || `Reference ${cardIdx + 1}`;
+    card.appendChild(labelEl);
+
+    ARTICULATION_FIELDS.forEach(field => {
+      const row = document.createElement('div');
+      row.className = 'articulation-field';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'articulation-field-label';
+      lbl.textContent = field.label;
+
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'articulation-field-input';
+      inp.value = art[field.key] || '';
+      inp.addEventListener('input', () => {
+        artStyleArticulations[cardIdx][field.key] = inp.value;
+      });
+
+      row.appendChild(lbl);
+      row.appendChild(inp);
+      card.appendChild(row);
+    });
+
+    body.appendChild(card);
+  });
+
+  panel.appendChild(body);
+
+  document.getElementById('articulation-clear-btn').addEventListener('click', () => {
+    artStyleArticulations = [];
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
+  });
+}
+
 async function handleArtStyleAIGenerate() {
   const btn = document.getElementById('art-style-ai-generate-btn');
   const draftPanel = document.getElementById('art-style-draft-panel');
@@ -3018,6 +3132,15 @@ async function handleArtStyleAIGenerate() {
     artStyleAiRefFiles.forEach(f => fd.append('ref_images', f));
     if (artStyleAiProductImageUrls.length) fd.append('image_urls', JSON.stringify(artStyleAiProductImageUrls));
     if (prompt) fd.append('prompt', prompt);
+    if (artStyleArticulations.length) {
+      const articulationsText = artStyleArticulations.map(art => {
+        const lines = ARTICULATION_FIELDS
+          .map(f => art[f.key] ? `  ${f.label}: ${art[f.key]}` : null)
+          .filter(Boolean).join('\n');
+        return `${art.label || 'Reference'}:\n${lines}`;
+      }).join('\n\n');
+      fd.append('articulations_text', articulationsText);
+    }
 
     const res = await fetch('/api/ai/generate-artstyle', { method: 'POST', body: fd });
     const data = await res.json();

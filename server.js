@@ -602,6 +602,100 @@ app.delete('/api/settings/artstyle-samples/:filename', (req, res) => {
   res.json({ success: true, samples: updated });
 });
 
+// ── Art Style Reference Articulator ───────────────────────────
+app.post('/api/ai/articulate-references', uploadMem.array('ref_images', 4), async (req, res) => {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!anthropicKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
+
+  const imageBlocks = [];
+  const imageLabels = [];
+
+  // Uploaded reference images
+  if (req.files && req.files.length) {
+    for (let i = 0; i < Math.min(req.files.length, 4); i++) {
+      try {
+        const resized = await sharp(req.files[i].buffer)
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 70 }).toBuffer();
+        imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') } });
+        imageLabels.push(`Reference Image ${i + 1}`);
+      } catch (e) { console.warn('[articulate] ref image error:', e.message); }
+    }
+  }
+
+  // Product image URLs
+  if (req.body.image_urls) {
+    try {
+      const urls = JSON.parse(req.body.image_urls);
+      const names = (() => { try { return JSON.parse(req.body.image_names || '[]'); } catch { return []; } })();
+      let pi = 1;
+      for (const url of urls.slice(0, 8)) {
+        try {
+          if (new URL(url).protocol !== 'https:') continue;
+          const r = await fetch(url);
+          if (!r.ok) continue;
+          const buf = Buffer.from(await r.arrayBuffer());
+          const resized = await sharp(buf).resize(800, 800, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 70 }).toBuffer();
+          imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') } });
+          imageLabels.push(names[pi - 1] ? `Product: ${names[pi - 1]}` : `Product Image ${pi}`);
+          pi++;
+        } catch (e) { console.warn('[articulate] product image error:', e.message); }
+      }
+    } catch (e) { console.warn('[articulate] image_urls parse error:', e.message); }
+  }
+
+  if (!imageBlocks.length) return res.status(400).json({ error: 'No images provided. Add product images or reference images first.' });
+
+  // Build Claude vision request — interleave label + image
+  const userContent = [];
+  imageBlocks.forEach((block, i) => {
+    userContent.push({ type: 'text', text: `Image ${i + 1} — ${imageLabels[i]}:` });
+    userContent.push(block);
+  });
+
+  userContent.push({
+    type: 'text',
+    text: `Analyze each of the ${imageBlocks.length} image${imageBlocks.length > 1 ? 's' : ''} above and produce a structured visual characterization for each one.
+
+Return a JSON array with exactly ${imageBlocks.length} object${imageBlocks.length > 1 ? 's' : ''}, in the same order as the images. Each object must have EXACTLY these keys:
+{
+  "label": "<use the label I gave this image>",
+  "style_family": "<overall artistic style category>",
+  "rendering_mode": "<e.g. flat vector, painterly realism, botanical plate, layered paper>",
+  "line_quality": "<e.g. thick black outline, soft contour, no outline, engraved linework>",
+  "shape_language": "<e.g. geometric, rounded, organic, elongated>",
+  "composition_patterns": "<e.g. centered subject, framed tile, negative space, dense ornament>",
+  "palette": "<dominant colors, accent colors, saturation level, contrast level>",
+  "texture_treatment": "<e.g. grain, watercolor paper, smooth fill, cut-paper edges>",
+  "subject_categories": "<e.g. birds, florals, ocean life, winter landscapes, plush characters>",
+  "motif_library": "<specific recurring visual elements — e.g. berries, sailboats, holly, seaweed, butterflies>",
+  "tone_emotional_register": "<e.g. nostalgic, premium, playful, serene, storybook, luxury>",
+  "do_not_include": "<elements NOT to reproduce — e.g. product photography, logos, text blocks, holiday-specific icons>"
+}
+
+Respond with a JSON array only — no markdown fences, no extra text.`,
+  });
+
+  try {
+    const settings = db.getAllSettings();
+    const claudeResp = await anthropicMessages({
+      apiKey: anthropicKey,
+      model: settings.ai_model || db.DEFAULTS.ai_model,
+      max_tokens: 4096,
+      system: 'You are a visual analyst for Lovepop, a premium illustration-focused greeting card company. Analyze each illustration image precisely and return structured JSON characterizations. Be specific and concise — use comma-separated values for list fields.',
+      messages: [{ role: 'user', content: userContent }],
+    });
+    const rawText = claudeResp.content[0].text.trim();
+    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('No JSON array in response');
+    const articulations = JSON.parse(jsonMatch[0]);
+    res.json({ articulations });
+  } catch (err) {
+    console.error('[articulate] error:', err.message);
+    res.status(500).json({ error: 'Articulation failed: ' + err.message });
+  }
+});
+
 // ── Art Style AI Generator (DALL-E mood board → Claude profile) ─
 app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (req, res) => {
   const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
@@ -663,7 +757,9 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
 
   // ── Step 1: DALL-E generates the mood board ───────────────────
   // Build a text prompt: image instructions + user notes
+  const articulationsText = req.body.articulations_text || '';
   const dallePromptText = [
+    articulationsText ? `REFERENCE STYLE ANALYSIS:\n${articulationsText}\n` : '',
     moodBoardInstructions,
     prompt ? `\nAdditional direction from the user:\n${prompt}` : '',
   ].filter(Boolean).join('\n');
@@ -718,8 +814,9 @@ app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (r
   claudeContent.push({
     type: 'text',
     text: [
+      articulationsText ? `REFERENCE STYLE ANALYSIS (structured characterizations of the source images):\n${articulationsText}\n` : '',
       prompt ? `Additional context / direction from the user:\n${prompt}\n` : '',
-      `Based on the mood board above, generate a complete art style profile as a JSON object with EXACTLY these field names (all values must be plain strings):`,
+      `Based on the mood board above and the reference style analysis, generate a complete art style profile as a JSON object with EXACTLY these field names (all values must be plain strings):`,
       `{`,
       `  "name": "<A distinctive, evocative name for this art style — warm and memorable>",`,
       `  "theme_agnostic_name": "<A concise, theme-neutral name describing just the illustration technique and aesthetic — e.g. 'Loose Watercolor with Ink Detail'>",`,
