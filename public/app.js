@@ -3452,6 +3452,12 @@ function clearArtStyleProductSelection() {
 }
 
 function restoreArtStyleProductSelection(includedSkus, refSkus = []) {
+  // Defensive: handle JSON strings from old DB rows that weren't deserialized
+  if (typeof includedSkus === 'string') { try { includedSkus = JSON.parse(includedSkus); } catch { includedSkus = []; } }
+  if (typeof refSkus === 'string') { try { refSkus = JSON.parse(refSkus); } catch { refSkus = []; } }
+  if (!Array.isArray(includedSkus)) includedSkus = [];
+  if (!Array.isArray(refSkus)) refSkus = [];
+
   // Included products
   artStyleSelectedProductSkus = new Set(includedSkus);
   if (productsLoaded) {

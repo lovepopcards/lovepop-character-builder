@@ -324,8 +324,9 @@ const serializeLand = (row) => ({
 
 const serializeArtStyle = (row) => ({
   ...row,
-  images:       parseJSON(row.images),
-  product_skus: parseJSON(row.product_skus),
+  images:                 parseJSON(row.images),
+  product_skus:           parseJSON(row.product_skus),
+  reference_product_skus: parseJSON(row.reference_product_skus),
 });
 
 const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared','status'];
