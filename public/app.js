@@ -53,6 +53,7 @@ const CHAR_FIELD_META = [
 
 const ARTSTYLE_FIELD_META = [
   { key: 'name',                    label: 'Name',                    inputId: 'fas-name' },
+  { key: 'theme_agnostic_name',     label: 'Theme-agnostic Name',     inputId: 'fas-theme-agnostic-name' },
   { key: 'description',             label: 'Description',             inputId: 'fas-description' },
   { key: 'visual_technique',        label: 'Visual Technique',        inputId: 'fas-visual-technique' },
   { key: 'color_palette',           label: 'Color Palette',           inputId: 'fas-color-palette' },

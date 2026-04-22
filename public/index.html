@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/card-designer.css" />
 </head>
 <body>
 
@@ -24,6 +25,7 @@
         <button class="nav-tab" data-view="art-styles">Lovepop Art Styles</button>
         <button class="nav-tab" data-view="assets">Asset Library</button>
         <button class="nav-tab" data-view="settings">Settings</button>
+        <button class="nav-tab" data-view="card-designer">Card Designer</button>
       </nav>
     </div>
     <div class="header-right">
@@ -767,6 +769,10 @@
               <input type="text" id="fas-name" class="form-input" placeholder="e.g. Soft Watercolor Dreams" />
             </div>
             <div class="form-group">
+              <label class="form-label" style="color:var(--text-muted)">Theme-agnostic Art Style Name</label>
+              <input type="text" id="fas-theme-agnostic-name" class="form-input" placeholder="e.g. Loose Watercolor with Ink Detail" />
+            </div>
+            <div class="form-group">
               <label class="form-label">Description</label>
               <textarea id="fas-description" class="form-textarea" rows="4" placeholder="Paint a picture of this style — what makes it distinctive and evocative?"></textarea>
             </div>
@@ -1192,6 +1198,7 @@
             <div class="settings-nav-group-label">API Keys</div>
             <a class="settings-nav-item" href="#s-section-anthropic" data-section="s-section-anthropic">🤖 Anthropic (Claude)</a>
             <a class="settings-nav-item" href="#s-section-openai" data-section="s-section-openai">🎨 OpenAI (DALL-E)</a>
+            <a class="settings-nav-item" href="#s-section-card-designer" data-section="s-section-card-designer">🎴 Card Designer</a>
           </div>
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">Data</div>
@@ -1556,9 +1563,161 @@
             </div>
           </div>
 
+          <!-- Card Designer -->
+          <div class="settings-section collapsed" id="s-section-card-designer">
+            <button class="settings-section-toggle" data-target="s-section-card-designer">
+              <span class="settings-section-toggle-title">🎴 Card Designer</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">API key, model, and copy instructions for the Card Designer module.</p>
+
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Gemini API Key</label>
+                <input type="password" id="cd-s-gemini-key" class="form-input" placeholder="AIza…" autocomplete="off" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Gemini Model</label>
+                <select id="cd-s-gemini-model" class="form-select">
+                  <option value="gemini-3.1-flash-image-preview">gemini-3.1-flash-image-preview (fast · $0.045/img)</option>
+                  <option value="gemini-3-pro-image-preview">gemini-3-pro-image-preview (best quality · $0.134/img)</option>
+                  <option value="gemini-2.5-flash-image">gemini-2.5-flash-image (cheapest · $0.039/img)</option>
+                </select>
+              </div>
+
+              <div style="margin-top:24px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--text)">Copy Instructions</div>
+              <div class="field-instructions-grid">
+                <div class="field-instruction-row"><div class="field-instruction-label">Cover</div><textarea id="cd-s-copy-cover" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Inside Left</div><textarea id="cd-s-copy-inside-left" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Inside Right</div><textarea id="cd-s-copy-inside-right" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Sculpture</div><textarea id="cd-s-copy-sculpture" class="form-textarea" rows="2"></textarea></div>
+                <div class="field-instruction-row"><div class="field-instruction-label">Back of Card</div><textarea id="cd-s-copy-back" class="form-textarea" rows="2"></textarea></div>
+              </div>
+
+              <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Concept Sketch System Prompt</label>
+                <div class="form-hint" style="margin-bottom:8px">Instructions sent to Gemini when generating architectural concept sketches.</div>
+                <textarea id="cd-s-sketch-prompt" class="form-textarea" rows="5"></textarea>
+              </div>
+
+              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
+                <button class="btn-primary" id="cd-settings-save-btn">Save Card Designer Settings</button>
+                <span id="cd-settings-save-status" style="font-size:13px;color:var(--gray)"></span>
+              </div>
+            </div>
+          </div>
+
         </div><!-- /settings-content -->
       </div><!-- /settings-shell -->
     </div>
+
+    <!-- ─── CARD DESIGNER VIEW ──────────────────────────────── -->
+    <div id="view-card-designer" class="view">
+      <div class="view-toolbar">
+        <div class="toolbar-left">
+          <h1 class="view-title">Card Designer</h1>
+          <span id="cd-designs-count" class="count-badge">0 designs</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-primary" id="cd-new-btn">+ New Design</button>
+        </div>
+      </div>
+
+      <div class="cd-shell">
+
+        <!-- Left: design list sidebar -->
+        <div class="cd-sidebar">
+          <div id="cd-design-list"><div class="cd-design-list-empty">No designs yet</div></div>
+        </div>
+
+        <!-- Right: workspace -->
+        <div class="cd-workspace">
+
+          <!-- Empty state -->
+          <div id="cd-empty-state" class="empty-state">
+            <div class="empty-icon">🎴</div>
+            <div class="empty-title">No design selected</div>
+            <div class="empty-sub">Create a new design or select one from the list.</div>
+            <button class="btn-primary" id="cd-empty-new-btn">+ New Design</button>
+          </div>
+
+          <!-- Active workspace (hidden until a design is open) -->
+          <div id="cd-active-workspace" class="hidden">
+
+            <!-- Product picker + selected product -->
+            <div class="cd-product-bar">
+              <div class="cd-product-search-wrap">
+                <input type="text" id="cd-product-search" class="form-input" placeholder="Search products by name or SKU…" autocomplete="off" />
+                <div id="cd-product-dropdown" class="cd-product-dropdown hidden"></div>
+              </div>
+              <div class="cd-product-selected">
+                <span class="cd-product-sku-badge" id="cd-sku-badge"></span>
+                <span id="cd-sku-name">— no product selected —</span>
+              </div>
+            </div>
+
+            <!-- Design name -->
+            <div class="cd-meta-bar">
+              <input type="text" id="cd-design-name" class="form-input cd-name-input" placeholder="Design name…" />
+              <button class="btn-secondary cd-save-btn" id="cd-save-meta-btn">Save</button>
+            </div>
+
+            <!-- Sub-module tabs -->
+            <div class="cd-module-tabs">
+              <button class="cd-module-tab active" data-module="copy">1 · Copy Generator</button>
+              <button class="cd-module-tab" data-module="sketch">2 · Concept Sketch</button>
+              <button class="cd-module-tab" data-module="concept">3 · Detailed Concept</button>
+            </div>
+
+            <!-- ── Copy Generator ── -->
+            <div id="cd-module-copy" class="cd-module">
+              <div class="cd-module-controls">
+                <textarea id="cd-copy-direction" class="form-textarea" rows="2" placeholder="Direction or notes for this generation (optional)…"></textarea>
+                <button class="btn-ai-generate" id="cd-copy-generate-btn">✨ Generate 3 Options</button>
+              </div>
+              <div id="cd-copy-selected" class="cd-selected-output hidden"></div>
+              <div id="cd-copy-options" class="cd-options-grid"></div>
+            </div>
+
+            <!-- ── Concept Sketch ── -->
+            <div id="cd-module-sketch" class="cd-module hidden">
+              <div class="cd-module-controls">
+                <textarea id="cd-sketch-direction" class="form-textarea" rows="2" placeholder="Direction or notes (optional)…"></textarea>
+                <button class="btn-ai-generate" id="cd-sketch-generate-btn">✨ Generate 3 Sketches</button>
+              </div>
+              <div id="cd-sketch-selected" class="cd-selected-output hidden"></div>
+              <div id="cd-sketch-options" class="cd-options-grid cd-options-grid-images"></div>
+            </div>
+
+            <!-- ── Detailed Concept ── -->
+            <div id="cd-module-concept" class="cd-module hidden">
+              <div class="cd-module-controls">
+                <div class="cd-concept-selectors">
+                  <div class="form-group">
+                    <label class="form-label">Character</label>
+                    <select id="cd-concept-character" class="form-select">
+                      <option value="">— none —</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Art Style</label>
+                    <select id="cd-concept-artstyle" class="form-select">
+                      <option value="">— none —</option>
+                    </select>
+                  </div>
+                </div>
+                <textarea id="cd-concept-direction" class="form-textarea" rows="2" placeholder="Direction or notes (optional)…"></textarea>
+                <button class="btn-ai-generate" id="cd-concept-generate-btn">✨ Generate 3 Concepts</button>
+              </div>
+              <div id="cd-concept-selected" class="cd-selected-output hidden"></div>
+              <div id="cd-concept-options" class="cd-options-grid cd-options-grid-images"></div>
+            </div>
+
+          </div><!-- /cd-active-workspace -->
+        </div><!-- /cd-workspace -->
+      </div><!-- /cd-shell -->
+    </div><!-- /view-card-designer -->
 
   </main>
 
@@ -1754,5 +1913,6 @@
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="/app.js"></script>
+  <script src="/card-designer.js"></script>
 </body>
 </html>

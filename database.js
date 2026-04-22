@@ -137,6 +137,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS art_styles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT DEFAULT '',
+    theme_agnostic_name TEXT DEFAULT '',
     description TEXT DEFAULT '',
     visual_technique TEXT DEFAULT '',
     color_palette TEXT DEFAULT '',
@@ -149,6 +150,10 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   )
 `);
+
+// Add theme_agnostic_name column to existing art_styles tables (migration)
+try { db.exec(`ALTER TABLE art_styles ADD COLUMN theme_agnostic_name TEXT DEFAULT ''`); } catch {}
+
 
 // ── Character Stories/Quotes table ───────────────────────────
 db.exec(`
@@ -171,6 +176,25 @@ db.exec(`
 const existingStoryCols = db.prepare('PRAGMA table_info(character_stories)').all().map(r => r.name);
 if (!existingStoryCols.includes('quote'))   db.exec(`ALTER TABLE character_stories ADD COLUMN quote TEXT DEFAULT ''`);
 if (!existingStoryCols.includes('context')) db.exec(`ALTER TABLE character_stories ADD COLUMN context TEXT DEFAULT ''`);
+
+// ── Card Designs table ────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS card_designs (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    sku TEXT DEFAULT '',
+    name TEXT DEFAULT '',
+    status TEXT DEFAULT 'draft',
+    product_data TEXT DEFAULT '{}',
+    selected_copy TEXT DEFAULT '{}',
+    selected_sketch_url TEXT DEFAULT '',
+    selected_concept_url TEXT DEFAULT '',
+    character_id TEXT DEFAULT '',
+    art_style_id TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
 
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
@@ -248,6 +272,16 @@ GROUP BY sku`,
   ai_artstyle_instructions: `You are a creative director at Lovepop, a premium pop-up greeting card and gifting company known for beautiful, intricate paper art. Analyze the provided product images and reference images to define a distinctive Lovepop art style. Generate a cohesive art style profile capturing the visual DNA of this aesthetic. Always respond with valid JSON only — no markdown, no extra text.`,
   ai_artstyle_samples: '[]',
 
+  // Card Designer
+  gemini_api_key: '',
+  gemini_model: 'gemini-3.1-flash-image-preview',
+  cd_copy_instruction_cover: `Write warm, evocative cover copy (2–8 words). Should be the primary sentiment statement that captures the occasion and connects emotionally with the recipient.`,
+  cd_copy_instruction_inside_left: `Write the inside left panel copy (1–3 sentences). This expands on the cover message and creates emotional depth — the heart of what the sender wants to say.`,
+  cd_copy_instruction_inside_right: `Write the inside right panel copy. A warm, versatile sentiment that leaves room for the sender to connect personally. Should feel open and inviting.`,
+  cd_copy_instruction_sculpture: `Write copy that celebrates the 3D pop-up sculpture (5–15 words). Should feel magical and reference the artwork without being too literal.`,
+  cd_copy_instruction_back: `Write the back of card copy (1–2 short lines). Typically a tagline or brief brand message — a lovely, memorable send-off.`,
+  cd_sketch_system_prompt: `You are a concept artist at Lovepop, a premium 3D pop-up greeting card company. Create an architectural concept sketch showing the structure and layout of a Lovepop pop-up card. Show both the cover design composition and the inside 3D pop-up sculpture mechanism. Use a clean, technical illustration style that shows depth, layers, fold lines, and pop-up mechanics. Black and white line art only — no color.`,
+
   // Quote generator
   ai_quote_instructions: `You are a creative voice for Lovepop, a premium pop-up greeting card company. Generate an authentic, in-character quote for the character described below — the kind of thing they might say on a greeting card or in a brand story. The quote should be warm, specific, and feel genuinely like this character's voice. It should resonate emotionally and be shareable.
 
@@ -298,7 +332,7 @@ const LAND_TEXT   = ['name','description','visual_style','color_palette','themes
 const LAND_JSON   = ['images','product_skus'];
 const LAND_ALL    = [...LAND_TEXT, ...LAND_JSON];
 
-const ARTSTYLE_TEXT = ['name','description','visual_technique','color_palette','mood_and_feel','characteristic_elements','status'];
+const ARTSTYLE_TEXT = ['name','theme_agnostic_name','description','visual_technique','color_palette','mood_and_feel','characteristic_elements','status'];
 const ARTSTYLE_JSON = ['images','product_skus'];
 const ARTSTYLE_ALL  = [...ARTSTYLE_TEXT, ...ARTSTYLE_JSON];
 
@@ -596,5 +630,48 @@ module.exports = {
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     return db.prepare(`SELECT * FROM asset_library ${where} ORDER BY created_at DESC LIMIT 200`).all(...params).map(parseAssetLibraryItem);
+  },
+
+  // ── Card Designs ──────────────────────────────────────────────
+  _parseCardDesign(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      product_data:  parseJSON(row.product_data, {}),
+      selected_copy: parseJSON(row.selected_copy, {}),
+    };
+  },
+  getAllCardDesigns() {
+    return db.prepare('SELECT * FROM card_designs ORDER BY created_at DESC').all().map(r => this._parseCardDesign(r));
+  },
+  getCardDesign(id) {
+    return this._parseCardDesign(db.prepare('SELECT * FROM card_designs WHERE id = ?').get(id));
+  },
+  createCardDesign(data) {
+    const { name = '', sku = '', status = 'draft', product_data = {}, notes = '' } = data;
+    db.prepare(`
+      INSERT INTO card_designs (name, sku, status, product_data, notes)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(name, sku, status, JSON.stringify(product_data), notes);
+    return this._parseCardDesign(db.prepare('SELECT * FROM card_designs ORDER BY rowid DESC LIMIT 1').get());
+  },
+  updateCardDesign(id, data) {
+    const jsonFields = ['product_data', 'selected_copy'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes'];
+    const fields = [], values = [];
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(jsonFields.includes(key) ? JSON.stringify(data[key]) : data[key]);
+      }
+    }
+    if (!fields.length) return this.getCardDesign(id);
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE card_designs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    return this.getCardDesign(id);
+  },
+  deleteCardDesign(id) {
+    return db.prepare('DELETE FROM card_designs WHERE id = ?').run(id);
   },
 };
