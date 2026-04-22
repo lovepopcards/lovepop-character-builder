@@ -271,7 +271,21 @@ WHERE order_date >= DATEADD('month', -12, CURRENT_DATE())
 GROUP BY sku`,
 
   // Art Style generator
-  ai_artstyle_image_instructions: `Using the provided reference illustrations as your primary visual source, create a cohesive mood board that faithfully captures the illustration style. Reproduce the exact line quality, color relationships, shape language, and subject matter vocabulary from the references — do not invent new stylistic elements. Arrange the images in a structured editorial grid. Add a bottom strip of 5–6 color swatches sampled directly from the reference palette. The result should feel like a premium creative brief that a designer could hand to an illustrator and say "draw like this."`,
+  ai_artstyle_image_instructions: `Create a premium visual mood board in a structured grid layout with an overall 4:5 aspect ratio (portrait) based on the reference images. Use consistent spacing, margins, and a refined editorial composition.
+
+There is a blank mood board template in the sample art styles.
+
+The structured grid should feature 10-12 independent and complete illustrations built off of the reference images. Incorporate some of the original art directly into the mood board.
+
+Maintain the level of detail from the original illustration. Maintain line weights.
+The illustrations should feel cohesive and belong to the same visual family.
+Illustrations should have consistent lighting, consistent perspective style, consistent texture treatment.
+Style should ALWAYS be Classic Illustration and NOT feel like digital illustration.
+
+Add a bottom strip with 5–6 color swatches that reflect the palette.
+
+DO NOT use any of the elements from the sample art styles.
+DO NOT include any greeting card images or greeting card shapes. It should only include illustrations based on the reference images.`,
   ai_artstyle_instructions: `You are a creative director at Lovepop, a premium pop-up greeting card and gifting company known for beautiful, intricate paper art. You are reviewing a generated mood board alongside the original reference illustrations it was derived from. Use both to write a cohesive, precise art style profile that captures the visual DNA of this illustration aesthetic. Prioritize the original reference illustrations for accuracy — the mood board shows the interpreted direction. Always respond with valid JSON only — no markdown, no extra text.`,
   ai_artstyle_articulation_rules: `Do not use the words "paper", "3D", or "layered" in any field. These characterizations describe the illustration style only — the physical construction of Lovepop products is assumed and should not be reflected in the style description. Focus purely on the visual and artistic qualities of the illustration.`,
   ai_artstyle_samples: '[]',
