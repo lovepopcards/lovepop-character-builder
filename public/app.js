@@ -66,7 +66,6 @@ const ARTSTYLE_FIELD_META = [
 
 const ARTICULATION_FIELDS = [
   { key: 'style_family',            label: 'Style Family' },
-  { key: 'rendering_mode',          label: 'Rendering Mode' },
   { key: 'line_quality',            label: 'Line Quality' },
   { key: 'shape_language',          label: 'Shape Language' },
   { key: 'composition_patterns',    label: 'Composition Patterns' },
@@ -1767,6 +1766,7 @@ async function loadSettings() {
     loadArtStyleSamples();
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
+    setVal('s-artstyle-articulation-rules', s.ai_artstyle_articulation_rules);
 
     // Asset Library / Box settings
     document.getElementById('sf-box-client-id').value = s.box_client_id || '';
@@ -1805,6 +1805,7 @@ async function handleSettingsSave() {
     ai_image_gen_instructions: getVal('s-image-gen-instructions'),
     ai_artstyle_instructions: getVal('s-artstyle-instructions'),
     ai_artstyle_image_instructions: getVal('s-artstyle-image-instructions'),
+    ai_artstyle_articulation_rules: getVal('s-artstyle-articulation-rules'),
     snowflake_account:   getVal('s-sf-account'),
     snowflake_username:  getVal('s-sf-username'),
     snowflake_warehouse: getVal('s-sf-warehouse'),

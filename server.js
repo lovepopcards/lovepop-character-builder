@@ -653,20 +653,22 @@ app.post('/api/ai/articulate-references', uploadMem.array('ref_images', 4), asyn
     userContent.push(block);
   });
 
+  const settings = db.getAllSettings();
+  const articulationRules = settings.ai_artstyle_articulation_rules || db.DEFAULTS.ai_artstyle_articulation_rules || '';
+
   userContent.push({
     type: 'text',
     text: `Analyze each of the ${imageBlocks.length} image${imageBlocks.length > 1 ? 's' : ''} above and produce a structured visual characterization for each one.
-
+${articulationRules ? `\nRULES — apply these to every field:\n${articulationRules}\n` : ''}
 Return a JSON array with exactly ${imageBlocks.length} object${imageBlocks.length > 1 ? 's' : ''}, in the same order as the images. Each object must have EXACTLY these keys:
 {
   "label": "<use the label I gave this image>",
   "style_family": "<overall artistic style category>",
-  "rendering_mode": "<e.g. flat vector, painterly realism, botanical plate, layered paper>",
   "line_quality": "<e.g. thick black outline, soft contour, no outline, engraved linework>",
   "shape_language": "<e.g. geometric, rounded, organic, elongated>",
   "composition_patterns": "<e.g. centered subject, framed tile, negative space, dense ornament>",
   "palette": "<dominant colors, accent colors, saturation level, contrast level>",
-  "texture_treatment": "<e.g. grain, watercolor paper, smooth fill, cut-paper edges>",
+  "texture_treatment": "<e.g. grain, smooth fill, watercolor wash, cross-hatching>",
   "subject_categories": "<e.g. birds, florals, ocean life, winter landscapes, plush characters>",
   "motif_library": "<specific recurring visual elements — e.g. berries, sailboats, holly, seaweed, butterflies>",
   "tone_emotional_register": "<e.g. nostalgic, premium, playful, serene, storybook, luxury>",
@@ -677,7 +679,6 @@ Respond with a JSON array only — no markdown fences, no extra text.`,
   });
 
   try {
-    const settings = db.getAllSettings();
     const claudeResp = await anthropicMessages({
       apiKey: anthropicKey,
       model: settings.ai_model || db.DEFAULTS.ai_model,
