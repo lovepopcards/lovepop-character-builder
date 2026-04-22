@@ -4,18 +4,24 @@
 
 const API      = '/api/characters';
 const LANDS_API = '/api/lands';
+const ARTSTYLES_API = '/api/art-styles';
 
 let characters = [];
 let lands = [];
+let artStyles = [];
 let currentView = 'catalog';
 let displayMode = 'tile';
 let landsDisplayMode = 'tile';
+let artStylesDisplayMode = 'tile';
 let activeDetailId = null;
 let activeLandDetailId = null;
+let activeArtStyleDetailId = null;
 let editorMode = 'create';
 let editorCharId = null;
 let landEditorMode = 'create';
 let landEditorId = null;
+let artStyleEditorMode = 'create';
+let artStyleEditorId = null;
 let aiImageFile = null;
 let landAiImageFile = null;
 let aiGeneratedData = {};
@@ -24,6 +30,14 @@ let pendingCharImages = [];      // File[] queued for upload on create
 let pendingCharGenUrls = [];     // already-on-server URLs from accepted generated artwork
 let pendingLandImages = [];      // File[] queued for upload on create
 let pendingLandGenUrls = [];     // already-on-server URLs from accepted generated images
+let artStyleAiRefFiles = [];     // reference images for AI
+let artStyleAiGenData = {};      // generated text data
+let artStyleAiGenImageUrl = null; // generated DALL-E image URL
+let artStyleSelectedProducts = [];
+let artStyleSelectedProductSkus = new Set();
+let artStyleAiProductImageUrls = [];
+let pendingArtStyleImages = [];
+let pendingArtStyleGenUrls = [];
 
 const CHAR_FIELD_META = [
   { key: 'name',                 label: 'Name',                   inputId: 'f-name' },
@@ -35,6 +49,15 @@ const CHAR_FIELD_META = [
   { key: 'what_they_care_about', label: 'What They Care About',   inputId: 'f-what-they-care-about' },
   { key: 'tone_and_voice',       label: 'Tone & Voice',           inputId: 'f-tone-and-voice' },
   { key: 'hook_and_audience',    label: 'My Hook & Audience',     inputId: 'f-hook-and-audience' },
+];
+
+const ARTSTYLE_FIELD_META = [
+  { key: 'name',                    label: 'Name',                    inputId: 'fas-name' },
+  { key: 'description',             label: 'Description',             inputId: 'fas-description' },
+  { key: 'visual_technique',        label: 'Visual Technique',        inputId: 'fas-visual-technique' },
+  { key: 'color_palette',           label: 'Color Palette',           inputId: 'fas-color-palette' },
+  { key: 'mood_and_feel',           label: 'Mood & Feel',             inputId: 'fas-mood-and-feel' },
+  { key: 'characteristic_elements', label: 'Characteristic Elements', inputId: 'fas-characteristic-elements' },
 ];
 
 const LAND_FIELD_META = [
@@ -53,6 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
     bindDetailModal, bindLandDetailModal, bindSettings,
     bindCharArtGenerator, bindLandImageGenerator, bindAssetLibrary,
     bindCharStories, bindBulkEdit,
+    bindArtStyles, bindArtStyleEditor, bindArtStyleAIPanel,
+    bindArtStyleDetailModal,
   ];
   for (const fn of bindFns) {
     try { fn(); }
@@ -64,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Load everything ───────────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadCharacters(), loadLands(), loadSalesData()]);
+  await Promise.all([loadCharacters(), loadLands(), loadArtStyles(), loadSalesData()]);
 }
 
 // ── Sales Data ────────────────────────────────────────────────
@@ -1421,6 +1446,12 @@ function bindSettings() {
     e.target.value = '';
   });
 
+  // Art style sample upload
+  document.getElementById('artstyle-samples-upload').addEventListener('change', (e) => {
+    if (e.target.files.length) uploadArtStyleSamples(Array.from(e.target.files));
+    e.target.value = '';
+  });
+
   // Collapsible section toggles
   document.querySelectorAll('.settings-section-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1715,6 +1746,8 @@ async function loadSettings() {
     oaiBadge.textContent = s.openai_key_configured ? '✓ OpenAI Key Configured' : '✗ OpenAI Key Not Set';
 
     loadImageSamples();
+    loadArtStyleSamples();
+    setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
 
     // Asset Library / Box settings
     document.getElementById('sf-box-client-id').value = s.box_client_id || '';
@@ -1751,6 +1784,7 @@ async function handleSettingsSave() {
     ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
     ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
     ai_image_gen_instructions: getVal('s-image-gen-instructions'),
+    ai_artstyle_instructions: getVal('s-artstyle-instructions'),
     snowflake_account:   getVal('s-sf-account'),
     snowflake_username:  getVal('s-sf-username'),
     snowflake_warehouse: getVal('s-sf-warehouse'),
@@ -1976,8 +2010,8 @@ let landSelectedProducts = [];         // land: full product objects for display
 let landAiProductImageUrls = [];       // land: image_url strings passed to AI
 let charSelectedProductSkus = new Set(); // character: persistent selected SKUs
 let charSelectedProducts = [];           // character: full product objects for display
-let pickerContext = 'land';              // 'land' | 'character' — set when opening picker
-let _pickerSavedLandSkus = new Set();    // backup of land SKUs while character picker is open
+let pickerContext = 'land';              // 'land' | 'character' | 'art-style' — set when opening picker
+let _pickerSavedLandSkus = new Set();    // backup of land SKUs while character/art-style picker is open
 let productSearchTimer = null;
 const PRODUCT_GRID_LIMIT = 200;
 
@@ -2105,6 +2139,9 @@ async function openProductPicker(context = 'land') {
     // Swap in character SKUs; save land SKUs to restore on close/cancel
     _pickerSavedLandSkus = new Set(selectedProductSkus);
     selectedProductSkus = new Set(charSelectedProductSkus);
+  } else if (context === 'art-style') {
+    _pickerSavedLandSkus = new Set(selectedProductSkus);
+    selectedProductSkus = new Set(artStyleSelectedProductSkus);
   }
 
   document.getElementById('product-picker-status').textContent =
@@ -2130,8 +2167,8 @@ async function openProductPicker(context = 'land') {
 }
 
 function closeProductPicker() {
-  // On cancel, restore land SKUs if we swapped them for character context
-  if (pickerContext === 'character') {
+  // On cancel, restore land SKUs if we swapped them for character/art-style context
+  if (pickerContext === 'character' || pickerContext === 'art-style') {
     selectedProductSkus = _pickerSavedLandSkus;
   }
   document.getElementById('modal-product-picker').classList.add('hidden');
@@ -2150,6 +2187,19 @@ async function confirmProductSelection() {
     selectedProductSkus = _pickerSavedLandSkus;
     document.getElementById('modal-product-picker').classList.add('hidden');
     renderCharProductSelection();
+    return;
+  }
+
+  if (pickerContext === 'art-style') {
+    // ── Art Style products ───────────────────────────────────
+    artStyleSelectedProductSkus = new Set(selectedProductSkus);
+    artStyleSelectedProducts = [...artStyleSelectedProductSkus].map(
+      sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' }
+    );
+    artStyleAiProductImageUrls = artStyleSelectedProducts.filter(p => p.image_url).map(p => p.image_url);
+    selectedProductSkus = _pickerSavedLandSkus;
+    document.getElementById('modal-product-picker').classList.add('hidden');
+    renderArtStyleProductSelection();
     return;
   }
 
@@ -2278,6 +2328,7 @@ function renderLandProductSelection() {
 function bindProductPicker() {
   document.getElementById('land-browse-products-btn').addEventListener('click', () => openProductPicker('land'));
   document.getElementById('char-browse-products-btn').addEventListener('click', () => openProductPicker('character'));
+  document.getElementById('art-style-browse-products-btn').addEventListener('click', () => openProductPicker('art-style'));
   document.getElementById('product-picker-close-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-cancel-btn').addEventListener('click', closeProductPicker);
   document.getElementById('product-picker-confirm-btn').addEventListener('click', confirmProductSelection);
@@ -2431,6 +2482,784 @@ async function exportSettingsToExcel() {
 function datestamp() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ART STYLES
+// ══════════════════════════════════════════════════════════════
+
+// ── Art Styles Data ───────────────────────────────────────────
+async function loadArtStyles() {
+  try {
+    const res = await fetch(ARTSTYLES_API);
+    artStyles = await res.json();
+    renderArtStyles();
+  } catch (err) { console.error('Load art styles error:', err); }
+}
+
+// ── Art Styles Catalog ────────────────────────────────────────
+function bindArtStyles() {
+  document.getElementById('btn-art-styles-tile-view').addEventListener('click', () => setArtStylesDisplayMode('tile'));
+  document.getElementById('btn-art-styles-list-view').addEventListener('click', () => setArtStylesDisplayMode('list'));
+  document.getElementById('art-styles-new-btn').addEventListener('click', () => openArtStyleEditorView('create'));
+  document.getElementById('art-styles-empty-new-btn').addEventListener('click', () => openArtStyleEditorView('create'));
+  document.getElementById('art-styles-export-btn').addEventListener('click', exportArtStylesToExcel);
+}
+
+function setArtStylesDisplayMode(mode) {
+  artStylesDisplayMode = mode;
+  document.getElementById('btn-art-styles-tile-view').classList.toggle('active', mode === 'tile');
+  document.getElementById('btn-art-styles-list-view').classList.toggle('active', mode === 'list');
+  document.getElementById('art-styles-tile-view').classList.toggle('hidden', mode !== 'tile');
+  document.getElementById('art-styles-list-view').classList.toggle('hidden', mode !== 'list');
+}
+
+function renderArtStyles() {
+  const n = artStyles.length;
+  document.getElementById('art-styles-count').textContent = `${n} art style${n !== 1 ? 's' : ''}`;
+  renderArtStylesTileView();
+  renderArtStylesListView();
+  if (!productsLoaded && artStyles.some(a => a.product_skus && a.product_skus.length)) {
+    loadProducts().then(() => renderArtStylesTileView()).catch(() => {});
+  }
+}
+
+function renderArtStylesTileView() {
+  const grid = document.getElementById('art-styles-tile-view');
+  const empty = document.getElementById('art-styles-empty');
+  Array.from(grid.children).forEach(el => { if (el.id !== 'art-styles-empty') el.remove(); });
+  if (!artStyles.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  artStyles.forEach(as => grid.appendChild(buildArtStyleTile(as)));
+}
+
+function renderArtStylesListView() {
+  const tbody = document.getElementById('art-styles-list-body');
+  tbody.innerHTML = '';
+  artStyles.forEach(as => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="list-char-name">${esc(as.name)}</div></td>
+      <td><span class="list-meta">${esc(as.visual_technique ? as.visual_technique.substring(0, 60) + (as.visual_technique.length > 60 ? '…' : '') : '—')}</span></td>
+      <td><span class="status-badge status-${as.status}">${cap(as.status)}</span></td>
+      <td><span class="list-meta">${fmtDate(as.created_at)}</span></td>
+      <td style="text-align:right"><button class="btn-secondary" style="font-size:11px;padding:4px 10px">View →</button></td>
+    `;
+    tr.addEventListener('click', () => openArtStyleDetailModal(as.id));
+    tbody.appendChild(tr);
+  });
+}
+
+function buildArtStyleTile(as) {
+  const tile = document.createElement('div');
+  tile.className = 'character-tile land-tile';
+
+  const imgHtml = (as.images && as.images.length)
+    ? `<img src="${esc(as.images[0])}" alt="${esc(as.name)}" loading="lazy" />`
+    : `<div class="tile-image-placeholder">🎨</div>`;
+
+  const descHtml = as.description
+    ? `<div class="land-tile-desc">${esc(as.description.substring(0, 160))}${as.description.length > 160 ? '…' : ''}</div>`
+    : '';
+
+  const skus = as.product_skus || [];
+  let pfHtml = '';
+  if (skus.length) {
+    const thumbs = skus.slice(0, 6).map(sku => {
+      const p = productsLoaded ? allProducts.find(pr => pr.sku === sku) : null;
+      return p && p.image_url
+        ? `<img src="${esc(p.image_url)}" class="land-tile-pf-thumb" title="${esc(p.name || sku)}" loading="lazy" />`
+        : `<div class="land-tile-pf-placeholder" title="${esc(sku)}"></div>`;
+    }).join('');
+    const more = skus.length > 6 ? `<div class="land-tile-pf-more">+${skus.length - 6}</div>` : '';
+    pfHtml = `
+      <div class="land-tile-pf">
+        <div class="land-tile-pf-label">Products · ${skus.length} SKU${skus.length !== 1 ? 's' : ''}</div>
+        <div class="land-tile-pf-thumbs">${thumbs}${more}</div>
+      </div>`;
+  }
+
+  tile.innerHTML = `
+    <div class="land-tile-image">${imgHtml}<span class="tile-status-badge status-badge status-${as.status}">${cap(as.status)}</span></div>
+    <div class="land-tile-body">
+      <div class="tile-name">${esc(as.name)}</div>
+      ${descHtml}
+      ${pfHtml}
+    </div>`;
+  tile.addEventListener('click', () => openArtStyleDetailModal(as.id));
+  return tile;
+}
+
+// ── Art Style Editor ──────────────────────────────────────────
+function openArtStyleEditorView(mode, id = null) {
+  artStyleEditorMode = mode;
+  artStyleEditorId = id;
+  artStyleAiGenData = {};
+  artStyleAiGenImageUrl = null;
+  artStyleAiRefFiles = [];
+  pendingArtStyleImages = [];
+  pendingArtStyleGenUrls = [];
+  clearArtStyleProductSelection();
+
+  document.getElementById('art-style-draft-panel')?.classList.add('hidden');
+  renderArtStyleAiRefStrip();
+
+  if (mode === 'edit' && id) {
+    const as = artStyles.find(a => String(a.id) === String(id));
+    if (!as) return;
+    document.getElementById('art-style-editor-title').textContent = as.name || 'Edit Art Style';
+    ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = as[f.key] || ''; });
+    document.getElementById('fas-status').value = as.status || 'active';
+    renderArtStyleEditorImages(as.images || []);
+    if (as.product_skus && as.product_skus.length) restoreArtStyleProductSelection(as.product_skus);
+  } else {
+    document.getElementById('art-style-editor-title').textContent = 'New Art Style';
+    ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) el.value = ''; });
+    document.getElementById('fas-status').value = 'active';
+    renderArtStyleEditorImages([]);
+  }
+
+  document.getElementById('art-style-editor-save-status').textContent = '';
+  switchArtStyleEditorTab('art-style-profile');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-art-style-editor').classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  currentView = 'art-style-editor';
+  window.scrollTo(0, 0);
+}
+
+function switchArtStyleEditorTab(tab) {
+  document.querySelectorAll('#view-art-style-editor .editor-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.getElementById('art-style-editor-tab-profile').classList.toggle('hidden', tab !== 'art-style-profile');
+  document.getElementById('art-style-editor-tab-artwork').classList.toggle('hidden', tab !== 'art-style-artwork');
+  document.getElementById('art-style-editor-tab-products').classList.toggle('hidden', tab !== 'art-style-products');
+}
+
+function bindArtStyleEditor() {
+  document.querySelectorAll('#view-art-style-editor .editor-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchArtStyleEditorTab(btn.dataset.tab));
+  });
+  document.getElementById('art-style-editor-back-btn').addEventListener('click', () => switchView('art-styles'));
+  document.getElementById('art-style-editor-cancel-btn').addEventListener('click', () => switchView('art-styles'));
+  document.getElementById('art-style-editor-save-btn').addEventListener('click', handleArtStyleEditorSave);
+
+  document.getElementById('art-style-editor-image-upload').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    if (artStyleEditorMode === 'edit' && artStyleEditorId) {
+      const btn = document.getElementById('art-style-editor-save-btn');
+      btn.disabled = true;
+      const prevText = btn.textContent; btn.textContent = 'Uploading…';
+      try {
+        let updated;
+        for (const file of files) {
+          const fd = new FormData(); fd.append('image', file);
+          const res = await fetch(`${ARTSTYLES_API}/${artStyleEditorId}/images`, { method: 'POST', body: fd });
+          if (!res.ok) throw new Error('Upload failed');
+          updated = await res.json();
+        }
+        artStyles = artStyles.map(a => a.id === updated.id ? updated : a);
+        renderArtStyleEditorImages(updated.images || []);
+        renderArtStyles();
+      } catch (err) { alert('Upload failed: ' + err.message); }
+      finally { btn.disabled = false; btn.textContent = prevText; }
+    } else {
+      pendingArtStyleImages.push(...files);
+      renderArtStyleEditorImages([]);
+    }
+    e.target.value = '';
+  });
+
+  // Sidebar shortcuts
+  document.getElementById('art-style-sb-goto-products-btn').addEventListener('click', () => switchArtStyleEditorTab('art-style-products'));
+  document.getElementById('art-style-sb-edit-products-btn').addEventListener('click', () => switchArtStyleEditorTab('art-style-products'));
+}
+
+async function handleArtStyleEditorSave() {
+  const data = {};
+  ARTSTYLE_FIELD_META.forEach(f => { const el = document.getElementById(f.inputId); if (el) data[f.key] = el.value.trim(); });
+  data.status = document.getElementById('fas-status').value;
+  data.product_skus = [...artStyleSelectedProductSkus];
+
+  if (!data.name) {
+    const el = document.getElementById('fas-name');
+    el.focus(); el.style.borderColor = 'var(--coral)';
+    setTimeout(() => el.style.borderColor = '', 1500);
+    return;
+  }
+
+  const btn = document.getElementById('art-style-editor-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    let saved;
+    if (artStyleEditorMode === 'edit' && artStyleEditorId) {
+      const res = await fetch(`${ARTSTYLES_API}/${artStyleEditorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error('Update failed');
+      saved = await res.json();
+    } else {
+      const res = await fetch(ARTSTYLES_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error('Create failed');
+      saved = await res.json();
+    }
+
+    // Upload pending images
+    if (pendingArtStyleImages.length) {
+      btn.textContent = 'Uploading images…';
+      for (const file of pendingArtStyleImages) {
+        const fd = new FormData(); fd.append('image', file);
+        const imgRes = await fetch(`${ARTSTYLES_API}/${saved.id}/images`, { method: 'POST', body: fd });
+        if (imgRes.ok) saved = await imgRes.json();
+      }
+      pendingArtStyleImages = [];
+    }
+
+    // Include any AI-generated image URLs
+    if (pendingArtStyleGenUrls.length) {
+      const mergedImages = [...pendingArtStyleGenUrls, ...(saved.images || []).filter(u => !pendingArtStyleGenUrls.includes(u))];
+      const updRes = await fetch(`${ARTSTYLES_API}/${saved.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: mergedImages }),
+      });
+      if (updRes.ok) saved = await updRes.json();
+      pendingArtStyleGenUrls = [];
+    }
+
+    if (artStyleEditorMode === 'edit') {
+      artStyles = artStyles.map(a => a.id === saved.id ? saved : a);
+    } else {
+      artStyles.unshift(saved);
+    }
+    renderArtStyles();
+    document.getElementById('art-style-editor-save-status').textContent = '✓ Saved';
+    setTimeout(() => { switchView('art-styles'); }, 600);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Art Style';
+  }
+}
+
+function renderArtStyleEditorImages(existingUrls) {
+  const gallery = document.getElementById('art-style-editor-images-gallery');
+  if (!gallery) return;
+  gallery.innerHTML = '';
+  const allUrls = [...pendingArtStyleGenUrls, ...existingUrls.filter(u => !pendingArtStyleGenUrls.includes(u))];
+  allUrls.forEach((url, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-item';
+    const isGen = pendingArtStyleGenUrls.includes(url);
+    item.innerHTML = `
+      <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" />
+      ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
+      ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
+      <button class="img-remove-btn" title="Remove">✕</button>`;
+    item.querySelector('.img-remove-btn').addEventListener('click', () => {
+      if (isGen) {
+        pendingArtStyleGenUrls = pendingArtStyleGenUrls.filter(u => u !== url);
+        renderArtStyleEditorImages(existingUrls);
+      } else {
+        handleArtStyleImageRemove(existingUrls.indexOf(url));
+      }
+    });
+    gallery.appendChild(item);
+  });
+  pendingArtStyleImages.forEach((file, idx) => {
+    const item = document.createElement('div');
+    item.className = 'editor-image-pending';
+    const img = document.createElement('img'); img.alt = 'Pending upload';
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'img-remove-btn'; removeBtn.title = 'Remove'; removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      pendingArtStyleImages.splice(idx, 1);
+      renderArtStyleEditorImages(existingUrls);
+    });
+    item.appendChild(img); item.appendChild(removeBtn);
+    gallery.appendChild(item);
+  });
+}
+
+async function handleArtStyleImageRemove(idx) {
+  if (artStyleEditorMode === 'edit' && artStyleEditorId) {
+    try {
+      const res = await fetch(`${ARTSTYLES_API}/${artStyleEditorId}/images/${idx}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Remove failed');
+      const updated = await res.json();
+      artStyles = artStyles.map(a => a.id === updated.id ? updated : a);
+      renderArtStyleEditorImages(updated.images || []);
+      renderArtStyles();
+    } catch (err) { alert('Could not remove image: ' + err.message); }
+  }
+}
+
+// ── Art Style AI Panel ────────────────────────────────────────
+function bindArtStyleAIPanel() {
+  const zone  = document.getElementById('art-style-ai-ref-zone');
+  const input = document.getElementById('art-style-ai-ref-input');
+  const link  = document.getElementById('art-style-ai-ref-link');
+
+  zone.addEventListener('click', (e) => {
+    if (e.target.classList.contains('char-art-ref-remove')) return;
+    if (e.target.classList.contains('char-art-ref-add')) return;
+    input.click();
+  });
+  if (link) link.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+  input.addEventListener('change', () => {
+    addArtStyleRefFiles(Array.from(input.files));
+    input.value = '';
+  });
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length) addArtStyleRefFiles(files);
+  });
+
+  document.getElementById('art-style-ai-generate-btn').addEventListener('click', handleArtStyleAIGenerate);
+  document.getElementById('art-style-draft-use-btn').addEventListener('click', useDraftArtStyle);
+  document.getElementById('art-style-draft-discard-btn').addEventListener('click', () => {
+    document.getElementById('art-style-draft-panel').classList.add('hidden');
+    artStyleAiGenData = {};
+    artStyleAiGenImageUrl = null;
+  });
+}
+
+function addArtStyleRefFiles(files) {
+  const remaining = 4 - artStyleAiRefFiles.length;
+  artStyleAiRefFiles.push(...files.slice(0, remaining));
+  renderArtStyleAiRefStrip();
+}
+
+function renderArtStyleAiRefStrip() {
+  const strip       = document.getElementById('art-style-ai-ref-strip');
+  const placeholder = document.getElementById('art-style-ai-ref-placeholder');
+  const input       = document.getElementById('art-style-ai-ref-input');
+
+  if (!artStyleAiRefFiles.length) {
+    strip?.classList.add('hidden');
+    placeholder?.classList.remove('hidden');
+    return;
+  }
+
+  strip?.classList.remove('hidden');
+  placeholder?.classList.add('hidden');
+  if (!strip) return;
+  strip.innerHTML = '';
+
+  artStyleAiRefFiles.forEach((file, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'char-art-ref-thumb-wrap';
+    const img = document.createElement('img');
+    img.className = 'char-art-ref-thumb'; img.alt = `Ref ${idx + 1}`;
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.readAsDataURL(file);
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'char-art-ref-remove'; removeBtn.title = 'Remove'; removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      artStyleAiRefFiles.splice(idx, 1);
+      renderArtStyleAiRefStrip();
+    });
+    wrap.appendChild(img); wrap.appendChild(removeBtn);
+    strip.appendChild(wrap);
+  });
+
+  if (artStyleAiRefFiles.length < 4) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'char-art-ref-add'; addBtn.title = 'Add another reference image'; addBtn.textContent = '+';
+    addBtn.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+    strip.appendChild(addBtn);
+  }
+}
+
+async function handleArtStyleAIGenerate() {
+  const btn = document.getElementById('art-style-ai-generate-btn');
+  const draftPanel = document.getElementById('art-style-draft-panel');
+  const prompt = (document.getElementById('art-style-ai-prompt')?.value || '').trim();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  draftPanel?.classList.add('hidden');
+
+  try {
+    const fd = new FormData();
+    artStyleAiRefFiles.forEach(f => fd.append('ref_images', f));
+    if (artStyleAiProductImageUrls.length) fd.append('image_urls', JSON.stringify(artStyleAiProductImageUrls));
+    if (prompt) fd.append('prompt', prompt);
+
+    const res = await fetch('/api/ai/generate-artstyle', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Generation failed');
+
+    artStyleAiGenData = data;
+    artStyleAiGenImageUrl = data.imageUrl || null;
+
+    // Show draft panel
+    if (draftPanel) {
+      draftPanel.classList.remove('hidden');
+      const draftImg = document.getElementById('art-style-draft-image');
+      if (artStyleAiGenImageUrl && draftImg) {
+        draftImg.src = artStyleAiGenImageUrl;
+        draftImg.classList.remove('hidden');
+      } else if (draftImg) {
+        draftImg.classList.add('hidden');
+      }
+      const fieldsEl = document.getElementById('art-style-draft-fields');
+      if (fieldsEl) {
+        fieldsEl.innerHTML = ARTSTYLE_FIELD_META.map(f =>
+          data[f.key] ? `<div style="margin-bottom:8px"><strong>${esc(f.label)}:</strong> ${esc(data[f.key])}</div>` : ''
+        ).filter(Boolean).join('');
+      }
+    }
+  } catch (err) {
+    alert('Generation failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="btn-ai-icon">🎨</span> Generate Art Style';
+  }
+}
+
+function useDraftArtStyle() {
+  // Apply generated fields to form inputs
+  ARTSTYLE_FIELD_META.forEach(f => {
+    const el = document.getElementById(f.inputId);
+    if (el && artStyleAiGenData[f.key]) {
+      el.value = artStyleAiGenData[f.key];
+      el.style.borderColor = 'var(--green)';
+      setTimeout(() => el.style.borderColor = '', 1000);
+    }
+  });
+
+  // Queue the generated image if present
+  if (artStyleAiGenImageUrl && !pendingArtStyleGenUrls.includes(artStyleAiGenImageUrl)) {
+    pendingArtStyleGenUrls.unshift(artStyleAiGenImageUrl);
+    const asEditor = artStyles.find(a => String(a.id) === String(artStyleEditorId));
+    renderArtStyleEditorImages(asEditor ? asEditor.images || [] : []);
+  }
+
+  document.getElementById('art-style-draft-panel')?.classList.add('hidden');
+  artStyleAiGenData = {};
+  artStyleAiGenImageUrl = null;
+}
+
+// ── Art Style Product Selection ───────────────────────────────
+function renderArtStyleProductSelection() {
+  const n = artStyleSelectedProducts.length;
+
+  // Sidebar product reference block
+  const refBlock  = document.getElementById('art-style-ai-products-ref');
+  const refEmpty  = refBlock?.querySelector('.land-sb-product-ref-empty');
+  const refFilled = refBlock?.querySelector('.land-sb-product-ref-filled');
+  const countBadge = document.getElementById('art-style-sb-product-count-badge');
+  const thumbsEl   = document.getElementById('art-style-sb-product-thumbs');
+  if (refBlock) {
+    if (n) {
+      refBlock.classList.remove('land-sb-no-products');
+      refBlock.classList.add('land-sb-has-products');
+      refEmpty?.classList.add('hidden');
+      refFilled?.classList.remove('hidden');
+      if (countBadge) countBadge.textContent = n;
+      if (thumbsEl) {
+        thumbsEl.innerHTML = '';
+        artStyleSelectedProducts.slice(0, 8).forEach(p => {
+          if (p.image_url) {
+            const img = document.createElement('img');
+            img.className = 'land-sb-product-thumb';
+            img.src = esc(p.image_url); img.alt = p.name || p.sku; img.title = p.name || p.sku;
+            thumbsEl.appendChild(img);
+          }
+        });
+      }
+    } else {
+      refBlock.classList.add('land-sb-no-products');
+      refBlock.classList.remove('land-sb-has-products');
+      refEmpty?.classList.remove('hidden');
+      refFilled?.classList.add('hidden');
+    }
+  }
+
+  // Products tab display
+  const emptyEl  = document.getElementById('art-style-editor-pf-empty');
+  const scrollEl = document.getElementById('art-style-editor-pf-scroll');
+  const cardsEl  = document.getElementById('art-style-editor-pf-cards');
+  const countEl  = document.getElementById('art-style-editor-pf-count');
+  if (!emptyEl) return;
+
+  if (!n) {
+    emptyEl.classList.remove('hidden');
+    scrollEl.classList.add('hidden');
+    if (countEl) countEl.classList.add('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+  scrollEl.classList.remove('hidden');
+  if (countEl) { countEl.textContent = `${n} SKU${n !== 1 ? 's' : ''} selected`; countEl.classList.remove('hidden'); }
+
+  cardsEl.innerHTML = '';
+  artStyleSelectedProducts.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'land-pf-card land-editor-pf-card';
+    card.innerHTML = p.image_url
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" /></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
+      : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`;
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'pf-card-remove'; removeBtn.title = 'Remove'; removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      artStyleSelectedProductSkus.delete(p.sku);
+      artStyleSelectedProducts = artStyleSelectedProducts.filter(x => x.sku !== p.sku);
+      artStyleAiProductImageUrls = artStyleSelectedProducts.filter(x => x.image_url).map(x => x.image_url);
+      renderArtStyleProductSelection();
+    });
+    card.appendChild(removeBtn);
+    cardsEl.appendChild(card);
+  });
+}
+
+function clearArtStyleProductSelection() {
+  artStyleSelectedProductSkus = new Set();
+  artStyleSelectedProducts = [];
+  artStyleAiProductImageUrls = [];
+  renderArtStyleProductSelection();
+}
+
+function restoreArtStyleProductSelection(skus) {
+  artStyleSelectedProductSkus = new Set(skus);
+  if (productsLoaded) {
+    artStyleSelectedProducts = skus.map(sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' });
+    artStyleAiProductImageUrls = artStyleSelectedProducts.filter(p => p.image_url).map(p => p.image_url);
+    renderArtStyleProductSelection();
+  } else {
+    artStyleSelectedProducts = skus.map(sku => ({ sku, name: sku, image_url: '' }));
+    artStyleAiProductImageUrls = [];
+    renderArtStyleProductSelection();
+    loadProducts().then(() => {
+      if (artStyleSelectedProductSkus.size) {
+        artStyleSelectedProducts = [...artStyleSelectedProductSkus].map(sku => allProducts.find(p => p.sku === sku) || { sku, name: sku, image_url: '' });
+        artStyleAiProductImageUrls = artStyleSelectedProducts.filter(p => p.image_url).map(p => p.image_url);
+        renderArtStyleProductSelection();
+      }
+    }).catch(() => {});
+  }
+}
+
+// ── Art Style Detail Modal ────────────────────────────────────
+function bindArtStyleDetailModal() {
+  document.getElementById('art-style-detail-close-btn').addEventListener('click', closeArtStyleDetailModal);
+  document.getElementById('art-style-detail-close-btn2').addEventListener('click', closeArtStyleDetailModal);
+  document.getElementById('art-style-detail-delete-btn').addEventListener('click', handleDeleteArtStyle);
+  document.getElementById('art-style-detail-edit-btn').addEventListener('click', () => {
+    const id = activeArtStyleDetailId;
+    closeArtStyleDetailModal();
+    openArtStyleEditorView('edit', id);
+  });
+  document.getElementById('modal-art-style-detail').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeArtStyleDetailModal();
+  });
+  document.getElementById('art-style-detail-image-upload').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !activeArtStyleDetailId) return;
+    try {
+      let updated;
+      for (const file of files) {
+        const fd = new FormData(); fd.append('image', file);
+        const res = await fetch(`${ARTSTYLES_API}/${activeArtStyleDetailId}/images`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Upload failed');
+        updated = await res.json();
+      }
+      artStyles = artStyles.map(a => a.id === updated.id ? updated : a);
+      renderArtStyleDetailImages(updated);
+      renderArtStyles();
+    } catch (err) { alert('Upload failed: ' + err.message); }
+    e.target.value = '';
+  });
+}
+
+function openArtStyleDetailModal(id) {
+  const as = artStyles.find(a => String(a.id) === String(id));
+  if (!as) return;
+  activeArtStyleDetailId = id;
+
+  document.getElementById('art-style-detail-name').textContent = as.name;
+  document.getElementById('art-style-detail-meta').textContent = as.visual_technique ? as.visual_technique.substring(0, 80) : '';
+  ['description','visual_technique','color_palette','mood_and_feel','characteristic_elements'].forEach(f => {
+    const el = document.getElementById(`art-style-detail-${f.replace(/_/g, '-')}`);
+    if (el) el.textContent = as[f] || '—';
+  });
+  document.getElementById('art-style-detail-status').innerHTML = `<span class="status-badge status-${as.status}">${cap(as.status)}</span>`;
+
+  renderArtStyleDetailImages(as);
+  renderArtStyleDetailProducts(as);
+  document.getElementById('modal-art-style-detail').classList.remove('hidden');
+
+  const skus = as.product_skus || [];
+  if (skus.length && !productsLoaded) {
+    loadProducts().then(() => {
+      if (activeArtStyleDetailId === id) renderArtStyleDetailProducts(as);
+    }).catch(() => {});
+  }
+}
+
+function closeArtStyleDetailModal() {
+  document.getElementById('modal-art-style-detail').classList.add('hidden');
+  activeArtStyleDetailId = null;
+}
+
+async function handleDeleteArtStyle() {
+  const as = artStyles.find(a => String(a.id) === String(activeArtStyleDetailId));
+  if (!as || !confirm(`Delete "${as.name}"? This cannot be undone.`)) return;
+  try {
+    await fetch(`${ARTSTYLES_API}/${activeArtStyleDetailId}`, { method: 'DELETE' });
+    artStyles = artStyles.filter(a => String(a.id) !== String(activeArtStyleDetailId));
+    closeArtStyleDetailModal();
+    renderArtStyles();
+  } catch (err) { alert('Delete failed: ' + err.message); }
+}
+
+function renderArtStyleDetailImages(as) {
+  const imgEl = document.getElementById('art-style-detail-images');
+  if (!imgEl) return;
+  if (as.images && as.images.length) {
+    imgEl.innerHTML = '';
+    as.images.forEach((src, idx) => {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:relative;';
+      wrapper.innerHTML = `<img src="${esc(src)}" alt="${esc(as.name)}" style="cursor:default" />
+        <button style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(214,59,47,.8);color:#fff;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0" title="Remove image">✕</button>`;
+      wrapper.querySelector('button').addEventListener('click', async () => {
+        try {
+          const res = await fetch(`${ARTSTYLES_API}/${as.id}/images/${idx}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Remove failed');
+          const updated = await res.json();
+          artStyles = artStyles.map(a => a.id === updated.id ? updated : a);
+          renderArtStyleDetailImages(updated);
+          renderArtStyles();
+        } catch (err) { alert('Could not remove: ' + err.message); }
+      });
+      imgEl.appendChild(wrapper);
+    });
+  } else {
+    imgEl.innerHTML = `<div class="image-placeholder"><div class="image-placeholder-icon">🖼</div><div class="image-placeholder-text">No images yet</div></div>`;
+  }
+}
+
+function renderArtStyleDetailProducts(as) {
+  const section   = document.getElementById('art-style-detail-products-section');
+  const container = document.getElementById('art-style-detail-products');
+  const countEl   = document.getElementById('art-style-pf-count');
+  const skus = as.product_skus || [];
+  if (!skus.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  if (countEl) countEl.textContent = `${skus.length} SKU${skus.length !== 1 ? 's' : ''}`;
+  container.innerHTML = '';
+  skus.forEach(sku => {
+    const product = (productsLoaded && Array.isArray(allProducts)) ? allProducts.find(p => p.sku === sku) : null;
+    const p = product || { sku, name: sku, image_url: '' };
+    const card = document.createElement('div');
+    card.className = 'land-pf-card';
+    card.innerHTML = p.image_url
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || sku)}" class="land-pf-card-img" loading="lazy" /></div>
+         <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
+      : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
+         <div class="land-pf-card-body"><div class="land-pf-card-name">${esc(sku)}</div><div class="land-pf-card-sku">${product ? product.name : 'Loading…'}</div></div>`;
+    container.appendChild(card);
+  });
+}
+
+// ── Art Style Excel Export ────────────────────────────────────
+function exportArtStylesToExcel() {
+  const btn = document.getElementById('art-styles-export-btn');
+  btn.disabled = true; btn.textContent = '⬇ Exporting…';
+  try {
+    const rows = artStyles.map(a => ({
+      'Name':                    a.name || '',
+      'Description':             a.description || '',
+      'Visual Technique':        a.visual_technique || '',
+      'Color Palette':           a.color_palette || '',
+      'Mood & Feel':             a.mood_and_feel || '',
+      'Characteristic Elements': a.characteristic_elements || '',
+      'Status':                  a.status || '',
+      'Associated SKUs':         (a.product_skus || []).join(', '),
+      'Images':                  (a.images || []).join(', '),
+      'Created At':              fmtExportDate(a.created_at),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 26 }, { wch: 60 }, { wch: 50 }, { wch: 40 },
+      { wch: 50 }, { wch: 60 }, { wch: 10 }, { wch: 30 }, { wch: 40 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Art Styles');
+    xlsxDownload(wb, `lovepop-art-styles-${datestamp()}.xlsx`);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '⬇ Export to Excel';
+  }
+}
+
+// ── Art Style Samples (Settings) ─────────────────────────────
+async function loadArtStyleSamples() {
+  try {
+    const res = await fetch('/api/settings/artstyle-samples');
+    const { samples } = await res.json();
+    renderArtStyleSamples(samples);
+  } catch (e) { console.error('Could not load artstyle samples:', e); }
+}
+
+function renderArtStyleSamples(samples) {
+  const grid = document.getElementById('artstyle-samples-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!samples || !samples.length) {
+    grid.innerHTML = '<div class="img-samples-empty">No sample images uploaded yet.</div>';
+    return;
+  }
+  samples.forEach(src => {
+    const filename = src.split('/').pop();
+    const card = document.createElement('div');
+    card.className = 'img-sample-card';
+    card.innerHTML = `
+      <img src="${esc(src)}" class="img-sample-thumb" alt="Sample" />
+      <button class="img-sample-delete" data-filename="${esc(filename)}" title="Remove">✕</button>`;
+    card.querySelector('.img-sample-delete').addEventListener('click', () => deleteArtStyleSample(filename));
+    grid.appendChild(card);
+  });
+}
+
+async function deleteArtStyleSample(filename) {
+  if (!confirm('Remove this sample image?')) return;
+  try {
+    const res = await fetch(`/api/settings/artstyle-samples/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const { samples } = await res.json();
+    renderArtStyleSamples(samples);
+  } catch (e) { alert('Could not delete sample: ' + e.message); }
+}
+
+async function uploadArtStyleSamples(files) {
+  const status = document.getElementById('artstyle-samples-status');
+  status.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''}…`;
+  status.classList.remove('hidden');
+  let lastSamples = [];
+  for (const file of files) {
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/api/settings/artstyle-samples', { method: 'POST', body: fd });
+      const data = await res.json();
+      lastSamples = data.samples;
+    } catch (e) { console.error('Upload failed:', e); }
+  }
+  renderArtStyleSamples(lastSamples);
+  status.textContent = 'Uploaded!';
+  setTimeout(() => status.classList.add('hidden'), 2000);
 }
 
 // ── Helpers ───────────────────────────────────────────────────

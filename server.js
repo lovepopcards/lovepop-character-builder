@@ -21,6 +21,10 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 const IMAGE_SAMPLES_DIR = path.join(UPLOADS_DIR, 'image-samples');
 if (!fs.existsSync(IMAGE_SAMPLES_DIR)) fs.mkdirSync(IMAGE_SAMPLES_DIR, { recursive: true });
 
+// Art style samples dir
+const ARTSTYLE_SAMPLES_DIR = path.join(UPLOADS_DIR, 'artstyle-samples');
+if (!fs.existsSync(ARTSTYLE_SAMPLES_DIR)) fs.mkdirSync(ARTSTYLE_SAMPLES_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -35,9 +39,17 @@ const sampleStorage = multer.diskStorage({
     cb(null, `sample-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   },
 });
+const artstyleSampleStorage = multer.diskStorage({
+  destination: ARTSTYLE_SAMPLES_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `artstyle-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
 const uploadDisk   = multer({ storage: diskStorage,  limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadMem    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadSample = multer({ storage: sampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadArtstyleSample = multer({ storage: artstyleSampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
@@ -198,6 +210,41 @@ app.delete('/api/lands/:id/images/:index', (req, res) => {
   if (isNaN(idx) || idx < 0 || idx >= land.images.length) return res.status(400).json({ error: 'Invalid index' });
   const newImages = land.images.filter((_, i) => i !== idx);
   res.json(db.updateLand(req.params.id, { images: newImages }));
+});
+
+// ── Art Styles API ────────────────────────────────────────────
+app.get('/api/art-styles', (req, res) => res.json(db.getAllArtStyles()));
+app.get('/api/art-styles/:id', (req, res) => {
+  const row = db.getArtStyle(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
+});
+app.post('/api/art-styles', (req, res) => {
+  try { res.status(201).json(db.createArtStyle(req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.put('/api/art-styles/:id', (req, res) => {
+  try { res.json(db.updateArtStyle(req.params.id, req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/art-styles/:id', (req, res) => {
+  db.deleteArtStyle(req.params.id);
+  res.json({ success: true });
+});
+app.post('/api/art-styles/:id/images', uploadDisk.single('image'), (req, res) => {
+  const artStyle = db.getArtStyle(req.params.id);
+  if (!artStyle) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const updated = db.updateArtStyle(req.params.id, { images: [...artStyle.images, `/uploads/${req.file.filename}`] });
+  res.json(updated);
+});
+app.delete('/api/art-styles/:id/images/:index', (req, res) => {
+  const artStyle = db.getArtStyle(req.params.id);
+  if (!artStyle) return res.status(404).json({ error: 'Not found' });
+  const idx = parseInt(req.params.index, 10);
+  if (isNaN(idx) || idx < 0 || idx >= artStyle.images.length) return res.status(400).json({ error: 'Invalid index' });
+  const newImages = artStyle.images.filter((_, i) => i !== idx);
+  res.json(db.updateArtStyle(req.params.id, { images: newImages }));
 });
 
 // ── Settings API ──────────────────────────────────────────────
@@ -524,6 +571,180 @@ app.delete('/api/settings/image-samples/:filename', (req, res) => {
   const updated = current.filter(p => !p.endsWith('/' + filename));
   db.setSetting('ai_image_gen_samples', JSON.stringify(updated));
   res.json({ success: true, samples: updated });
+});
+
+// ── Art Style Sample endpoints ────────────────────────────────
+app.get('/api/settings/artstyle-samples', (req, res) => {
+  const raw = db.getSetting('ai_artstyle_samples');
+  const samples = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  res.json({ samples });
+});
+
+app.post('/api/settings/artstyle-samples', uploadArtstyleSample.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const imgPath = `/uploads/artstyle-samples/${req.file.filename}`;
+  const raw = db.getSetting('ai_artstyle_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  current.push(imgPath);
+  db.setSetting('ai_artstyle_samples', JSON.stringify(current));
+  res.json({ path: imgPath, samples: current });
+});
+
+app.delete('/api/settings/artstyle-samples/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(ARTSTYLE_SAMPLES_DIR, filename);
+  if (fs.existsSync(filepath)) { try { fs.unlinkSync(filepath); } catch (e) { console.warn('Could not delete artstyle sample:', e.message); } }
+  const raw = db.getSetting('ai_artstyle_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  const updated = current.filter(p => !p.endsWith('/' + filename));
+  db.setSetting('ai_artstyle_samples', JSON.stringify(updated));
+  res.json({ success: true, samples: updated });
+});
+
+// ── Art Style AI Generator (combined text + DALL-E image) ─────
+app.post('/api/ai/generate-artstyle', uploadMem.array('ref_images', 4), async (req, res) => {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  const openaiKey    = process.env.OPENAI_API_KEY    || db.getSetting('openai_api_key');
+  if (!anthropicKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
+
+  const settings = db.getAllSettings();
+  const systemPrompt = settings.ai_artstyle_instructions || db.DEFAULTS.ai_artstyle_instructions;
+  const { prompt = '' } = req.body;
+
+  // ── Step 1: Build Claude vision request ───────────────────────
+  const userContent = [];
+
+  // Uploaded reference images (up to 4)
+  if (req.files && req.files.length) {
+    for (const file of req.files.slice(0, 4)) {
+      try {
+        const resized = await sharp(file.buffer)
+          .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 70 })
+          .toBuffer();
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') } });
+      } catch (e) { console.warn('[artstyle] ref image resize error:', e.message); }
+    }
+  }
+
+  // Product headline image URLs from picker
+  let productImageCount = 0;
+  if (req.body.image_urls) {
+    try {
+      const urls = JSON.parse(req.body.image_urls);
+      for (const url of urls.slice(0, 5)) {
+        try { if (new URL(url).protocol !== 'https:') continue; } catch { continue; }
+        try {
+          const imgResp = await fetch(url);
+          if (!imgResp.ok) continue;
+          const rawBuf = Buffer.from(await imgResp.arrayBuffer());
+          const resized = await sharp(rawBuf)
+            .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 70 })
+            .toBuffer();
+          userContent.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: resized.toString('base64') } });
+          productImageCount++;
+        } catch (e) { console.warn('[artstyle] product image fetch error:', e.message); }
+      }
+    } catch (e) { console.warn('[artstyle] image_urls parse error:', e.message); }
+  }
+
+  // Sample art style reference images from settings
+  const rawSamples = db.getSetting('ai_artstyle_samples');
+  const samplePaths = (() => { try { return JSON.parse(rawSamples || '[]'); } catch { return []; } })();
+  for (const sp of samplePaths.slice(0, 3)) {
+    const filename = path.basename(sp);
+    const fullPath = path.join(ARTSTYLE_SAMPLES_DIR, filename);
+    if (!fs.existsSync(fullPath)) continue;
+    try {
+      const buf  = fs.readFileSync(fullPath);
+      const ext  = path.extname(fullPath).slice(1).toLowerCase();
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: mime, data: buf.toString('base64') } });
+    } catch (e) { console.warn('[artstyle] sample load error:', e.message); }
+  }
+
+  const totalImages = userContent.length;
+  userContent.push({
+    type: 'text',
+    text: [
+      totalImages > 0 ? `I've provided ${totalImages} image${totalImages > 1 ? 's' : ''} above as visual references. Analyze them carefully to extract the defining characteristics of this art style.\n` : '',
+      prompt ? `Additional context / direction:\n${prompt}\n` : '',
+      `Generate an art style profile as a JSON object with EXACTLY these field names (all values must be plain strings):`,
+      `{`,
+      `  "name": "<A distinctive, evocative name for this art style — warm and memorable>",`,
+      `  "description": "<2-3 sentences describing the overall aesthetic — what it feels like, what makes it distinctive>",`,
+      `  "visual_technique": "<The specific art technique, medium, and approach — e.g. loose watercolor washes with fine ink line work>",`,
+      `  "color_palette": "<4-6 key colors with evocative names and a brief note on the mood they create>",`,
+      `  "mood_and_feel": "<2-3 sentences describing the emotional tone and atmosphere this style evokes>",`,
+      `  "characteristic_elements": "<List 6-10 specific recurring visual elements, motifs, or signatures of this style>"`,
+      `}`,
+      `\nRespond with valid JSON only — no markdown fences, no extra text.`,
+    ].filter(Boolean).join('\n'),
+  });
+
+  let textResult = {};
+  try {
+    const claudeResp = await anthropicMessages({
+      apiKey: anthropicKey,
+      model: settings.ai_model || db.DEFAULTS.ai_model,
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }],
+    });
+    const rawText = claudeResp.content[0].text.trim();
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in Claude response');
+    textResult = JSON.parse(jsonMatch[0]);
+    // Normalize any non-string fields
+    for (const key of Object.keys(textResult)) {
+      if (Array.isArray(textResult[key])) textResult[key] = textResult[key].join('\n');
+      else if (textResult[key] !== null && typeof textResult[key] === 'object') textResult[key] = Object.entries(textResult[key]).map(([k, v]) => `${k}. ${v}`).join('\n');
+    }
+  } catch (err) {
+    console.error('[artstyle] Claude text generation error:', err.message);
+    return res.status(500).json({ error: 'Text generation failed: ' + err.message });
+  }
+
+  // ── Step 2: Generate DALL-E image (optional — only if OpenAI key set) ─
+  let imageUrl = null;
+  if (openaiKey) {
+    try {
+      const dallePromptText = [
+        `Create a stunning visual representation of this Lovepop art style:`,
+        textResult.name ? `Style name: "${textResult.name}"` : '',
+        textResult.description ? `Description: ${textResult.description}` : '',
+        textResult.visual_technique ? `Technique: ${textResult.visual_technique}` : '',
+        textResult.color_palette ? `Color palette: ${textResult.color_palette}` : '',
+        textResult.mood_and_feel ? `Mood: ${textResult.mood_and_feel}` : '',
+        prompt ? `Additional direction: ${prompt}` : '',
+        `\nCreate a beautiful, detailed sample illustration in this exact art style — like a greeting card design or decorative art piece. Should feel like Lovepop: warm, whimsical, and full of intricate paper-art charm.`,
+      ].filter(Boolean).join('\n');
+
+      const dalleResp = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'dall-e-3', prompt: dallePromptText, size: '1024x1024', quality: 'hd', n: 1 }),
+      });
+      if (dalleResp.ok) {
+        const dalleData = await dalleResp.json();
+        const tempUrl = dalleData.data[0].url;
+        const imgResp = await fetch(tempUrl);
+        if (imgResp.ok) {
+          const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+          const filename = `artstyle-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+          fs.writeFileSync(path.join(UPLOADS_DIR, filename), imgBuf);
+          imageUrl = `/uploads/${filename}`;
+        }
+      } else {
+        console.warn('[artstyle] DALL-E error:', (await dalleResp.json()).error?.message);
+      }
+    } catch (e) {
+      console.warn('[artstyle] DALL-E generation skipped:', e.message);
+    }
+  }
+
+  res.json({ ...textResult, imageUrl });
 });
 
 // ── Land Headline Image Generator ─────────────────────────────

@@ -21,6 +21,7 @@
       <nav class="header-nav">
         <button class="nav-tab active" data-view="catalog">Lovepop Characters</button>
         <button class="nav-tab" data-view="lands">Lovepop Lands</button>
+        <button class="nav-tab" data-view="art-styles">Lovepop Art Styles</button>
         <button class="nav-tab" data-view="assets">Asset Library</button>
         <button class="nav-tab" data-view="settings">Settings</button>
       </nav>
@@ -638,6 +639,216 @@
 
     </div>
 
+    <!-- ─── ART STYLES VIEW ─────────────────────────────────────── -->
+    <div id="view-art-styles" class="view">
+      <div class="view-toolbar">
+        <div class="toolbar-left">
+          <h1 class="view-title">Lovepop Art Styles</h1>
+          <span id="art-styles-count" class="count-badge">0 art styles</span>
+        </div>
+        <div class="toolbar-right">
+          <div class="view-toggle">
+            <button class="toggle-btn active" id="btn-art-styles-tile-view" title="Tile view">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+            </button>
+            <button class="toggle-btn" id="btn-art-styles-list-view" title="List view">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1.25" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <button class="btn-export" id="art-styles-export-btn">⬇ Export to Excel</button>
+          <button class="btn-primary" id="art-styles-new-btn">+ New Art Style</button>
+        </div>
+      </div>
+      <div id="art-styles-tile-view" class="character-grid">
+        <div class="empty-state" id="art-styles-empty">
+          <div class="empty-icon">🎨</div>
+          <div class="empty-title">No art styles yet</div>
+          <div class="empty-sub">Create your first Lovepop Art Style to get started.</div>
+          <button class="btn-primary" id="art-styles-empty-new-btn">+ Create New Art Style</button>
+        </div>
+      </div>
+      <div id="art-styles-list-view" class="character-list hidden">
+        <table class="list-table">
+          <thead><tr><th>Name</th><th>Visual Technique</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody id="art-styles-list-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── ART STYLE EDITOR ─────────────────────────────────────── -->
+    <div id="view-art-style-editor" class="view">
+      <div class="editor-header">
+        <div class="editor-header-left">
+          <button class="btn-back" id="art-style-editor-back-btn">← Back</button>
+          <h1 class="view-title" id="art-style-editor-title">New Art Style</h1>
+        </div>
+        <div class="editor-header-right">
+          <span id="art-style-editor-save-status" class="save-status"></span>
+          <button class="btn-secondary" id="art-style-editor-cancel-btn">Cancel</button>
+          <button class="btn-primary" id="art-style-editor-save-btn">Save Art Style</button>
+        </div>
+      </div>
+
+      <!-- ── Art Style Editor Tabs ──────────────────────────────── -->
+      <div class="editor-tabs">
+        <button class="editor-tab active" data-tab="art-style-profile" id="art-style-editor-tab-profile-btn">Art Style Profile</button>
+        <button class="editor-tab" data-tab="art-style-artwork" id="art-style-editor-tab-artwork-btn">Art Style Artwork</button>
+        <button class="editor-tab" data-tab="art-style-products" id="art-style-editor-tab-products-btn">Art Style Products</button>
+      </div>
+
+      <!-- ══ Tab: Art Style Profile ════════════════════════════════ -->
+      <div id="art-style-editor-tab-profile" class="editor-tab-panel editor-layout">
+        <aside class="ai-panel">
+          <div class="ai-panel-header">
+            <span class="ai-panel-title">🎨 Art Style Generator</span>
+            <span class="ai-panel-sub">Generate an art style from product images and references</span>
+          </div>
+
+          <!-- Product reference strip -->
+          <div id="art-style-ai-products-ref" class="land-sb-product-ref land-sb-no-products">
+            <div class="land-sb-product-ref-empty">
+              <span class="land-sb-product-ref-icon">🛍️</span>
+              <span class="land-sb-product-ref-msg">Add products in <strong>Art Style Products</strong> to give the AI visual context</span>
+              <button class="land-sb-goto-products" id="art-style-sb-goto-products-btn">→ Add Products</button>
+            </div>
+            <div class="land-sb-product-ref-filled hidden">
+              <div class="land-sb-product-ref-row">
+                <span class="land-sb-product-ref-count-badge" id="art-style-sb-product-count-badge"></span>
+                <span class="land-sb-product-ref-label">products added as reference</span>
+                <button class="land-sb-goto-products land-sb-edit-link" id="art-style-sb-edit-products-btn">Edit →</button>
+              </div>
+              <div class="land-sb-product-thumbs" id="art-style-sb-product-thumbs"></div>
+            </div>
+          </div>
+
+          <!-- Reference image upload zone -->
+          <div class="product-browse-divider land-ai-ref-divider" style="margin-top:8px"><span>add reference images (up to 4)</span></div>
+          <div class="char-art-upload-zone" id="art-style-ai-ref-zone">
+            <input type="file" id="art-style-ai-ref-input" accept="image/*" multiple style="display:none" />
+            <div class="char-art-upload-placeholder" id="art-style-ai-ref-placeholder">
+              <div class="char-art-upload-icon">🖼</div>
+              <div class="char-art-upload-text">Drop reference images or <span class="link" id="art-style-ai-ref-link">click to upload</span></div>
+              <div class="char-art-upload-hint">Style references, mood boards — up to 4 images</div>
+            </div>
+            <div id="art-style-ai-ref-strip" class="char-art-preview-strip hidden"></div>
+          </div>
+
+          <!-- Prompt textarea -->
+          <div class="product-browse-divider"><span>add your notes</span></div>
+          <div class="ai-desc-section">
+            <label class="form-label">Description / notes</label>
+            <textarea id="art-style-ai-prompt" class="form-textarea" rows="4"
+              placeholder="Describe the aesthetic, mood, color direction, or any specific notes…"></textarea>
+          </div>
+
+          <button class="btn-ai-generate" id="art-style-ai-generate-btn">
+            <span class="btn-ai-icon">🎨</span> Generate Art Style
+          </button>
+
+          <!-- Draft panel -->
+          <div id="art-style-draft-panel" class="hidden" style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div style="background:var(--surface-2);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+              <span style="font-size:12px;font-weight:600;color:var(--text)">✨ Generated Draft</span>
+              <button class="btn-ghost btn-sm" id="art-style-draft-discard-btn">Discard</button>
+            </div>
+            <div style="padding:12px 14px">
+              <img id="art-style-draft-image" class="hidden" style="width:100%;border-radius:6px;margin-bottom:12px;object-fit:cover" alt="Generated art style image" />
+              <div id="art-style-draft-fields" style="font-size:12px;color:var(--text-muted);line-height:1.6"></div>
+              <button class="btn-primary" id="art-style-draft-use-btn" style="width:100%;margin-top:12px">Use This Draft →</button>
+            </div>
+          </div>
+        </aside>
+
+        <div class="editor-form">
+          <div class="form-section">
+            <div class="form-section-title">Identity</div>
+            <div class="form-group">
+              <label class="form-label">Art Style Name <span class="required">*</span></label>
+              <input type="text" id="fas-name" class="form-input" placeholder="e.g. Soft Watercolor Dreams" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea id="fas-description" class="form-textarea" rows="4" placeholder="Paint a picture of this style — what makes it distinctive and evocative?"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Visual Characteristics</div>
+            <div class="form-group">
+              <label class="form-label">Visual Technique</label>
+              <textarea id="fas-visual-technique" class="form-textarea" rows="3" placeholder="The specific medium, technique, and approach — e.g. loose watercolor washes with fine ink line work…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color Palette</label>
+              <textarea id="fas-color-palette" class="form-textarea" rows="3" placeholder="Key colors with evocative names — e.g. Dusty Rose, Sage Green, Warm Cream…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mood &amp; Feel</label>
+              <textarea id="fas-mood-and-feel" class="form-textarea" rows="3" placeholder="The emotional tone and atmosphere this style evokes…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Characteristic Elements</label>
+              <textarea id="fas-characteristic-elements" class="form-textarea" rows="4" placeholder="Recurring visual elements, motifs, and signatures of this style…"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Details</div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="fas-status" class="form-select">
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="retired">Retired</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Tab: Art Style Artwork ═════════════════════════════════ -->
+      <div id="art-style-editor-tab-artwork" class="editor-tab-panel editor-layout hidden">
+        <aside class="ai-panel">
+          <div class="ai-panel-header char-art-panel-header">
+            <span class="ai-panel-title">🖼 Art Style Images</span>
+            <span class="ai-panel-sub">Upload images showcasing this art style</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:8px">
+            Upload images that exemplify this art style — product images, mood boards, or generated artwork. The first image is used as the tile thumbnail.
+          </p>
+        </aside>
+        <div class="editor-form">
+          <div class="form-section">
+            <div class="form-section-title">Images</div>
+            <div class="form-hint" style="margin-bottom:12px">The first image is used as the tile thumbnail.</div>
+            <div id="art-style-editor-images-gallery" class="editor-images-gallery"></div>
+            <label class="btn-add-image" for="art-style-editor-image-upload" style="margin-top:10px">+ Add Image</label>
+            <input type="file" id="art-style-editor-image-upload" accept="image/*" multiple style="display:none" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ Tab: Art Style Products ════════════════════════════════ -->
+      <div id="art-style-editor-tab-products" class="editor-tab-panel hidden">
+        <div class="products-tab-body">
+          <div class="form-section">
+            <div class="form-section-title">Art Style Products</div>
+            <div class="form-hint" style="margin-bottom:14px">Products associated with this art style. Selected SKUs are also used as visual reference for AI generation.</div>
+
+            <div id="art-style-editor-pf-empty" class="land-editor-pf-empty">
+              <span class="land-editor-pf-empty-icon">📦</span>
+              <span>No products selected yet</span>
+            </div>
+            <div id="art-style-editor-pf-scroll" class="land-pf-scroll-wrap hidden">
+              <div id="art-style-editor-pf-cards" class="land-pf-cards"></div>
+            </div>
+            <div class="land-editor-pf-actions">
+              <button class="btn-sku-add" id="art-style-browse-products-btn">+ Browse Product Library</button>
+              <span id="art-style-editor-pf-count" class="land-editor-pf-count hidden"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══════════════════════════════════════════════════════════════
          ASSET LIBRARY VIEW
          ═══════════════════════════════════════════════════════════ -->
@@ -960,6 +1171,7 @@
             <a class="settings-nav-item" href="#s-section-quote-ai" data-section="s-section-quote-ai">💬 Quote Generator</a>
             <a class="settings-nav-item" href="#s-section-land-ai" data-section="s-section-land-ai">🌍 Land Generator</a>
             <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
+            <a class="settings-nav-item" href="#s-section-artstyle-ai" data-section="s-section-artstyle-ai">🎨 Art Style Generator</a>
           </div>
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">API Keys</div>
@@ -1078,6 +1290,30 @@
                 <label class="btn-add-image img-samples-upload-btn" for="img-samples-upload">+ Upload Sample Image</label>
                 <input type="file" id="img-samples-upload" accept="image/*" multiple style="display:none" />
                 <div id="img-samples-status" class="img-samples-status hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Art Style Generator -->
+          <div class="settings-section collapsed" id="s-section-artstyle-ai">
+            <button class="settings-section-toggle" data-target="s-section-artstyle-ai">
+              <span class="settings-section-toggle-title">🎨 Art Style Generator Instructions</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">System instructions for the AI when generating art style profiles. Claude analyzes product images and references to extract the visual DNA of a Lovepop art style, then DALL-E renders a sample image.</p>
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Art Style Generator Instructions</label>
+                <div class="form-hint" style="margin-bottom:8px">Passed to Claude as the system prompt when generating art style profiles.</div>
+                <textarea id="s-artstyle-instructions" class="form-textarea" rows="8"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Sample Art Styles</label>
+                <div class="form-hint" style="margin-bottom:12px">Upload reference images representing ideal art style examples. Up to 3 are sent to Claude as visual reference per generation.</div>
+                <div id="artstyle-samples-grid" class="img-samples-grid"></div>
+                <label class="btn-add-image img-samples-upload-btn" for="artstyle-samples-upload">+ Upload Sample Image</label>
+                <input type="file" id="artstyle-samples-upload" accept="image/*" multiple style="display:none" />
+                <div id="artstyle-samples-status" class="img-samples-status hidden"></div>
               </div>
             </div>
           </div>
@@ -1409,6 +1645,58 @@
         <button class="btn-danger" id="land-detail-delete-btn">Delete</button>
         <button class="btn-secondary" id="land-detail-edit-btn">Edit Land</button>
         <button class="btn-secondary" id="land-detail-close-btn2">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ART STYLE DETAIL MODAL ══════════════════════════════ -->
+  <div id="modal-art-style-detail" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="art-style-detail-name"></h2>
+          <div class="detail-meta" id="art-style-detail-meta"></div>
+        </div>
+        <button class="modal-close" id="art-style-detail-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Product Family -->
+        <div class="land-pf-section hidden" id="art-style-detail-products-section">
+          <div class="land-pf-section-header">
+            <div class="land-pf-section-title">
+              <span class="land-pf-icon">🛍</span> Associated Products
+            </div>
+            <span class="land-pf-section-count" id="art-style-pf-count"></span>
+          </div>
+          <div class="land-pf-scroll-wrap">
+            <div id="art-style-detail-products" class="land-pf-cards"></div>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div class="detail-main">
+            <div class="detail-section"><div class="detail-section-label">Description</div><div class="detail-section-content" id="art-style-detail-description">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Visual Technique</div><div class="detail-section-content" id="art-style-detail-visual-technique">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Color Palette</div><div class="detail-section-content" id="art-style-detail-color-palette">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Mood &amp; Feel</div><div class="detail-section-content" id="art-style-detail-mood-and-feel">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Characteristic Elements</div><div class="detail-section-content" id="art-style-detail-characteristic-elements">—</div></div>
+            <div class="detail-section"><div class="detail-section-label">Status</div><div id="art-style-detail-status"></div></div>
+          </div>
+          <div class="detail-sidebar">
+            <div class="detail-section">
+              <div class="detail-section-label">Images</div>
+              <div class="image-gallery" id="art-style-detail-images"></div>
+              <label class="btn-add-image" for="art-style-detail-image-upload" style="margin-top:10px">+ Add Image</label>
+              <input type="file" id="art-style-detail-image-upload" accept="image/*" multiple style="display:none" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-danger" id="art-style-detail-delete-btn">Delete</button>
+        <button class="btn-secondary" id="art-style-detail-edit-btn">Edit Art Style</button>
+        <button class="btn-secondary" id="art-style-detail-close-btn2">Close</button>
       </div>
     </div>
   </div>

@@ -132,6 +132,24 @@ db.exec(`
   )
 `);
 
+// ── Art Styles table ──────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS art_styles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    visual_technique TEXT DEFAULT '',
+    color_palette TEXT DEFAULT '',
+    mood_and_feel TEXT DEFAULT '',
+    characteristic_elements TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
+    images TEXT DEFAULT '[]',
+    product_skus TEXT DEFAULT '[]',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ── Character Stories/Quotes table ───────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS character_stories (
@@ -226,6 +244,10 @@ FROM your_sales_table
 WHERE order_date >= DATEADD('month', -12, CURRENT_DATE())
 GROUP BY sku`,
 
+  // Art Style generator
+  ai_artstyle_instructions: `You are a creative director at Lovepop, a premium pop-up greeting card and gifting company known for beautiful, intricate paper art. Analyze the provided product images and reference images to define a distinctive Lovepop art style. Generate a cohesive art style profile capturing the visual DNA of this aesthetic. Always respond with valid JSON only — no markdown, no extra text.`,
+  ai_artstyle_samples: '[]',
+
   // Quote generator
   ai_quote_instructions: `You are a creative voice for Lovepop, a premium pop-up greeting card company. Generate an authentic, in-character quote for the character described below — the kind of thing they might say on a greeting card or in a brand story. The quote should be warm, specific, and feel genuinely like this character's voice. It should resonate emotionally and be shareable.
 
@@ -262,6 +284,12 @@ const serializeLand = (row) => ({
   product_skus: parseJSON(row.product_skus),
 });
 
+const serializeArtStyle = (row) => ({
+  ...row,
+  images:       parseJSON(row.images),
+  product_skus: parseJSON(row.product_skus),
+});
+
 const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared','status'];
 const CHAR_JSON   = ['images','products','quotes','art_styles','product_skus'];
 const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
@@ -269,6 +297,10 @@ const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
 const LAND_TEXT   = ['name','description','visual_style','color_palette','themes_and_content','status'];
 const LAND_JSON   = ['images','product_skus'];
 const LAND_ALL    = [...LAND_TEXT, ...LAND_JSON];
+
+const ARTSTYLE_TEXT = ['name','description','visual_technique','color_palette','mood_and_feel','characteristic_elements','status'];
+const ARTSTYLE_JSON = ['images','product_skus'];
+const ARTSTYLE_ALL  = [...ARTSTYLE_TEXT, ...ARTSTYLE_JSON];
 
 // ── Asset JSON field helpers ──────────────────────────────────
 const parseAssetJob = (row) => row ? ({
@@ -355,6 +387,42 @@ module.exports = {
   },
   deleteLand(id) {
     return db.prepare('DELETE FROM lands WHERE id = ?').run(id);
+  },
+
+  // ── Art Styles ───────────────────────────────────────────────
+  getAllArtStyles() {
+    return db.prepare('SELECT * FROM art_styles ORDER BY created_at DESC').all().map(serializeArtStyle);
+  },
+  getArtStyle(id) {
+    const row = db.prepare('SELECT * FROM art_styles WHERE id = ?').get(id);
+    return row ? serializeArtStyle(row) : null;
+  },
+  createArtStyle(data) {
+    const result = db.prepare(
+      `INSERT INTO art_styles (${ARTSTYLE_ALL.join(', ')}) VALUES (${ARTSTYLE_ALL.map(() => '?').join(', ')})`
+    ).run(...ARTSTYLE_ALL.map(f => ARTSTYLE_JSON.includes(f) ? JSON.stringify(data[f] || []) : (data[f] || '')));
+    return this.getArtStyle(result.lastInsertRowid);
+  },
+  updateArtStyle(id, data) {
+    const fields = [], values = [];
+    for (const key of ARTSTYLE_ALL) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(ARTSTYLE_JSON.includes(key) ? JSON.stringify(data[key]) : data[key]);
+      }
+    }
+    if (!fields.length) return this.getArtStyle(id);
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE art_styles SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    return this.getArtStyle(id);
+  },
+  deleteArtStyle(id) {
+    return db.prepare('DELETE FROM art_styles WHERE id = ?').run(id);
+  },
+  updateArtStyleImages(id, images) {
+    db.prepare(`UPDATE art_styles SET images = ?, updated_at = datetime('now') WHERE id = ?`).run(JSON.stringify(images), id);
+    return this.getArtStyle(id);
   },
 
   // ── Settings ──────────────────────────────────────────────────
