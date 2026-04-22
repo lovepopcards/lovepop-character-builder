@@ -1,7 +1,14 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
+const fs = require('fs');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'characters.db');
+// Use the persistent volume at /data when available (Railway), otherwise fall back to local.
+// DB_PATH env var overrides everything.
+const DATA_DIR = process.env.DB_PATH
+  ? path.dirname(process.env.DB_PATH)
+  : fs.existsSync('/data') ? '/data' : __dirname;
+const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'characters.db');
+
 const db = new DatabaseSync(DB_PATH);
 
 // ── Characters table ──────────────────────────────────────────

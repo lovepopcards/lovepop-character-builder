@@ -11,8 +11,11 @@ const cardDesignerRouter = require('./routes/cardDesigner');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Uploads dir — use the same persistent volume as the DB when available
-const DATA_DIR = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : null;
+// Uploads dir — use the persistent volume at /data when available (Railway), local otherwise.
+// DB_PATH env var overrides everything.
+const DATA_DIR = process.env.DB_PATH
+  ? path.dirname(process.env.DB_PATH)
+  : fs.existsSync('/data') ? '/data' : null;
 const UPLOADS_DIR = DATA_DIR
   ? path.join(DATA_DIR, 'uploads')
   : path.join(__dirname, 'public', 'uploads');
@@ -1155,10 +1158,13 @@ app.post('/api/sales/test', async (req, res) => {
 
 // Diagnostic
 app.get('/api/debug/db-path', (req, res) => {
-  const dbPath = process.env.DB_PATH || path.join(__dirname, 'characters.db');
+  const dbPath = process.env.DB_PATH || path.join(DATA_DIR || __dirname, 'characters.db');
+  const source = process.env.DB_PATH ? 'env var' : fs.existsSync('/data') ? '/data volume (auto-detected)' : 'local filesystem (ephemeral)';
   res.json({
     db_path: dbPath,
-    db_path_source: process.env.DB_PATH ? 'env var (good — persistent)' : 'local filesystem (bad — wiped on redeploy)',
+    uploads_dir: UPLOADS_DIR,
+    db_path_source: source,
+    persistent: !!(process.env.DB_PATH || fs.existsSync('/data')),
     exists: fs.existsSync(dbPath),
     env_DB_PATH: process.env.DB_PATH || '(not set)',
   });
