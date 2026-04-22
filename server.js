@@ -902,8 +902,12 @@ app.get('/api/products', async (req, res) => {
     }
     const upstream = await fetch('https://lovepop-merch-tool-production.up.railway.app/api/products');
     if (!upstream.ok) throw new Error(`Upstream responded ${upstream.status}`);
-    const upstreamData = await upstream.json();
-    if (!Array.isArray(upstreamData)) throw new Error('Upstream returned non-array product data');
+    const upstreamRaw = await upstream.json();
+    // Support both plain array and { products: [...] } response shapes
+    const upstreamData = Array.isArray(upstreamRaw) ? upstreamRaw
+                       : Array.isArray(upstreamRaw?.products) ? upstreamRaw.products
+                       : null;
+    if (!upstreamData) throw new Error('Upstream returned unexpected product data format');
     _productCache = upstreamData;
     _productCacheTs = now;
 
