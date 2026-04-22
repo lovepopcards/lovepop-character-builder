@@ -1764,80 +1764,107 @@ async function loadSettings() {
 
     loadImageSamples();
     loadArtStyleSamples();
+    // Art Style Generator
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
     setVal('s-artstyle-articulation-rules', s.ai_artstyle_articulation_rules);
 
-    // Asset Library / Box settings
-    document.getElementById('sf-box-client-id').value = s.box_client_id || '';
-    document.getElementById('sf-box-client-secret').value = s.box_client_secret || '';
-    document.getElementById('sf-box-enterprise-id').value = s.box_enterprise_id || '';
-    document.getElementById('sf-box-root-folder').value = s.box_root_folder || '/Asset Library';
-    document.getElementById('sf-sam2-min-pct').value = s.sam2_min_segment_pct || '2';
-    document.getElementById('sf-sam2-max-pct').value = s.sam2_max_segment_pct || '60';
-    document.getElementById('sf-seg-crop-padding').value = s.seg_crop_padding || '20';
-    document.getElementById('sf-seg-detail-level').value = s.seg_detail_level || 'standard';
-    document.getElementById('sf-seg-tight-boxes').checked = s.seg_tight_boxes !== 'false';
-    document.getElementById('sf-asset-auto-label').checked = s.asset_auto_label !== 'false';
-    document.getElementById('sf-asset-auto-label-model').value = s.asset_auto_label_model || 'claude-haiku-4-5';
+    // Card Designer
+    setVal('cd-s-gemini-model', s.gemini_model);
+    setVal('cd-s-copy-cover', s.cd_copy_instruction_cover);
+    setVal('cd-s-copy-inside-left', s.cd_copy_instruction_inside_left);
+    setVal('cd-s-copy-inside-right', s.cd_copy_instruction_inside_right);
+    setVal('cd-s-copy-sculpture', s.cd_copy_instruction_sculpture);
+    setVal('cd-s-copy-back', s.cd_copy_instruction_back);
+    setVal('cd-s-sketch-prompt', s.cd_sketch_system_prompt);
+
+    // Asset Library / Box settings (null-safe)
+    setVal('sf-box-client-id', s.box_client_id);
+    setVal('sf-box-client-secret', s.box_client_secret);
+    setVal('sf-box-enterprise-id', s.box_enterprise_id);
+    setVal('sf-box-root-folder', s.box_root_folder || '/Asset Library');
+    setVal('sf-sam2-min-pct', s.sam2_min_segment_pct || '2');
+    setVal('sf-sam2-max-pct', s.sam2_max_segment_pct || '60');
+    setVal('sf-seg-crop-padding', s.seg_crop_padding || '20');
+    setVal('sf-seg-detail-level', s.seg_detail_level || 'standard');
+    setVal('sf-asset-auto-label-model', s.asset_auto_label_model || 'claude-haiku-4-5');
+    const tightBoxEl = document.getElementById('sf-seg-tight-boxes');
+    if (tightBoxEl) tightBoxEl.checked = s.seg_tight_boxes !== 'false';
+    const autoLabelEl = document.getElementById('sf-asset-auto-label');
+    if (autoLabelEl) autoLabelEl.checked = s.asset_auto_label !== 'false';
   } catch (err) { console.error('Settings load error:', err); }
 }
 
 async function handleSettingsSave() {
-  const data = {
-    ai_system_prompt: getVal('s-system-prompt'),
-    ai_model: getVal('s-model'),
-    ai_instruction_name: getVal('s-instruction-name'),
-    ai_instruction_species: getVal('s-instruction-species'),
-    ai_instruction_role: getVal('s-instruction-role'),
-    ai_instruction_backstory: getVal('s-instruction-backstory'),
-    ai_instruction_personality: getVal('s-instruction-personality'),
-    ai_instruction_key_passions: getVal('s-instruction-key-passions'),
-    ai_instruction_what_they_care_about: getVal('s-instruction-what-they-care-about'),
-    ai_instruction_tone_and_voice: getVal('s-instruction-tone-and-voice'),
-    ai_instruction_hook_and_audience: getVal('s-instruction-hook-and-audience'),
-    ai_quote_instructions: getVal('s-quote-instructions'),
-    ai_land_instruction_name: getVal('s-land-instruction-name'),
-    ai_land_instruction_description: getVal('s-land-instruction-description'),
-    ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
-    ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
-    ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
-    ai_image_gen_instructions: getVal('s-image-gen-instructions'),
-    ai_artstyle_instructions: getVal('s-artstyle-instructions'),
-    ai_artstyle_image_instructions: getVal('s-artstyle-image-instructions'),
-    ai_artstyle_articulation_rules: getVal('s-artstyle-articulation-rules'),
-    snowflake_account:   getVal('s-sf-account'),
-    snowflake_username:  getVal('s-sf-username'),
-    snowflake_warehouse: getVal('s-sf-warehouse'),
-    snowflake_database:  getVal('s-sf-database'),
-    snowflake_schema:    getVal('s-sf-schema'),
-    snowflake_role:      getVal('s-sf-role'),
-    snowflake_query:     getVal('s-sf-query'),
-    box_client_id: document.getElementById('sf-box-client-id').value,
-    box_client_secret: document.getElementById('sf-box-client-secret').value,
-    box_enterprise_id: document.getElementById('sf-box-enterprise-id').value,
-    box_root_folder: document.getElementById('sf-box-root-folder').value,
-    sam2_min_segment_pct: document.getElementById('sf-sam2-min-pct').value,
-    sam2_max_segment_pct: document.getElementById('sf-sam2-max-pct').value,
-    seg_crop_padding: document.getElementById('sf-seg-crop-padding').value,
-    seg_detail_level: document.getElementById('sf-seg-detail-level').value,
-    seg_tight_boxes: document.getElementById('sf-seg-tight-boxes').checked ? 'true' : 'false',
-    asset_auto_label: document.getElementById('sf-asset-auto-label').checked ? 'true' : 'false',
-    asset_auto_label_model: document.getElementById('sf-asset-auto-label-model').value,
-  };
-  const sfPassword = getVal('s-sf-password');
-  if (sfPassword) data.snowflake_password = sfPassword;
-  const apiKey = getVal('s-api-key');
-  if (apiKey) data.anthropic_api_key = apiKey;
-  const openaiKey = getVal('s-openai-api-key');
-  if (openaiKey) data.openai_api_key = openaiKey;
-
   const btn = document.getElementById('settings-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const data = {
+      ai_system_prompt: getVal('s-system-prompt'),
+      ai_model: getVal('s-model'),
+      ai_instruction_name: getVal('s-instruction-name'),
+      ai_instruction_species: getVal('s-instruction-species'),
+      ai_instruction_role: getVal('s-instruction-role'),
+      ai_instruction_backstory: getVal('s-instruction-backstory'),
+      ai_instruction_personality: getVal('s-instruction-personality'),
+      ai_instruction_key_passions: getVal('s-instruction-key-passions'),
+      ai_instruction_what_they_care_about: getVal('s-instruction-what-they-care-about'),
+      ai_instruction_tone_and_voice: getVal('s-instruction-tone-and-voice'),
+      ai_instruction_hook_and_audience: getVal('s-instruction-hook-and-audience'),
+      ai_quote_instructions: getVal('s-quote-instructions'),
+      ai_land_instruction_name: getVal('s-land-instruction-name'),
+      ai_land_instruction_description: getVal('s-land-instruction-description'),
+      ai_land_instruction_visual_style: getVal('s-land-instruction-visual-style'),
+      ai_land_instruction_color_palette: getVal('s-land-instruction-color-palette'),
+      ai_land_instruction_themes_and_content: getVal('s-land-instruction-themes-and-content'),
+      ai_image_gen_instructions: getVal('s-image-gen-instructions'),
+      // Art Style Generator
+      ai_artstyle_instructions: getVal('s-artstyle-instructions'),
+      ai_artstyle_image_instructions: getVal('s-artstyle-image-instructions'),
+      ai_artstyle_articulation_rules: getVal('s-artstyle-articulation-rules'),
+      // Card Designer
+      gemini_model: getVal('cd-s-gemini-model'),
+      cd_copy_instruction_cover: getVal('cd-s-copy-cover'),
+      cd_copy_instruction_inside_left: getVal('cd-s-copy-inside-left'),
+      cd_copy_instruction_inside_right: getVal('cd-s-copy-inside-right'),
+      cd_copy_instruction_sculpture: getVal('cd-s-copy-sculpture'),
+      cd_copy_instruction_back: getVal('cd-s-copy-back'),
+      cd_sketch_system_prompt: getVal('cd-s-sketch-prompt'),
+      // Data tools
+      snowflake_account:   getVal('s-sf-account'),
+      snowflake_username:  getVal('s-sf-username'),
+      snowflake_warehouse: getVal('s-sf-warehouse'),
+      snowflake_database:  getVal('s-sf-database'),
+      snowflake_schema:    getVal('s-sf-schema'),
+      snowflake_role:      getVal('s-sf-role'),
+      snowflake_query:     getVal('s-sf-query'),
+      box_client_id:       getVal('sf-box-client-id'),
+      box_client_secret:   getVal('sf-box-client-secret'),
+      box_enterprise_id:   getVal('sf-box-enterprise-id'),
+      box_root_folder:     getVal('sf-box-root-folder'),
+      sam2_min_segment_pct: getVal('sf-sam2-min-pct'),
+      sam2_max_segment_pct: getVal('sf-sam2-max-pct'),
+      seg_crop_padding:    getVal('sf-seg-crop-padding'),
+      seg_detail_level:    getVal('sf-seg-detail-level'),
+      seg_tight_boxes:     (document.getElementById('sf-seg-tight-boxes')?.checked ?? true) ? 'true' : 'false',
+      asset_auto_label:    (document.getElementById('sf-asset-auto-label')?.checked ?? true) ? 'true' : 'false',
+      asset_auto_label_model: getVal('sf-asset-auto-label-model'),
+    };
+    const sfPassword = getVal('s-sf-password');
+    if (sfPassword) data.snowflake_password = sfPassword;
+    const apiKey = getVal('s-api-key');
+    if (apiKey) data.anthropic_api_key = apiKey;
+    const openaiKey = getVal('s-openai-api-key');
+    if (openaiKey) data.openai_api_key = openaiKey;
+    const geminiKey = getVal('cd-s-gemini-key');
+    if (geminiKey) data.gemini_api_key = geminiKey;
+
+    const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
     document.getElementById('s-api-key').value = '';
     document.getElementById('s-openai-api-key').value = '';
+    const cdKeyEl = document.getElementById('cd-s-gemini-key');
+    if (cdKeyEl) cdKeyEl.value = '';
     await loadSettings();
     await checkApiKeyStatus();
     btn.textContent = '✓ Saved';

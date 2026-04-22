@@ -466,7 +466,9 @@ module.exports = {
   // ── Settings ──────────────────────────────────────────────────
   getAllSettings() {
     const rows = db.prepare('SELECT key, value FROM settings').all();
-    return Object.fromEntries(rows.map(r => [r.key, r.value]));
+    const fromDb = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    // Merge with DEFAULTS so every known key always has a value even if not yet in DB
+    return { ...DEFAULTS, ...fromDb };
   },
   getSetting(key) {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
