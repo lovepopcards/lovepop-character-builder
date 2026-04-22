@@ -205,6 +205,15 @@ db.exec(`
   )
 `);
 
+// ── Card Designs migrations ───────────────────────────────────
+const existingCardDesignCols = db.prepare('PRAGMA table_info(card_designs)').all().map(r => r.name);
+if (!existingCardDesignCols.includes('sketch_rounds'))  db.exec(`ALTER TABLE card_designs ADD COLUMN sketch_rounds TEXT DEFAULT '[]'`);
+if (!existingCardDesignCols.includes('copy_rounds'))    db.exec(`ALTER TABLE card_designs ADD COLUMN copy_rounds TEXT DEFAULT '[]'`);
+if (!existingCardDesignCols.includes('concept_rounds')) db.exec(`ALTER TABLE card_designs ADD COLUMN concept_rounds TEXT DEFAULT '[]'`);
+if (!existingCardDesignCols.includes('active_module'))  db.exec(`ALTER TABLE card_designs ADD COLUMN active_module TEXT DEFAULT 'copy'`);
+// Migrate old 'draft' status values to 'in-development'
+db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
+
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -306,6 +315,10 @@ DO NOT include any greeting card images or greeting card shapes. It should only 
   cd_copy_instruction_sculpture: `Write copy that celebrates the 3D pop-up sculpture (5–15 words). Should feel magical and reference the artwork without being too literal.`,
   cd_copy_instruction_back: `Write the back of card copy (1–2 short lines). Typically a tagline or brief brand message — a lovely, memorable send-off.`,
   cd_sketch_system_prompt: `You are a concept artist at Lovepop, a premium 3D pop-up greeting card company. Create an architectural concept sketch showing the structure and layout of a Lovepop pop-up card. Show both the cover design composition and the inside 3D pop-up sculpture mechanism. Use a clean, technical illustration style that shows depth, layers, fold lines, and pop-up mechanics. Black and white line art only — no color.`,
+  cd_sketch_system_prompt_base: `You are a concept artist at Lovepop, a premium 3D pop-up greeting card company. Create an architectural concept sketch showing the structure and layout of a Lovepop pop-up card. Show both the cover design composition and the inside 3D pop-up sculpture mechanism. Use a clean, technical illustration style that shows depth, layers, fold lines, and pop-up mechanics. Black and white line art only — no color.`,
+  cd_sketch_fidelity_loose: `Render as a quick, gestural thumbnail sketch — minimal detail, rough pencil strokes, focus on silhouette and composition only. Don't show fine mechanics.`,
+  cd_sketch_fidelity_standard: `Render as a clean architectural concept sketch with clear fold lines, layer indications, and readable pop-up mechanics. Medium detail.`,
+  cd_sketch_fidelity_tight: `Render as a highly detailed production-ready concept sketch with precise fold lines, layer counts, dimension callouts, and fully resolved pop-up mechanics. Include corner registration marks.`,
 
   // Quote generator
   ai_quote_instructions: `You are a creative voice for Lovepop, a premium pop-up greeting card company. Generate an authentic, in-character quote for the character described below — the kind of thing they might say on a greeting card or in a brand story. The quote should be warm, specific, and feel genuinely like this character's voice. It should resonate emotionally and be shareable.
@@ -665,8 +678,11 @@ module.exports = {
     if (!row) return null;
     return {
       ...row,
-      product_data:  parseJSON(row.product_data, {}),
-      selected_copy: parseJSON(row.selected_copy, {}),
+      product_data:   parseJSON(row.product_data, {}),
+      selected_copy:  parseJSON(row.selected_copy, {}),
+      sketch_rounds:  parseJSON(row.sketch_rounds, []),
+      copy_rounds:    parseJSON(row.copy_rounds, []),
+      concept_rounds: parseJSON(row.concept_rounds, []),
     };
   },
   getAllCardDesigns() {
@@ -676,7 +692,7 @@ module.exports = {
     return this._parseCardDesign(db.prepare('SELECT * FROM card_designs WHERE id = ?').get(id));
   },
   createCardDesign(data) {
-    const { name = '', sku = '', status = 'draft', product_data = {}, notes = '' } = data;
+    const { name = '', sku = '', status = 'in-development', product_data = {}, notes = '' } = data;
     db.prepare(`
       INSERT INTO card_designs (name, sku, status, product_data, notes)
       VALUES (?, ?, ?, ?, ?)
@@ -684,8 +700,8 @@ module.exports = {
     return this._parseCardDesign(db.prepare('SELECT * FROM card_designs ORDER BY rowid DESC LIMIT 1').get());
   },
   updateCardDesign(id, data) {
-    const jsonFields = ['product_data', 'selected_copy'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes'];
+    const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
@@ -701,5 +717,11 @@ module.exports = {
   },
   deleteCardDesign(id) {
     return db.prepare('DELETE FROM card_designs WHERE id = ?').run(id);
+  },
+  getCharacterNamesMap() {
+    return Object.fromEntries(db.prepare('SELECT id, name FROM characters').all().map(r => [String(r.id), r.name || '']));
+  },
+  getArtStyleNamesMap() {
+    return Object.fromEntries(db.prepare('SELECT id, name FROM art_styles').all().map(r => [String(r.id), r.name || '']));
   },
 };

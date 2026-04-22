@@ -70,8 +70,37 @@ function loadRefParts(imagePaths) {
 
 // ── CRUD ──────────────────────────────────────────────────────
 router.get('/designs', (req, res) => {
-  try { res.json(db.getAllCardDesigns()); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  try {
+    const { status, q } = req.query;
+    let list = db.getAllCardDesigns();
+    if (status) list = list.filter(d => d.status === status);
+    if (q) {
+      const lq = q.toLowerCase();
+      list = list.filter(d =>
+        (d.name || '').toLowerCase().includes(lq) ||
+        (d.sku  || '').toLowerCase().includes(lq)
+      );
+    }
+    const charMap  = db.getCharacterNamesMap();
+    const styleMap = db.getArtStyleNamesMap();
+    const enriched = list.map(d => {
+      const hasCopy    = !!(d.selected_copy && (d.selected_copy.cover || d.selected_copy.inside_left));
+      const hasSketch  = !!d.selected_sketch_url;
+      const hasConcept = !!d.selected_concept_url;
+      return {
+        ...d,
+        character_name: d.character_id ? (charMap[String(d.character_id)] || '') : '',
+        art_style_name: d.art_style_id  ? (styleMap[String(d.art_style_id)]  || '') : '',
+        progress: [
+          hasCopy    ? 'done' : (d.copy_rounds?.length    ? 'active' : 'empty'),
+          hasSketch  ? 'done' : (d.sketch_rounds?.length  ? 'active' : 'empty'),
+          hasConcept ? 'done' : (d.concept_rounds?.length ? 'active' : 'empty'),
+        ],
+        rounds_count: (d.copy_rounds?.length || 0) + (d.sketch_rounds?.length || 0) + (d.concept_rounds?.length || 0),
+      };
+    });
+    res.json(enriched);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.post('/designs', (req, res) => {
@@ -86,6 +115,11 @@ router.get('/designs/:id', (req, res) => {
 });
 
 router.put('/designs/:id', (req, res) => {
+  try { res.json(db.updateCardDesign(req.params.id, req.body)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.patch('/designs/:id', (req, res) => {
   try { res.json(db.updateCardDesign(req.params.id, req.body)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -180,6 +214,104 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
     console.error('[card-designer] generate-copy error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Sketch round (new round-based system) ─────────────────────
+router.post('/designs/:id/sketch/round', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
+  if (!geminiKey) return res.status(400).json({ error: 'Gemini API key not configured. Add it in Settings → Card Designer.' });
+
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+
+  const settings = db.getAllSettings();
+  const model    = settings.gemini_model || db.DEFAULTS.gemini_model;
+  const { refine_note = '', fidelity = 'standard', count = 3, parent_card_id = null } = req.body;
+
+  const product = design.product_data || {};
+  const copy    = design.selected_copy || {};
+  const basePrompt    = settings.cd_sketch_system_prompt_base || settings.cd_sketch_system_prompt || db.DEFAULTS.cd_sketch_system_prompt_base || db.DEFAULTS.cd_sketch_system_prompt || '';
+  const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
+
+  const buildPrompt = () => {
+    const lines = [
+      basePrompt,
+      fidelityPart ? `\n${fidelityPart}` : '',
+      `\nPRODUCT: ${product.name || 'Lovepop Card'}`,
+      `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
+      copy.cover       ? `COVER COPY: "${copy.cover}"` : '',
+      copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
+      copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
+      refine_note ? `\nRefinement direction: ${refine_note}` : '',
+    ];
+    const prevRounds = design.sketch_rounds || [];
+    if (prevRounds.length > 0) {
+      const dislikedNotes = prevRounds.flatMap(r => r.cards.filter(c => c.vote === 'disliked' && c.note).map(c => c.note));
+      if (dislikedNotes.length) lines.push(`\nAvoid: ${dislikedNotes.join('; ')}`);
+    }
+    return lines.filter(Boolean).join('\n');
+  };
+
+  const generateOne = async () => {
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt());
+    return saveBase64Image(base64, 'cd-sketch');
+  };
+
+  try {
+    const n = Math.min(Math.max(1, parseInt(count, 10) || 3), 9);
+    const urls = await Promise.all(Array.from({ length: n }, () => generateOne()));
+    const newRound = {
+      id: crypto.randomBytes(8).toString('hex'),
+      index: (design.sketch_rounds?.length || 0) + 1,
+      created_at: new Date().toISOString(),
+      refine_note,
+      fidelity,
+      parent_card_id: parent_card_id || null,
+      cards: urls.map(url => ({ id: crypto.randomBytes(8).toString('hex'), url, vote: null, note: '' })),
+    };
+    const updatedRounds = [...(design.sketch_rounds || []), newRound];
+    const updated = db.updateCardDesign(req.params.id, { sketch_rounds: updatedRounds });
+    res.json({ round: newRound, design: updated });
+  } catch (e) {
+    console.error('[sketch/round] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Update sketch card vote/note ───────────────────────────────
+router.patch('/designs/:id/sketch/card/:cardId', (req, res) => {
+  try {
+    const design = db.getCardDesign(req.params.id);
+    if (!design) return res.status(404).json({ error: 'Design not found' });
+    const { vote, note } = req.body;
+    const updatedRounds = (design.sketch_rounds || []).map(round => ({
+      ...round,
+      cards: round.cards.map(card =>
+        card.id === req.params.cardId
+          ? { ...card, ...(vote !== undefined ? { vote } : {}), ...(note !== undefined ? { note } : {}) }
+          : card
+      ),
+    }));
+    const updated = db.updateCardDesign(req.params.id, { sketch_rounds: updatedRounds });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Promote sketch to concept ──────────────────────────────────
+router.post('/designs/:id/promote-sketch', (req, res) => {
+  try {
+    const design = db.getCardDesign(req.params.id);
+    if (!design) return res.status(404).json({ error: 'Design not found' });
+    const { card_id } = req.body;
+    let selectedUrl = null;
+    for (const round of design.sketch_rounds || []) {
+      const card = round.cards.find(c => c.id === card_id);
+      if (card) { selectedUrl = card.url; break; }
+    }
+    if (!selectedUrl) return res.status(404).json({ error: 'Card not found in sketch rounds' });
+    const updated = db.updateCardDesign(req.params.id, { selected_sketch_url: selectedUrl, active_module: 'concept' });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Generate concept sketch (3 Gemini calls in parallel) ──────
