@@ -53,6 +53,7 @@ function loadRefParts(imagePaths) {
       path.join(UPLOADS_DIR, filename),
       path.join(UPLOADS_DIR, 'image-samples', filename),
       path.join(UPLOADS_DIR, 'artstyle-samples', filename),
+      path.join(UPLOADS_DIR, 'cover-sketch-samples', filename),
     ];
     const fullPath = candidates.find(p => fs.existsSync(p));
     if (!fullPath) continue;
@@ -84,19 +85,21 @@ router.get('/designs', (req, res) => {
     const charMap  = db.getCharacterNamesMap();
     const styleMap = db.getArtStyleNamesMap();
     const enriched = list.map(d => {
-      const hasCopy    = !!(d.selected_copy && (d.selected_copy.cover || d.selected_copy.inside_left));
-      const hasSketch  = !!d.selected_sketch_url;
-      const hasConcept = !!d.selected_concept_url;
+      const hasCopy        = !!(d.selected_copy && (d.selected_copy.cover || d.selected_copy.inside_left));
+      const hasInsideSketch = !!d.selected_sketch_url;
+      const hasCoverSketch  = !!d.selected_cover_sketch_url;
+      const hasConcept      = !!d.selected_concept_url;
       return {
         ...d,
         character_name: d.character_id ? (charMap[String(d.character_id)] || '') : '',
         art_style_name: d.art_style_id  ? (styleMap[String(d.art_style_id)]  || '') : '',
         progress: [
-          hasCopy    ? 'done' : (d.copy_rounds?.length    ? 'active' : 'empty'),
-          hasSketch  ? 'done' : (d.sketch_rounds?.length  ? 'active' : 'empty'),
-          hasConcept ? 'done' : (d.concept_rounds?.length ? 'active' : 'empty'),
+          hasCopy         ? 'done' : (d.copy_rounds?.length          ? 'active' : 'empty'),
+          hasInsideSketch ? 'done' : (d.sketch_rounds?.length        ? 'active' : 'empty'),
+          hasCoverSketch  ? 'done' : (d.cover_sketch_rounds?.length  ? 'active' : 'empty'),
+          hasConcept      ? 'done' : (d.concept_rounds?.length       ? 'active' : 'empty'),
         ],
-        rounds_count: (d.copy_rounds?.length || 0) + (d.sketch_rounds?.length || 0) + (d.concept_rounds?.length || 0),
+        rounds_count: (d.copy_rounds?.length || 0) + (d.sketch_rounds?.length || 0) + (d.cover_sketch_rounds?.length || 0) + (d.concept_rounds?.length || 0),
       };
     });
     res.json(enriched);
@@ -402,6 +405,163 @@ router.post('/designs/:id/promote-sketch', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Cover sketch round ─────────────────────────────────────────
+router.post('/designs/:id/cover-sketch/round', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
+  if (!geminiKey) return res.status(400).json({ error: 'Gemini API key not configured. Add it in Settings → Card Designer.' });
+
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+
+  const settings = db.getAllSettings();
+  const model    = settings.gemini_model || db.DEFAULTS.gemini_model;
+  const { refine_note = '', fidelity = 'standard', count = 3 } = req.body;
+
+  const product       = design.product_data || {};
+  const copy          = design.selected_copy || {};
+  const productTitle  = design.product_title || product.name || '';
+  const basePrompt    = settings.cd_cover_sketch_system_prompt_base || settings.cd_cover_sketch_system_prompt || db.DEFAULTS.cd_cover_sketch_system_prompt_base || db.DEFAULTS.cd_cover_sketch_system_prompt || '';
+  const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
+
+  const sampleImages = (() => {
+    try { return JSON.parse(settings.cd_cover_sketch_samples || '[]'); } catch { return []; }
+  })();
+
+  // Per-design cover reference photo
+  const coverRefPart = (() => {
+    if (!design.cover_ref_image) return null;
+    const filename = path.basename(design.cover_ref_image);
+    const fullPath = path.join(UPLOADS_DIR, 'cover-refs', filename);
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch (e) { console.warn('[cover-sketch] cover ref load error:', e.message); return null; }
+  })();
+
+  const buildPrompt = () => {
+    const lines = [
+      basePrompt,
+      fidelityPart ? `\n${fidelityPart}` : '',
+      `\nPRODUCT: ${productTitle || 'Lovepop Card'}`,
+      `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
+      copy.cover ? `COVER COPY: "${copy.cover}"` : '',
+      coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
+      refine_note ? `\nRefinement direction: ${refine_note}` : '',
+      sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
+    ];
+
+    const prevRounds = design.cover_sketch_rounds || [];
+    if (prevRounds.length > 0) {
+      const labelLines = [];
+      prevRounds.forEach((r, ri) => {
+        (r.cards || []).forEach((c, ci) => {
+          const label = `${ri+1}${String.fromCharCode(65+ci)}`;
+          if (c.note) labelLines.push(`  ${label}: "${c.note}"`);
+        });
+      });
+      if (labelLines.length) lines.push(`\nCover sketch notes by label (reference by label to combine elements):\n${labelLines.join('\n')}`);
+    }
+
+    return lines.filter(Boolean).join('\n');
+  };
+
+  // Build ref parts: [cover ref, ...recent round images, ...sample images]
+  const refParts = (() => {
+    const parts = [];
+    if (coverRefPart) parts.push(coverRefPart);
+    const recentRounds = (design.cover_sketch_rounds || []).slice(-2);
+    for (const round of recentRounds) {
+      for (const card of (round.cards || [])) {
+        if (!card.url) continue;
+        const filename = path.basename(card.url);
+        const fullPath = path.join(UPLOADS_DIR, filename);
+        if (!fs.existsSync(fullPath)) continue;
+        try {
+          const buf = fs.readFileSync(fullPath);
+          const ext = path.extname(fullPath).slice(1).toLowerCase();
+          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
+        } catch (e) { console.warn('[cover-sketch] prev round image load error:', e.message); }
+      }
+    }
+    for (const imgPath of sampleImages.slice(0, 2)) {
+      const filename = path.basename(imgPath);
+      const fullPath = path.join(UPLOADS_DIR, 'cover-sketch-samples', filename);
+      if (!fs.existsSync(fullPath)) continue;
+      try {
+        const buf = fs.readFileSync(fullPath);
+        const ext = path.extname(fullPath).slice(1).toLowerCase();
+        const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
+      } catch (e) { console.warn('[cover-sketch] sample image load error:', e.message); }
+    }
+    return parts;
+  })();
+
+  const generateOne = async () => {
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), refParts);
+    return saveBase64Image(base64, 'cd-cover-sketch');
+  };
+
+  try {
+    const n = Math.min(Math.max(1, parseInt(count, 10) || 3), 9);
+    const urls = await Promise.all(Array.from({ length: n }, () => generateOne()));
+    const newRound = {
+      id: crypto.randomBytes(8).toString('hex'),
+      index: (design.cover_sketch_rounds?.length || 0) + 1,
+      created_at: new Date().toISOString(),
+      refine_note,
+      fidelity,
+      cards: urls.map(url => ({ id: crypto.randomBytes(8).toString('hex'), url, vote: null, note: '' })),
+    };
+    const updatedRounds = [...(design.cover_sketch_rounds || []), newRound];
+    const updated = db.updateCardDesign(req.params.id, { cover_sketch_rounds: updatedRounds });
+    res.json({ round: newRound, design: updated });
+  } catch (e) {
+    console.error('[cover-sketch/round] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Update cover sketch card vote/note ─────────────────────────
+router.patch('/designs/:id/cover-sketch/card/:cardId', (req, res) => {
+  try {
+    const design = db.getCardDesign(req.params.id);
+    if (!design) return res.status(404).json({ error: 'Design not found' });
+    const { vote, note } = req.body;
+    const updatedRounds = (design.cover_sketch_rounds || []).map(round => ({
+      ...round,
+      cards: round.cards.map(card =>
+        card.id === req.params.cardId
+          ? { ...card, ...(vote !== undefined ? { vote } : {}), ...(note !== undefined ? { note } : {}) }
+          : card
+      ),
+    }));
+    const updated = db.updateCardDesign(req.params.id, { cover_sketch_rounds: updatedRounds });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Promote cover sketch ───────────────────────────────────────
+router.post('/designs/:id/promote-cover-sketch', (req, res) => {
+  try {
+    const design = db.getCardDesign(req.params.id);
+    if (!design) return res.status(404).json({ error: 'Design not found' });
+    const { card_id } = req.body;
+    let selectedUrl = null;
+    for (const round of design.cover_sketch_rounds || []) {
+      const card = round.cards.find(c => c.id === card_id);
+      if (card) { selectedUrl = card.url; break; }
+    }
+    if (!selectedUrl) return res.status(404).json({ error: 'Card not found in cover sketch rounds' });
+    const updated = db.updateCardDesign(req.params.id, { selected_cover_sketch_url: selectedUrl });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Generate concept sketch (3 Gemini calls in parallel) ──────
 router.post('/designs/:id/generate-sketch', async (req, res) => {
   const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
@@ -493,6 +653,20 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
     } catch { return null; }
   })();
 
+  // Load selected cover sketch as reference
+  const selectedCoverSketchPart = (() => {
+    if (!design.selected_cover_sketch_url) return null;
+    const filename = path.basename(design.selected_cover_sketch_url);
+    const fullPath = path.join(UPLOADS_DIR, filename);
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch { return null; }
+  })();
+
   const buildPrompt = () => {
     const lines = [
       `Create a detailed full-color product illustration for a Lovepop pop-up greeting card.`,
@@ -518,7 +692,8 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
       if (artStyle.characteristic_elements) lines.push(`Elements: ${artStyle.characteristic_elements}`);
     }
 
-    if (sketchRefPart) lines.push(`\nSELECTED SKETCH: A sketch has been provided as the structural/compositional reference. Translate it into a polished full-color illustration — preserve the layout and pop-up structure while applying the art style.`);
+    if (sketchRefPart) lines.push(`\nSELECTED INSIDE SKETCH: An inside sketch has been provided as the structural/compositional reference. Translate it into a polished full-color illustration — preserve the layout and pop-up structure while applying the art style.`);
+    if (selectedCoverSketchPart) lines.push(`\nSELECTED COVER SKETCH: A cover sketch has been provided as compositional reference for the card cover. Use it to guide the cover design and layout.`);
     if (coverRefPart)  lines.push(`\nCOVER REFERENCE: A cover reference image is provided. Use it to guide the cover composition and layout style.`);
     if (direction)     lines.push(`\nDirection / notes: ${direction}`);
     if (refine_note)   lines.push(`\nRefinement: ${refine_note}`);
@@ -540,8 +715,9 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
 
   const buildRefParts = () => {
     const parts = [];
-    if (sketchRefPart) parts.push(sketchRefPart);
-    if (coverRefPart)  parts.push(coverRefPart);
+    if (sketchRefPart)           parts.push(sketchRefPart);
+    if (selectedCoverSketchPart) parts.push(selectedCoverSketchPart);
+    if (coverRefPart)            parts.push(coverRefPart);
     if (character?.images?.length) parts.push(...loadRefParts(character.images.slice(0, 2)));
     if (artStyle?.images?.length)  parts.push(...loadRefParts(artStyle.images.slice(0, 2)));
     return parts;

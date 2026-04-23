@@ -33,6 +33,10 @@ if (!fs.existsSync(ARTSTYLE_SAMPLES_DIR)) fs.mkdirSync(ARTSTYLE_SAMPLES_DIR, { r
 const SKETCH_SAMPLES_DIR = path.join(UPLOADS_DIR, 'sketch-samples');
 if (!fs.existsSync(SKETCH_SAMPLES_DIR)) fs.mkdirSync(SKETCH_SAMPLES_DIR, { recursive: true });
 
+// Cover sketch samples dir
+const COVER_SKETCH_SAMPLES_DIR = path.join(UPLOADS_DIR, 'cover-sketch-samples');
+if (!fs.existsSync(COVER_SKETCH_SAMPLES_DIR)) fs.mkdirSync(COVER_SKETCH_SAMPLES_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -66,6 +70,17 @@ const sketchSampleStorage = multer.diskStorage({
   },
 });
 const uploadSketchSample = multer({ storage: sketchSampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const uploadCoverSketchSample = multer({
+  storage: multer.diskStorage({
+    destination: COVER_SKETCH_SAMPLES_DIR,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      const crypto = require('crypto');
+      cb(null, `cover-sketch-sample-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 
 // Sketch reference image dir — per-design 3D sculpture reference photos
 const SKETCH_REF_DIR = path.join(UPLOADS_DIR, 'sketch-refs');
@@ -687,6 +702,30 @@ app.delete('/api/settings/sketch-samples/:filename', (req, res) => {
   const updated = current.filter(p => !p.endsWith('/' + filename));
   db.setSetting('cd_sketch_samples', JSON.stringify(updated));
   res.json({ success: true, samples: updated });
+});
+
+// ── Cover Sketch Sample endpoints ─────────────────────────────
+app.get('/api/settings/cover-sketch-samples', (req, res) => {
+  const raw = db.getSetting('cd_cover_sketch_samples');
+  res.json(JSON.parse(raw || '[]'));
+});
+app.post('/api/settings/cover-sketch-samples', uploadCoverSketchSample.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const imgPath = `/uploads/cover-sketch-samples/${req.file.filename}`;
+  const raw = db.getSetting('cd_cover_sketch_samples');
+  const current = JSON.parse(raw || '[]');
+  current.push(imgPath);
+  db.setSetting('cd_cover_sketch_samples', JSON.stringify(current));
+  res.json({ path: imgPath, samples: current });
+});
+app.delete('/api/settings/cover-sketch-samples/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(COVER_SKETCH_SAMPLES_DIR, filename);
+  if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+  const raw = db.getSetting('cd_cover_sketch_samples');
+  const updated = JSON.parse(raw || '[]').filter(p => !p.endsWith(filename));
+  db.setSetting('cd_cover_sketch_samples', JSON.stringify(updated));
+  res.json({ samples: updated });
 });
 
 // ── Sketch Reference Image (per-design 3D sculpture photo) ───

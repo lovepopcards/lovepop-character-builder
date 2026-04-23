@@ -1490,6 +1490,12 @@ function bindSettings() {
     e.target.value = '';
   });
 
+  // Cover sketch sample upload
+  document.getElementById('cd-cover-sketch-samples-upload')?.addEventListener('change', (e) => {
+    if (e.target.files.length) uploadCoverSketchSamples(Array.from(e.target.files));
+    e.target.value = '';
+  });
+
   // Collapsible section toggles
   document.querySelectorAll('.settings-section-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1792,6 +1798,7 @@ async function loadSettings() {
     loadImageSamples();
     loadArtStyleSamples();
     loadSketchSamples();
+    loadCoverSketchSamples();
     // Art Style Generator
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
@@ -1805,6 +1812,7 @@ async function loadSettings() {
     setVal('cd-s-copy-sculpture', s.cd_copy_instruction_sculpture);
     setVal('cd-s-copy-back', s.cd_copy_instruction_back);
     setVal('cd-s-sketch-prompt', s.cd_sketch_system_prompt);
+    setVal('cd-s-cover-sketch-prompt', s.cd_cover_sketch_system_prompt);
 
     // Asset Library / Box settings (null-safe)
     setVal('sf-box-client-id', s.box_client_id);
@@ -1858,6 +1866,9 @@ async function handleSettingsSave() {
       cd_copy_instruction_sculpture: getVal('cd-s-copy-sculpture'),
       cd_copy_instruction_back: getVal('cd-s-copy-back'),
       cd_sketch_system_prompt: getVal('cd-s-sketch-prompt'),
+      cd_sketch_system_prompt_base: getVal('cd-s-sketch-prompt'),
+      cd_cover_sketch_system_prompt: getVal('cd-s-cover-sketch-prompt'),
+      cd_cover_sketch_system_prompt_base: getVal('cd-s-cover-sketch-prompt'),
       // Data tools
       snowflake_account:   getVal('s-sf-account'),
       snowflake_username:  getVal('s-sf-username'),
@@ -3881,6 +3892,61 @@ async function uploadSketchSamples(files) {
     } catch (e) { console.error('Upload failed:', e); }
   }
   renderSketchSamples(lastSamples);
+  if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
+}
+
+// ── Cover Sketch Sample images ────────────────────────────────
+async function loadCoverSketchSamples() {
+  try {
+    const res = await fetch('/api/settings/cover-sketch-samples');
+    const samples = await res.json();
+    renderCoverSketchSamples(samples);
+  } catch (e) { console.error('Could not load cover sketch samples:', e); }
+}
+
+function renderCoverSketchSamples(samples) {
+  const grid = document.getElementById('cd-cover-sketch-samples-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!samples || !samples.length) {
+    grid.innerHTML = '<div class="img-samples-empty">No cover sample sketches uploaded yet.</div>';
+    return;
+  }
+  samples.forEach(imgPath => {
+    const filename = imgPath.split('/').pop();
+    const wrap = document.createElement('div');
+    wrap.className = 'img-samples-item';
+    wrap.innerHTML = `
+      <img src="${esc(imgPath)}" class="img-samples-thumb" alt="Cover sample" loading="lazy" />
+      <button class="img-samples-delete" data-filename="${esc(filename)}" title="Remove">✕</button>
+    `;
+    wrap.querySelector('.img-samples-delete').addEventListener('click', () => deleteCoverSketchSample(filename));
+    grid.appendChild(wrap);
+  });
+}
+
+async function deleteCoverSketchSample(filename) {
+  if (!confirm('Remove this cover sketch sample?')) return;
+  try {
+    const res = await fetch(`/api/settings/cover-sketch-samples/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const { samples } = await res.json();
+    renderCoverSketchSamples(samples);
+  } catch (e) { alert('Could not delete cover sketch sample: ' + e.message); }
+}
+
+async function uploadCoverSketchSamples(files) {
+  const status = document.getElementById('cd-cover-sketch-samples-status');
+  if (status) { status.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''}…`; status.classList.remove('hidden'); }
+  let lastSamples = [];
+  for (const file of files) {
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/api/settings/cover-sketch-samples', { method: 'POST', body: fd });
+      const data = await res.json();
+      lastSamples = data.samples;
+    } catch (e) { console.error('Cover sketch upload failed:', e); }
+  }
+  renderCoverSketchSamples(lastSamples);
   if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
 }
 

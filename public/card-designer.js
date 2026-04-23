@@ -102,6 +102,12 @@
     // Sketch generate
     qs('#cd-sketch-generate-btn')?.addEventListener('click', generateSketchRound);
 
+    // Cover sketch generate
+    qs('#cd-cover-sketch-generate-btn')?.addEventListener('click', generateCoverSketchRound);
+
+    // Product format auto-save on change
+    qs('#cd-product-format')?.addEventListener('change', saveProductFormat);
+
     // Fidelity stops
     document.querySelectorAll('.cd-fidelity-stop').forEach(stop => {
       stop.addEventListener('click', () => setFidelity(stop.dataset.fidelity));
@@ -279,7 +285,7 @@
   }
 
   function cardTileHtml(d) {
-    const progress = d.progress || ['empty', 'empty', 'empty'];
+    const progress = d.progress || ['empty', 'empty', 'empty', 'empty'];
     const isDone   = d.status === 'complete';
     const isReview = d.status === 'ready-for-review';
 
@@ -297,9 +303,10 @@
 
     const copyDone    = progress[0] === 'done';
     const sketchDone  = progress[1] === 'done';
-    const conceptDone = progress[2] === 'done';
+    const coverDone   = progress[2] === 'done';
+    const conceptDone = progress[3] === 'done';
 
-    const nodeLabels = ['Copy', 'Sketch', 'Concept'];
+    const nodeLabels = ['Copy', 'Sketch', 'Cover', 'Concept'];
     const progressNodes = progress.map((s, i) => `
       <div class="cd-prog-node cd-prog-${s}" title="${nodeLabels[i]}">${s === 'done' ? '✓' : ''}</div>
     `).join('');
@@ -309,9 +316,13 @@
     const stylePill = d.art_style_name ? `<span class="cd-ctx-pill"><span class="cd-ctx-dot cd-ctx-dot-grad"></span>${escHtml(d.art_style_name)}</span>` : '';
 
     // Progress summary text
-    const hasCopySelected   = !!(d.selected_copy?.cover || d.selected_copy?.inside_left);
-    const hasSketchSelected = !!d.selected_sketch_url;
-    const roundsText = hasSketchSelected ? 'Sketch selected ✓'
+    const hasCopySelected        = !!(d.selected_copy?.cover || d.selected_copy?.inside_left);
+    const hasSketchSelected      = !!d.selected_sketch_url;
+    const hasCoverSketchSelected = !!d.selected_cover_sketch_url;
+    const hasConceptSelected     = !!d.selected_concept_url;
+    const roundsText = hasConceptSelected ? 'Concept selected ✓'
+      : hasSketchSelected ? 'Inside sketch selected ✓'
+      : hasCoverSketchSelected ? 'Cover sketch selected ✓'
       : hasCopySelected ? 'Copy selected ✓'
       : (d.rounds_count || 0) > 0 ? `${d.rounds_count} round${d.rounds_count !== 1 ? 's' : ''} in progress`
       : 'No rounds yet';
@@ -342,16 +353,17 @@
   }
 
   function tilePreviewImg(d) {
-    // Prefer the most advanced selected image — concept → sketch — then fall back to SVG placeholder
-    const imgUrl = d.selected_concept_url || d.selected_sketch_url || null;
+    // Prefer the most advanced selected image — concept → inside sketch → cover sketch — then fall back to SVG placeholder
+    const imgUrl = d.selected_concept_url || d.selected_sketch_url || d.selected_cover_sketch_url || null;
     if (imgUrl) {
       return `<img src="${escAttr(imgUrl)}" class="cd-tile-preview-img" alt="Selected design" loading="lazy" />`;
     }
     // SVG fallback based on progress state
-    const progress   = d.progress || ['empty', 'empty', 'empty'];
+    const progress   = d.progress || ['empty', 'empty', 'empty', 'empty'];
     const copyDone   = progress[0] === 'done';
     const sketchDone = progress[1] === 'done';
-    const conceptDone= progress[2] === 'done';
+    const coverDone  = progress[2] === 'done';
+    const conceptDone= progress[3] === 'done';
     const isDone     = d.status === 'complete';
     return tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone);
   }
@@ -506,9 +518,14 @@
     sketchVotes  = [{}, {}, {}];
     conceptVotes = [{}, {}, {}];
 
+    // Product format
+    const productFormatEl = qs('#cd-product-format');
+    if (productFormatEl) productFormatEl.value = activeDesign.product_format || '';
+
     updateSidebarMeta();
     renderCopyRounds();
     renderSketchRounds();
+    renderCoverSketchRounds();
     renderConceptRounds();
     clearRightCard();
 
@@ -591,34 +608,41 @@
     );
 
     // Show/hide module content panels
-    document.querySelectorAll('.cd-module').forEach(m => {
-      const isTarget = m.id === `cd-module-${name}`;
-      m.classList.toggle('hidden', !isTarget);
-      m.classList.toggle('active', isTarget);
-    });
+    for (const mod of ['copy', 'sketch', 'cover-sketch', 'concept']) {
+      qs(`#cd-module-${mod}`)?.classList.toggle('hidden', mod !== name);
+      qs(`#cd-module-${mod}`)?.classList.toggle('active', mod === name);
+    }
 
-    const isSketch  = name === 'sketch';
-    const isConcept = name === 'concept';
-    const needsStyle = isConcept; // art style only on concept now
+    const isInsideSketch = name === 'sketch';
+    const isCoverSketch  = name === 'cover-sketch';
+    const isConcept      = name === 'concept';
 
     // Sidebar section visibility
-    qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
-    qs('#cd-brief-art-style')?.classList.toggle('hidden', !needsStyle);
-    qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isSketch && !isConcept);
+    qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isInsideSketch && !isCoverSketch);
+    qs('#cd-brief-art-style')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isInsideSketch && !isCoverSketch && !isConcept);
     qs('#cd-brief-selected-sketch')?.classList.toggle('hidden', !isConcept);
-    qs('#cd-brief-cover-ref')?.classList.toggle('hidden', !isSketch);
-    qs('#cd-brief-sculpture-ref')?.classList.toggle('hidden', !isSketch);
-    qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-brief-selected-cover-sketch')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-brief-cover-ref')?.classList.toggle('hidden', !isCoverSketch);
+    qs('#cd-brief-sculpture-ref')?.classList.toggle('hidden', !isInsideSketch);
+    qs('#cd-refine-bar')?.classList.toggle('hidden', !isInsideSketch);
+    qs('#cd-cover-sketch-refine-bar')?.classList.toggle('hidden', !isCoverSketch);
     qs('#cd-concept-refine-bar')?.classList.toggle('hidden', !isConcept);
-    if (isSketch) {
+
+    if (isInsideSketch) {
       updateRefineBar();
       renderSelectedCopyBrief();
       renderSculptureRef();
+    }
+    if (isCoverSketch) {
+      updateCoverSketchRefineBar();
+      renderSelectedCopyBrief();
       renderCoverRef();
     }
     if (isConcept) {
       renderSelectedCopyBrief();
       renderSelectedSketchBrief();
+      renderSelectedCoverSketchBrief();
       updateConceptGenerateBtn();
     }
 
@@ -636,19 +660,25 @@
       const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
       regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
       if (regenHint) regenHint.textContent = hasRounds
-        ? 'Iterate on feedback from your comments.'
+        ? 'Generate a new round of copy options.'
         : 'Generate the first round of copy options.';
     } else if (mod === 'sketch') {
       const hasRounds = (activeDesign?.sketch_rounds?.length || 0) > 0;
       regenBtn.textContent = hasRounds ? '✨ Regenerate sketches' : '✨ Generate sketches';
       if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new sketch round.'
-        : 'Generate the first round of sketches.';
+        ? 'Generate a new round of inside sketches.'
+        : 'Generate the first round of inside sketches.';
+    } else if (mod === 'cover-sketch') {
+      const hasRounds = (activeDesign?.cover_sketch_rounds?.length || 0) > 0;
+      regenBtn.textContent = hasRounds ? '✨ Regenerate cover sketches' : '✨ Generate cover sketches';
+      if (regenHint) regenHint.textContent = hasRounds
+        ? 'Generate a new round of cover sketches.'
+        : 'Generate the first round of cover sketches.';
     } else {
       const hasRounds = (activeDesign?.concept_rounds?.length || 0) > 0;
       regenBtn.textContent = hasRounds ? '✨ Regenerate concepts' : '✨ Generate concepts';
       if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new concept round.'
+        ? 'Generate a new round of detailed concepts.'
         : 'Generate the first detailed concepts.';
     }
   }
@@ -680,10 +710,21 @@
     if (!el) return;
     const url = activeDesign?.selected_sketch_url;
     if (!url) {
-      el.innerHTML = '<em class="cd-brief-no-selection">No sketch selected yet — go to Sketches tab first.</em>';
+      el.innerHTML = '<em class="cd-brief-no-selection">No inside sketch selected yet — go to Inside Sketch tab first.</em>';
       return;
     }
-    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected sketch" title="Click to enlarge" />`;
+    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected inside sketch" title="Click to enlarge" />`;
+  }
+
+  function renderSelectedCoverSketchBrief() {
+    const el = qs('#cd-brief-selected-cover-sketch-content');
+    if (!el) return;
+    const url = activeDesign?.selected_cover_sketch_url;
+    if (!url) {
+      el.innerHTML = '<em class="cd-brief-no-selection">No cover sketch selected yet.</em>';
+      return;
+    }
+    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected cover sketch" title="Click to enlarge" />`;
   }
 
   function updateConceptGenerateBtn() {
@@ -932,6 +973,22 @@
     }
   }
 
+  async function saveProductFormat() {
+    if (!activeDesign) return;
+    const product_format = qs('#cd-product-format')?.value || '';
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_format }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+    } catch (e) {
+      console.warn('[card-designer] saveProductFormat error:', e.message);
+    }
+  }
+
   // ── Product search ─────────────────────────────────────────────
   async function getProducts() {
     if (!allProducts) {
@@ -1008,6 +1065,7 @@
     // Only run for copy module — if another module is active, delegate
     const activeModule = lsGet(activeDesign.id, 'active_module', 'copy');
     if (activeModule === 'sketch') { generateSketchRound(); return; }
+    if (activeModule === 'cover-sketch') { generateCoverSketchRound(); return; }
     if (activeModule === 'concept') { generateConcept(); return; }
 
     const btn = qs('#cd-regen-btn');
@@ -1454,6 +1512,14 @@
     if (btn) btn.textContent = `Generate Round ${nextRound} →`;
   }
 
+  function updateCoverSketchRefineBar() {
+    if (!activeDesign) return;
+    const allRounds = activeDesign.cover_sketch_rounds || [];
+    const nextRound = allRounds.length + 1;
+    const btn = qs('#cd-cover-sketch-generate-btn');
+    if (btn) btn.textContent = `Generate Round ${nextRound} →`;
+  }
+
   async function generateSketchRound() {
     if (!activeDesign) return;
     const btn         = qs('#cd-sketch-generate-btn');
@@ -1541,6 +1607,160 @@
     await patchSketchCard(focusedSketchCard.id, { vote: 'pin' });
     const refineInput = qs('#cd-refine-input');
     if (refineInput) refineInput.focus();
+  }
+
+  // ── Cover Sketch ───────────────────────────────────────────────
+  async function generateCoverSketchRound() {
+    if (!activeDesign) return;
+    const btn         = qs('#cd-cover-sketch-generate-btn');
+    const refineInput = qs('#cd-cover-sketch-refine-input');
+    const refine_note = refineInput?.value?.trim() || '';
+    const fidelity    = lsGet(activeDesign.id, 'fidelity', 'standard');
+    const allRounds   = activeDesign.cover_sketch_rounds || [];
+    const roundNum    = allRounds.length + 1;
+
+    if (btn) { btn.disabled = true; btn.textContent = `⏳ Generating Round ${roundNum}…`; }
+
+    // Show skeleton placeholders
+    const emptyEl = qs('#cd-cover-sketch-empty');
+    const listEl  = qs('#cd-cover-sketch-rounds');
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (listEl) {
+      const skeleton = document.createElement('div');
+      skeleton.className = 'cd-round cd-round-skeleton';
+      skeleton.innerHTML = `
+        <div class="cd-round-header"><span class="cd-round-label">Round ${roundNum}</span></div>
+        <div class="cd-round-grid">
+          <div class="cd-sk-card cd-sk-card-skeleton"><div class="cd-sk-card-img-placeholder"></div></div>
+          <div class="cd-sk-card cd-sk-card-skeleton"><div class="cd-sk-card-img-placeholder"></div></div>
+          <div class="cd-sk-card cd-sk-card-skeleton"><div class="cd-sk-card-img-placeholder"></div></div>
+        </div>`;
+      listEl.appendChild(skeleton);
+      skeleton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/cover-sketch/round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refine_note, fidelity, count: 3 }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Generation failed');
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      if (refineInput) refineInput.value = '';
+    } catch (e) {
+      alert(`Cover sketch generation failed: ${e.message}`);
+      if (emptyEl && !(activeDesign.cover_sketch_rounds || []).length) emptyEl.classList.remove('hidden');
+    } finally {
+      renderCoverSketchRounds();
+      updateCoverSketchRefineBar();
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function renderCoverSketchRounds() {
+    if (!activeDesign) return;
+    const rounds  = activeDesign.cover_sketch_rounds || [];
+    const emptyEl = qs('#cd-cover-sketch-empty');
+    const listEl  = qs('#cd-cover-sketch-rounds');
+    if (!emptyEl || !listEl) return;
+
+    if (!rounds.length) {
+      emptyEl.classList.remove('hidden');
+      listEl.innerHTML = '';
+      updateCoverSketchRefineBar();
+      return;
+    }
+
+    emptyEl.classList.add('hidden');
+    listEl.innerHTML = rounds.map((round, ri) => {
+      const cards = round.cards || [];
+      return `
+        <div class="cd-round" data-round-id="${escAttr(round.id)}">
+          <div class="cd-round-header">
+            <span class="cd-round-label">Round ${ri + 1}</span>
+            ${round.refine_note ? `<span class="cd-round-note">${escHtml(round.refine_note)}</span>` : ''}
+          </div>
+          <div class="cd-round-grid">
+            ${cards.map((card, ci) => coverSketchCardHtml(card, ri, ci)).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Bind card interactions
+    listEl.querySelectorAll('.cd-cover-sk-card').forEach(cardEl => {
+      const cardId = cardEl.dataset.cardId;
+
+      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
+        patchCoverSketchCard(cardId, { note: e.target.value });
+      });
+
+      cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        selectCoverSketchCard(cardId);
+      });
+    });
+
+    updateCoverSketchRefineBar();
+  }
+
+  function coverSketchCardHtml(card, roundIdx, cardIdx) {
+    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
+    const isSelected = activeDesign?.selected_cover_sketch_url === card.url;
+    const classes = ['cd-sk-card cd-cover-sk-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
+    return `
+      <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
+        <div class="cd-sk-card-label">${escHtml(label)}</div>
+        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Cover Sketch ${label}" title="Click to enlarge" />
+        <div class="cd-sk-card-footer">
+          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
+          <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
+            ${isSelected ? '✓ Selected' : 'Select'}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function patchCoverSketchCard(cardId, updates) {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/cover-sketch/card/${cardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Update failed');
+      activeDesign = data;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCoverSketchRounds();
+    } catch (e) {
+      console.error('[cover-sketch] patchCoverSketchCard error:', e.message);
+    }
+  }
+
+  async function selectCoverSketchCard(cardId) {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/promote-cover-sketch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ card_id: cardId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Promote failed');
+      activeDesign = data;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCoverSketchRounds();
+      renderSelectedCoverSketchBrief();
+      updateSidebarMeta();
+    } catch (e) {
+      alert(`Could not select cover sketch: ${e.message}`);
+    }
   }
 
   // ── Detailed Concept ───────────────────────────────────────────

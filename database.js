@@ -214,6 +214,9 @@ if (!existingCardDesignCols.includes('active_module'))  db.exec(`ALTER TABLE car
 if (!existingCardDesignCols.includes('product_title'))    db.exec(`ALTER TABLE card_designs ADD COLUMN product_title TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('sketch_ref_image')) db.exec(`ALTER TABLE card_designs ADD COLUMN sketch_ref_image TEXT DEFAULT NULL`);
 if (!existingCardDesignCols.includes('cover_ref_image')) db.exec(`ALTER TABLE card_designs ADD COLUMN cover_ref_image TEXT DEFAULT NULL`);
+if (!existingCardDesignCols.includes('cover_sketch_rounds'))       db.exec(`ALTER TABLE card_designs ADD COLUMN cover_sketch_rounds TEXT DEFAULT '[]'`);
+if (!existingCardDesignCols.includes('selected_cover_sketch_url')) db.exec(`ALTER TABLE card_designs ADD COLUMN selected_cover_sketch_url TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('product_format'))            db.exec(`ALTER TABLE card_designs ADD COLUMN product_format TEXT DEFAULT ''`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -319,6 +322,9 @@ DO NOT include any greeting card images or greeting card shapes. It should only 
   cd_copy_instruction_back: `Write the back of card copy (1–2 short lines). Typically a tagline or brief brand message — a lovely, memorable send-off.`,
   cd_sketch_system_prompt: `You are a concept artist at Lovepop, a premium 3D pop-up greeting card company. Create an architectural concept sketch showing the structure and layout of a Lovepop pop-up card. Show both the cover design composition and the inside 3D pop-up sculpture mechanism. Use a clean, technical illustration style that shows depth, layers, fold lines, and pop-up mechanics. Black and white line art only — no color.`,
   cd_sketch_system_prompt_base: `You are a concept artist at Lovepop, a premium 3D pop-up greeting card company. Create an architectural concept sketch showing the structure and layout of a Lovepop pop-up card. Show both the cover design composition and the inside 3D pop-up sculpture mechanism. Use a clean, technical illustration style that shows depth, layers, fold lines, and pop-up mechanics. Black and white line art only — no color.`,
+  cd_cover_sketch_system_prompt: `You are a graphic designer at Lovepop, a premium 3D pop-up greeting card company. Create a cover design sketch for a Lovepop greeting card. The cover is a flat 2D illustration on the card exterior. Show the full card cover composition with decorative illustration elements, typography placement guides, and overall layout. Use a clean editorial illustration style with thoughtful visual hierarchy. Black and white line art with light tonal shading — no color. Focus on compositional balance and decorative elements that evoke the occasion and sentiment.`,
+  cd_cover_sketch_system_prompt_base: `You are a graphic designer at Lovepop, a premium 3D pop-up greeting card company. Create a cover design sketch for a Lovepop greeting card. The cover is a flat 2D illustration on the card exterior. Show the full card cover composition with decorative illustration elements, typography placement guides, and overall layout. Use a clean editorial illustration style with thoughtful visual hierarchy. Black and white line art with light tonal shading — no color. Focus on compositional balance and decorative elements that evoke the occasion and sentiment.`,
+  cd_cover_sketch_samples: '[]',
   cd_sketch_fidelity_loose: `Render as a quick, gestural thumbnail sketch — minimal detail, rough pencil strokes, focus on silhouette and composition only. Don't show fine mechanics.`,
   cd_sketch_fidelity_standard: `Render as a clean architectural concept sketch with clear fold lines, layer indications, and readable pop-up mechanics. Medium detail.`,
   cd_sketch_fidelity_tight: `Render as a highly detailed production-ready concept sketch with precise fold lines, layer counts, dimension callouts, and fully resolved pop-up mechanics. Include corner registration marks.`,
@@ -686,6 +692,7 @@ module.exports = {
       sketch_rounds:  parseJSON(row.sketch_rounds, []),
       copy_rounds:    parseJSON(row.copy_rounds, []),
       concept_rounds: parseJSON(row.concept_rounds, []),
+      cover_sketch_rounds: parseJSON(row.cover_sketch_rounds, []),
     };
   },
   getAllCardDesigns() {
@@ -703,8 +710,8 @@ module.exports = {
     return this._parseCardDesign(db.prepare('SELECT * FROM card_designs ORDER BY rowid DESC LIMIT 1').get());
   },
   updateCardDesign(id, data) {
-    const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image'];
+    const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'cover_sketch_rounds'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
