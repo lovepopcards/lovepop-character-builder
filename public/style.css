@@ -1958,6 +1958,14 @@ html, body {
   display: flex; justify-content: flex-end; gap: 10px;
   padding-top: 14px; margin-top: auto; flex-shrink: 0;
 }
+.btn-primary-sm {
+  background: var(--coral); border: 1.5px solid var(--coral);
+  color: #fff; border-radius: var(--radius-sm);
+  padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .12s;
+}
+.btn-primary-sm:hover { background: var(--coral-hover); }
+.btn-primary-sm:disabled { opacity: .6; cursor: default; }
 .btn-danger-sm {
   background: transparent; border: 1.5px solid var(--red);
   color: var(--red); border-radius: var(--radius-sm);

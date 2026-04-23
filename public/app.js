@@ -4658,6 +4658,7 @@ function bindCharStories() {
     document.getElementById('cstory-draft-panel').classList.add('hidden');
   });
   document.getElementById('cstory-save-btn').addEventListener('click', saveStory);
+  document.getElementById('cstory-header-save-btn').addEventListener('click', saveStory);
   document.getElementById('cstory-cancel-btn').addEventListener('click', closeStoryEditor);
   document.getElementById('cstory-delete-btn').addEventListener('click', deleteStory);
 }
@@ -4749,8 +4750,10 @@ async function saveStory() {
 
   if (!quote) { document.getElementById('cstory-title-input').focus(); return; }
 
-  const btn = document.getElementById('cstory-save-btn');
+  const btn       = document.getElementById('cstory-save-btn');
+  const headerBtn = document.getElementById('cstory-header-save-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
+  if (headerBtn) { headerBtn.disabled = true; headerBtn.textContent = 'Saving…'; }
 
   try {
     let res;
@@ -4775,7 +4778,10 @@ async function saveStory() {
     console.error('saveStory error:', e);
     alert('Could not save quote: ' + e.message);
   }
-  finally { btn.disabled = false; btn.textContent = 'Save Quote'; }
+  finally {
+    btn.disabled = false; btn.textContent = 'Save Quote';
+    if (headerBtn) { headerBtn.disabled = false; headerBtn.textContent = 'Save'; }
+  }
 }
 
 async function deleteStory() {
