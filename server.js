@@ -251,6 +251,79 @@ ${occasionLine}${directionLine}`;
   }
 });
 
+// ── Character Field Refiner ────────────────────────────────────
+app.post('/api/characters/:id/refine-field', async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
+
+  const { field, direction, characterSnapshot = {}, alsoRefine = [] } = req.body;
+  if (!field) return res.status(400).json({ error: 'field is required.' });
+
+  const FIELD_LABELS = {
+    name: 'Name', species: 'Species', role: 'Role', backstory: 'Backstory',
+    personality: 'Personality', key_passions: 'Key Passions',
+    what_they_care_about: 'What They Care About', tone_and_voice: 'Tone & Voice',
+    hook_and_audience: 'My Hook & Audience',
+  };
+
+  const fieldLabel = FIELD_LABELS[field] || field;
+  const fieldsToReturn = [field, ...alsoRefine];
+  const returnSpec = fieldsToReturn.map(f => `"${f}": "..."`).join(', ');
+
+  const contextLines = Object.entries(characterSnapshot)
+    .filter(([k, v]) => v && k !== field)
+    .map(([k, v]) => `${FIELD_LABELS[k] || k}: ${v}`)
+    .join('\n');
+
+  const alsoRefineLabels = alsoRefine.map(f => FIELD_LABELS[f] || f);
+
+  let userPrompt;
+  if (!alsoRefine.length) {
+    userPrompt = `You are a creative brand writer for Lovepop, a premium pop-up greeting card company known for joyful, whimsical storytelling.
+
+Character context:
+${contextLines || '(no other fields filled in yet)'}
+
+Current "${fieldLabel}":
+${characterSnapshot[field] || '(empty)'}
+
+Writer direction for "${fieldLabel}":
+${direction}
+
+Write a new version of "${fieldLabel}" that incorporates this direction while staying true to the character's overall profile.
+Return ONLY a JSON object: { ${returnSpec} }`;
+  } else {
+    userPrompt = `You are a creative brand writer for Lovepop, a premium pop-up greeting card company.
+
+The character's "${fieldLabel}" has been refined to:
+${characterSnapshot[field] || ''}
+
+Full character context:
+${contextLines || '(minimal)'}
+
+Now update these related fields to be consistent with the new "${fieldLabel}": ${alsoRefineLabels.join(', ')}.
+Return ONLY a JSON object with keys: { ${returnSpec} }`;
+  }
+
+  try {
+    const response = await anthropicMessages({
+      apiKey,
+      model: db.getSetting('anthropic_model') || 'claude-opus-4-5',
+      system: 'You are a creative brand writer. Always respond with valid JSON only — no markdown fences, no preamble, no explanation.',
+      messages: [{ role: 'user', content: userPrompt }],
+      max_tokens: 1024,
+    });
+
+    let raw = response.content[0].text.trim();
+    raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const parsed = JSON.parse(raw);
+    res.json(parsed);
+  } catch (e) {
+    console.error('Field refine error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Lands API ─────────────────────────────────────────────────
 app.get('/api/lands', (req, res) => res.json(db.getAllLands()));
 app.get('/api/lands/:id', (req, res) => {

@@ -2238,3 +2238,115 @@ html, body {
   border-color: var(--coral);
   color: #fff;
 }
+
+/* ── Character Field Refiner ─────────────────────────────────── */
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.refine-btn {
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1.5px solid var(--coral-border);
+  background: var(--coral-light);
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+  flex-shrink: 0;
+}
+.refine-btn:hover,
+.refine-btn.active {
+  background: var(--coral);
+  border-color: var(--coral);
+  color: #fff;
+}
+.refine-panel {
+  margin-top: 8px;
+  border: 1.5px solid var(--coral-border);
+  border-radius: var(--radius-md);
+  background: var(--coral-light);
+  overflow: hidden;
+}
+.refine-panel.hidden { display: none; }
+.refine-panel-inner {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.refine-direction {
+  width: 100%;
+  border: 1.5px solid var(--coral-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-main);
+  resize: vertical;
+  outline: none;
+  transition: border-color .12s;
+}
+.refine-direction:focus {
+  border-color: var(--coral);
+}
+.refine-actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.refine-draft-wrap {
+  border-top: 1px solid var(--coral-border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.refine-draft-wrap.hidden { display: none; }
+.refine-draft-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--coral);
+}
+.refine-draft-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-main);
+  background: #fff;
+  border: 1px solid var(--coral-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  white-space: pre-wrap;
+}
+.refine-also { display: flex; flex-direction: column; gap: 6px; }
+.refine-also.hidden { display: none; }
+.refine-also-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.refine-also-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.refine-also-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.refine-draft-actions {
+  display: flex;
+  gap: 8px;
+}

@@ -303,6 +303,8 @@ function openEditorView(mode, charId = null) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   currentView = 'editor';
   window.scrollTo(0, 0);
+  // Inject AI refine buttons when editing an existing character
+  if (mode === 'edit' && charId) injectRefineButtons();
 }
 
 // renderEditorImages — kept for backward compat (called on editor open)
@@ -4895,6 +4897,211 @@ function bindBulkEdit() {
     else alert(`Done: ${success} character${success === 1 ? '' : 's'} updated.`);
 
     await loadCharacters();
+  });
+}
+
+// ── Character Field Refiner ───────────────────────────────────
+// Which fields should be offered as "also update" after refining a given field
+const REFINE_RIPPLE = {
+  role:                 ['backstory', 'personality'],
+  backstory:            ['personality', 'key_passions', 'what_they_care_about', 'tone_and_voice'],
+  personality:          ['tone_and_voice', 'what_they_care_about', 'hook_and_audience'],
+  key_passions:         ['what_they_care_about', 'hook_and_audience'],
+  what_they_care_about: ['hook_and_audience', 'tone_and_voice'],
+  tone_and_voice:       ['hook_and_audience'],
+  hook_and_audience:    ['tone_and_voice'],
+};
+
+function getCharacterSnapshot() {
+  const snap = {};
+  CHAR_FIELD_META.forEach(f => {
+    const el = document.getElementById(f.inputId);
+    snap[f.key] = el ? el.value.trim() : '';
+  });
+  return snap;
+}
+
+function toggleRefinePanel(fieldKey) {
+  const panelEl = document.querySelector(`.refine-panel[data-field="${fieldKey}"]`);
+  const btn     = document.querySelector(`.refine-btn[data-field="${fieldKey}"]`);
+  if (!panelEl) return;
+  const opening = panelEl.classList.contains('hidden');
+  // Close all panels first
+  document.querySelectorAll('.refine-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.refine-btn').forEach(b => b.classList.remove('active'));
+  if (opening) {
+    panelEl.classList.remove('hidden');
+    btn?.classList.add('active');
+    panelEl.querySelector('.refine-direction')?.focus();
+  }
+}
+
+function injectRefineButtons() {
+  const storyPanel = document.getElementById('editor-tab-story');
+  if (!storyPanel) return;
+  // Remove any previously injected elements
+  storyPanel.querySelectorAll('.refine-btn').forEach(b => b.remove());
+  storyPanel.querySelectorAll('.refine-panel').forEach(p => p.remove());
+
+  CHAR_FIELD_META.forEach(({ key, label, inputId }) => {
+    // Skip name & species — less value refining those with AI
+    if (key === 'name' || key === 'species') return;
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const formGroup = input.closest('.form-group');
+    if (!formGroup) return;
+    const labelEl = formGroup.querySelector('.form-label');
+    if (!labelEl) return;
+
+    // ── Refine button ──────────────────────────────────────────
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'refine-btn';
+    btn.dataset.field = key;
+    btn.title = `Refine ${label} with AI`;
+    btn.innerHTML = '✨ Refine';
+    labelEl.appendChild(btn);
+
+    // ── Inline panel ───────────────────────────────────────────
+    const panelEl = document.createElement('div');
+    panelEl.className = 'refine-panel hidden';
+    panelEl.dataset.field = key;
+    panelEl.innerHTML = `
+      <div class="refine-panel-inner">
+        <textarea class="refine-direction" rows="2" placeholder="Describe what to change… e.g. &quot;make her sound warmer and more playful&quot;"></textarea>
+        <div class="refine-actions-row">
+          <button class="btn-primary refine-generate-btn" type="button">Generate</button>
+          <button class="btn-ghost refine-close-btn" type="button">Cancel</button>
+        </div>
+        <div class="refine-draft-wrap hidden">
+          <div class="refine-draft-label">Draft</div>
+          <div class="refine-draft-text"></div>
+          <div class="refine-also hidden">
+            <div class="refine-also-label">Also update to stay consistent:</div>
+            <div class="refine-also-checks"></div>
+          </div>
+          <div class="refine-draft-actions">
+            <button class="btn-primary refine-accept-btn" type="button">Accept</button>
+            <button class="btn-secondary refine-regenerate-btn" type="button">Try Again</button>
+          </div>
+        </div>
+      </div>`;
+    formGroup.appendChild(panelEl);
+
+    // ── Wire events ────────────────────────────────────────────
+    btn.addEventListener('click', () => toggleRefinePanel(key));
+    panelEl.querySelector('.refine-close-btn').addEventListener('click', () => {
+      panelEl.classList.add('hidden');
+      btn.classList.remove('active');
+    });
+
+    const generateBtn   = panelEl.querySelector('.refine-generate-btn');
+    const regenerateBtn = panelEl.querySelector('.refine-regenerate-btn');
+    const draftWrap     = panelEl.querySelector('.refine-draft-wrap');
+    const draftText     = panelEl.querySelector('.refine-draft-text');
+    const alsoWrap      = panelEl.querySelector('.refine-also');
+    const alsoChecks    = panelEl.querySelector('.refine-also-checks');
+    const acceptBtn     = panelEl.querySelector('.refine-accept-btn');
+
+    async function runRefine() {
+      const direction = panelEl.querySelector('.refine-direction').value.trim();
+      if (!direction) { alert('Please describe what you want to change.'); return; }
+      generateBtn.disabled   = true;
+      regenerateBtn.disabled = true;
+      generateBtn.textContent = 'Generating…';
+      draftWrap.classList.add('hidden');
+      try {
+        const snapshot = getCharacterSnapshot();
+        const res = await fetch(`${API}/${editorCharId}/refine-field`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: key, direction, characterSnapshot: snapshot }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Refine failed');
+        const data = await res.json();
+
+        // Show the draft text
+        draftText.textContent = data[key] || '';
+        draftWrap.classList.remove('hidden');
+        panelEl._draftData = data;
+
+        // Build ripple checkboxes — only for fields that have content
+        const snapshot2 = getCharacterSnapshot();
+        const rippleFields = (REFINE_RIPPLE[key] || []).filter(f => snapshot2[f]);
+        alsoChecks.innerHTML = '';
+        if (rippleFields.length) {
+          rippleFields.forEach(f => {
+            const meta = CHAR_FIELD_META.find(m => m.key === f);
+            const lbl  = document.createElement('label');
+            lbl.className = 'refine-also-check';
+            lbl.innerHTML = `<input type="checkbox" value="${f}" checked> ${meta?.label || f}`;
+            alsoChecks.appendChild(lbl);
+          });
+          alsoWrap.classList.remove('hidden');
+        } else {
+          alsoWrap.classList.add('hidden');
+        }
+      } catch (err) {
+        alert('Refine failed: ' + err.message);
+      } finally {
+        generateBtn.disabled   = false;
+        regenerateBtn.disabled = false;
+        generateBtn.textContent = 'Generate';
+      }
+    }
+
+    generateBtn.addEventListener('click', runRefine);
+    regenerateBtn.addEventListener('click', runRefine);
+
+    acceptBtn.addEventListener('click', async () => {
+      const draftData = panelEl._draftData;
+      if (!draftData) return;
+
+      // Apply primary field
+      const primaryEl = document.getElementById(inputId);
+      if (primaryEl) primaryEl.value = draftData[key] || '';
+
+      // Check which ripple fields were selected
+      const checkedRipple = [...alsoChecks.querySelectorAll('input:checked')].map(c => c.value);
+
+      if (checkedRipple.length) {
+        acceptBtn.disabled = true;
+        acceptBtn.textContent = 'Updating related fields…';
+        try {
+          const snapshot = getCharacterSnapshot();
+          snapshot[key] = draftData[key] || ''; // ensure updated value is in snapshot
+          const rippleRes = await fetch(`${API}/${editorCharId}/refine-field`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              field: key,
+              direction: panelEl.querySelector('.refine-direction').value.trim(),
+              characterSnapshot: snapshot,
+              alsoRefine: checkedRipple,
+            }),
+          });
+          if (rippleRes.ok) {
+            const rippleData = await rippleRes.json();
+            checkedRipple.forEach(f => {
+              const meta = CHAR_FIELD_META.find(m => m.key === f);
+              if (meta) {
+                const el = document.getElementById(meta.inputId);
+                if (el && rippleData[f]) el.value = rippleData[f];
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Ripple update failed:', err);
+        } finally {
+          acceptBtn.disabled = false;
+          acceptBtn.textContent = 'Accept';
+        }
+      }
+
+      // Close the panel
+      panelEl.classList.add('hidden');
+      btn.classList.remove('active');
+    });
   });
 }
 
