@@ -50,11 +50,17 @@
   }
 
   function bindUI() {
-    qs('#cd-save-meta-btn')?.addEventListener('click', saveMeta);
-
-    // Sub-module tab switching
+    // Sub-module tab switching (.cd-step-row and .cd-track-tab both have .cd-module-tab)
     document.querySelectorAll('.cd-module-tab').forEach(tab => {
       tab.addEventListener('click', () => switchModule(tab.dataset.module));
+    });
+
+    // Product picker toggle
+    qs('#cd-product-picker-btn')?.addEventListener('click', () => {
+      qs('#cd-product-search-inner')?.classList.toggle('hidden');
+      if (!qs('#cd-product-search-inner')?.classList.contains('hidden')) {
+        qs('#cd-product-search')?.focus();
+      }
     });
 
     // Product search
@@ -64,17 +70,33 @@
       searchInput.addEventListener('focus', handleProductSearch);
     }
 
-    // Close dropdown on outside click
+    // Close product search on outside click
     document.addEventListener('click', e => {
       if (!e.target.closest('.cd-product-search-wrap')) {
         qs('#cd-product-dropdown')?.classList.add('hidden');
+        qs('#cd-product-search-inner')?.classList.add('hidden');
       }
     });
 
-    // Generate buttons
-    qs('#cd-copy-generate-btn')?.addEventListener('click', generateCopy);
+    // Creative direction auto-save on blur
+    qs('#cd-creative-direction')?.addEventListener('blur', saveMeta);
+
+    // Design name auto-save on blur
+    qs('#cd-design-name')?.addEventListener('blur', saveMeta);
+
+    // Generate count buttons
+    document.querySelectorAll('.cd-gen-n').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.cd-gen-n').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // Regenerate / generate copy button
+    qs('#cd-regen-btn')?.addEventListener('click', generateCopyRound);
+
+    // Sketch generate
     qs('#cd-sketch-generate-btn')?.addEventListener('click', generateSketchRound);
-    qs('#cd-concept-generate-btn')?.addEventListener('click', generateConcept);
 
     // Fidelity stops
     document.querySelectorAll('.cd-fidelity-stop').forEach(stop => {
@@ -142,9 +164,6 @@
   function showWorkspaceView() {
     qs('#cd-dashboard')?.classList.add('hidden');
     qs('#cd-workspace-view')?.classList.remove('hidden');
-    const titleEl = qs('#cd-ws-title');
-    if (titleEl) titleEl.textContent = activeDesign?.name || 'Untitled Design';
-    renderDesignList();
     const targetPath = `/card-designer/${activeDesign?.id}`;
     if (window.location.pathname !== targetPath) {
       history.pushState({ cardId: activeDesign?.id }, '', targetPath);
@@ -380,28 +399,41 @@
 
   // ── Workspace ──────────────────────────────────────────────────
   function showWorkspace() {
+    // Design name
     const nameInput = qs('#cd-design-name');
     if (nameInput) nameInput.value = activeDesign.name || '';
 
+    // Brief meta
+    const metaEl = qs('#cd-brief-meta');
+    if (metaEl) {
+      const ago = activeDesign.updated_at ? 'edited ' + formatTimeAgo(activeDesign.updated_at) : '';
+      metaEl.textContent = ago ? `Draft · ${ago}` : 'Draft';
+    }
+
+    // Product picker display
     const skuBadge = qs('#cd-sku-badge');
     const skuName  = qs('#cd-sku-name');
     if (skuBadge) skuBadge.textContent = activeDesign.sku || '';
-    if (skuName)  skuName.textContent  = activeDesign.product_data?.name || activeDesign.sku || '— no product selected —';
+    if (skuName)  skuName.textContent  = activeDesign.product_data?.name || activeDesign.sku || '— select a product —';
+
+    // Creative direction
+    const directionEl = qs('#cd-creative-direction');
+    if (directionEl) directionEl.value = activeDesign.notes || '';
+
+    // Character + Art Style selectors — set current values if loaded
+    const charSel  = qs('#cd-char-select');
+    const styleSel = qs('#cd-style-select');
+    if (charSel  && activeDesign.character_id)  charSel.value  = activeDesign.character_id;
+    if (styleSel && activeDesign.art_style_id)  styleSel.value = activeDesign.art_style_id;
 
     // Reset ephemeral state
-    copyOptions  = [];
     sketchUrls   = [];
     conceptUrls  = [];
-    copyVotes    = [{}, {}, {}];
     sketchVotes  = [{}, {}, {}];
     conceptVotes = [{}, {}, {}];
 
-    qs('#cd-copy-options') && (qs('#cd-copy-options').innerHTML = '');
-    qs('#cd-sketch-options') && (qs('#cd-sketch-options').innerHTML = '');
-    qs('#cd-concept-options') && (qs('#cd-concept-options').innerHTML = '');
-
-    renderSelectedOutputs();
-    renderBriefSidebar();
+    updateSidebarMeta();
+    renderCopyRounds();
     renderSketchRounds();
     clearRightCard();
 
@@ -475,9 +507,13 @@
   // ── Sub-module tabs ────────────────────────────────────────────
   function switchModule(name) {
     if (activeDesign) lsSet(activeDesign.id, 'active_module', name);
+
+    // Toggle all .cd-module-tab elements (includes .cd-step-row and .cd-track-tab)
     document.querySelectorAll('.cd-module-tab').forEach(t =>
       t.classList.toggle('active', t.dataset.module === name)
     );
+
+    // Show/hide module content panels
     document.querySelectorAll('.cd-module').forEach(m => {
       const isTarget = m.id === `cd-module-${name}`;
       m.classList.toggle('hidden', !isTarget);
@@ -488,22 +524,35 @@
     qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
     qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
     if (isSketch) updateRefineBar();
+
+    // Update regen button label based on active module
+    const regenBtn = qs('#cd-regen-btn');
+    if (regenBtn) {
+      if (name === 'copy') regenBtn.textContent = '✨ Regenerate copy';
+      else if (name === 'sketch') regenBtn.textContent = '✨ Generate sketches';
+      else regenBtn.textContent = '✨ Generate concepts';
+    }
   }
 
-  // ── Save design name ───────────────────────────────────────────
+  // ── Save design name + notes ───────────────────────────────────
   async function saveMeta() {
     if (!activeDesign) return;
-    const name = (qs('#cd-design-name')?.value || '').trim() || 'Untitled Design';
+    const name  = (qs('#cd-design-name')?.value || '').trim() || 'Untitled Design';
+    const notes = qs('#cd-creative-direction')?.value || '';
     const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, notes }),
     });
     activeDesign = await resp.json();
     designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
     renderDesignList();
-    const titleEl = qs('#cd-ws-title');
-    if (titleEl) titleEl.textContent = activeDesign.name || 'Untitled Design';
+    // Update brief meta timestamp
+    const metaEl = qs('#cd-brief-meta');
+    if (metaEl) {
+      const ago = activeDesign.updated_at ? 'edited ' + formatTimeAgo(activeDesign.updated_at) : '';
+      metaEl.textContent = ago ? `Draft · ${ago}` : 'Draft';
+    }
   }
 
   // ── Product search ─────────────────────────────────────────────
@@ -558,91 +607,228 @@
     });
     activeDesign = await resp.json();
     designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+
+    // Update picker display
     const skuBadge = qs('#cd-sku-badge');
     const skuName  = qs('#cd-sku-name');
     if (skuBadge) skuBadge.textContent = prod.sku || '';
     if (skuName)  skuName.textContent  = prod.name || prod.sku;
+
+    // Hide the search inner panel
+    qs('#cd-product-search-inner')?.classList.add('hidden');
+    qs('#cd-product-dropdown')?.classList.add('hidden');
+
+    // Update design name input if it changed
     const nameInput = qs('#cd-design-name');
     if (nameInput) nameInput.value = activeDesign.name || '';
+
     renderDesignList();
-    const titleEl = qs('#cd-ws-title');
-    if (titleEl) titleEl.textContent = activeDesign.name || 'Untitled Design';
   }
 
-  // ── Copy Generator ─────────────────────────────────────────────
-  async function generateCopy() {
+  // ── Copy Generator (round-based) ───────────────────────────────
+  async function generateCopyRound() {
     if (!activeDesign) return;
-    const btn       = qs('#cd-copy-generate-btn');
-    const container = qs('#cd-copy-options');
-    setGenerating(btn, container, '⏳ Generating 3 options…', 'Generating 3 copy options via Claude…');
+    // Only run for copy module — if another module is active, delegate
+    const activeModule = lsGet(activeDesign.id, 'active_module', 'copy');
+    if (activeModule === 'sketch') { generateSketchRound(); return; }
+    if (activeModule === 'concept') { generateConcept(); return; }
 
-    const direction = qs('#cd-copy-direction')?.value || '';
-    const feedback  = buildCopyFeedback();
+    const btn = qs('#cd-regen-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
+
+    const count        = parseInt(qs('.cd-gen-n.active')?.dataset.count || '3', 10);
+    const direction    = qs('#cd-creative-direction')?.value || '';
+    const character_id = qs('#cd-char-select')?.value        || '';
+    const art_style_id = qs('#cd-style-select')?.value       || '';
 
     try {
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/generate-copy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, feedback }),
+        body: JSON.stringify({ direction, count, character_id, art_style_id }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Generation failed');
-      copyOptions = data.options;
-      copyVotes   = [{}, {}, {}];
-      renderCopyOptions();
+      // Server may return updated design or just the round — handle both
+      if (data.design) {
+        activeDesign = data.design;
+      } else if (data.copy_rounds) {
+        activeDesign = { ...activeDesign, copy_rounds: data.copy_rounds };
+      } else if (data.options) {
+        // Backwards-compat: wrap flat options in a round structure
+        const existingRounds = activeDesign.copy_rounds || [];
+        activeDesign = {
+          ...activeDesign,
+          copy_rounds: [...existingRounds, { id: Date.now(), cards: data.options.map((o, i) => ({ id: `${Date.now()}-${i}`, ...o })) }],
+        };
+      }
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCopyRounds();
+      updateSidebarMeta();
     } catch (e) {
-      showError(container, e.message);
+      alert(`Copy generation failed: ${e.message}`);
     } finally {
-      resetBtn(btn, '✨ Generate 3 Options');
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Regenerate copy'; }
     }
   }
 
+  // ── Legacy copy generator (single-round flat) ──────────────────
+  async function generateCopy() {
+    // Delegate to round-based generator
+    return generateCopyRound();
+  }
+
   function buildCopyFeedback() {
-    const liked_examples = copyVotes
-      .map((v, i) => v.up && copyOptions[i] ? copyOptions[i] : null)
-      .filter(Boolean);
-    const disliked_notes = copyVotes
-      .map(v => (v.down && v.note) ? v.note : null)
-      .filter(Boolean);
-    return (liked_examples.length || disliked_notes.length)
-      ? { liked_examples, disliked_notes }
-      : null;
+    return null; // votes are tracked per-round now
   }
 
   function renderCopyOptions() {
-    const container = qs('#cd-copy-options');
-    if (!container) return;
-    container.innerHTML = copyOptions.map((opt, i) => `
-      <div class="cd-option-card" data-index="${i}">
-        <div class="cd-option-header">
-          <span class="cd-option-label">Option ${i + 1}</span>
-          <div class="cd-vote-btns">
-            <button class="cd-vote-btn${copyVotes[i].up   ? ' active-up'   : ''}" data-action="up"   data-index="${i}">👍</button>
-            <button class="cd-vote-btn${copyVotes[i].down ? ' active-down' : ''}" data-action="down" data-index="${i}">👎</button>
-          </div>
-        </div>
-        <div class="cd-copy-fields">${copyFieldsHtml(opt)}</div>
-        <div class="cd-option-footer">
-          <input type="text" class="cd-note-input" data-index="${i}" placeholder="Note for refinement (optional)…" value="${escAttr(copyVotes[i].note || '')}" />
-          <button class="cd-select-btn" data-index="${i}">✓ Select This</button>
-        </div>
-      </div>
-    `).join('');
-
-    bindOptionCardEvents(container, copyVotes, () => renderCopyOptions(), (idx) => selectCopyOption(idx));
+    // Legacy shim — calls round-based renderer
+    renderCopyRounds();
   }
 
   async function selectCopyOption(idx) {
-    const copy = copyOptions[idx];
-    const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selected_copy: copy }),
+    // Legacy shim — no-op in round-based flow
+  }
+
+  function renderCopyRounds() {
+    if (!activeDesign) return;
+    const rounds  = activeDesign.copy_rounds || [];
+    const emptyEl = qs('#cd-copy-empty');
+    const listEl  = qs('#cd-copy-rounds');
+    if (!listEl) return;
+
+    if (!rounds.length) {
+      if (emptyEl) emptyEl.classList.remove('hidden');
+      listEl.innerHTML = '';
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+
+    listEl.innerHTML = rounds.map((round, ri) => {
+      const isLatest = ri === rounds.length - 1;
+      const cards    = round.cards || [];
+      const dotClass = isLatest ? 'cd-round-dot' : 'cd-round-dot muted';
+      const roundClass = isLatest ? 'cd-round' : 'cd-round muted-round';
+      const timeLabel = round.created_at ? formatTimeAgo(round.created_at).toUpperCase() : '';
+      const roundLabel = `ROUND ${ri + 1}${timeLabel ? ' · ' + timeLabel : ''}`;
+
+      return `
+        <div class="${roundClass}" data-round-id="${escAttr(round.id)}">
+          <div class="cd-round-header">
+            <span class="${dotClass}"></span>
+            <span class="cd-round-label">${escHtml(roundLabel)}</span>
+            ${round.refine_note ? `<span class="cd-round-note">${escHtml(round.refine_note)}</span>` : ''}
+            <span class="cd-round-divider"></span>
+          </div>
+          <div class="cd-round-grid">
+            ${cards.map((card, ci) => copyCardHtml(card, ci, round.id)).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Bind events for copy cards
+    listEl.querySelectorAll('.cd-copy-card').forEach(cardEl => {
+      const cardId  = cardEl.dataset.cardId;
+      const roundId = cardEl.closest('.cd-round')?.dataset.roundId;
+
+      // Vote buttons
+      cardEl.querySelector('.cd-copy-vote-up')?.addEventListener('click', () => {
+        toggleCopyVote(roundId, cardId, 'up');
+      });
+      cardEl.querySelector('.cd-copy-vote-dn')?.addEventListener('click', () => {
+        toggleCopyVote(roundId, cardId, 'down');
+      });
+
+      // Note input
+      cardEl.querySelector('.cd-copy-note-input')?.addEventListener('input', e => {
+        patchCopyCard(roundId, cardId, { note: e.target.value });
+      });
+
+      // Pick button
+      cardEl.querySelector('.cd-copy-pick-btn')?.addEventListener('click', () => {
+        selectCopyFromRound(roundId, cardId);
+      });
     });
-    activeDesign = await resp.json();
-    designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
-    renderSelectedCopy();
-    markSelected('#cd-copy-options', idx);
+  }
+
+  function copyCardHtml(card, cardIdx, roundId) {
+    const isSelected = activeDesign?.selected_copy_id === card.id;
+    const voteUp   = card.vote === 'up';
+    const voteDn   = card.vote === 'down';
+    return `
+      <div class="cd-copy-card${isSelected ? ' selected' : ''}" data-card-id="${escAttr(card.id)}" data-round-id="${escAttr(roundId)}">
+        <div class="cd-copy-card-hdr">
+          <div class="cd-copy-card-hdr-left">
+            <span class="cd-copy-opt-label">OPTION ${cardIdx + 1}</span>
+            ${isSelected ? '<span class="cd-copy-selected-badge">SELECTED</span>' : ''}
+          </div>
+          <div class="cd-copy-vote-btns">
+            <button class="cd-copy-vote-btn cd-copy-vote-up${voteUp ? ' up-active' : ''}" title="Like">👍</button>
+            <button class="cd-copy-vote-btn cd-copy-vote-dn${voteDn ? ' down-active' : ''}" title="Dislike">👎</button>
+          </div>
+        </div>
+        <div class="cd-copy-card-body">
+          ${card.cover       ? `<div><div class="cd-copy-field-lbl">Cover</div><div class="cd-copy-field-cover">${escHtml(card.cover)}</div></div>` : ''}
+          ${card.inside_left ? `<div><div class="cd-copy-field-lbl">Inside Left</div><div class="cd-copy-field-il">${escHtml(card.inside_left)}</div></div>` : ''}
+          ${card.inside_right? `<div><div class="cd-copy-field-lbl">Inside Right</div><div class="cd-copy-field-ir">${escHtml(card.inside_right)}</div></div>` : ''}
+          ${card.sculpture   ? `<div><div class="cd-copy-field-lbl">Sculpture</div><div class="cd-copy-field-sc">${escHtml(card.sculpture)}</div></div>` : ''}
+        </div>
+        <div class="cd-copy-card-footer">
+          <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Note for refinement…" value="${escAttr(card.note || '')}" />
+          <button class="cd-copy-pick-btn${isSelected ? ' picked' : ''}">${isSelected ? '✓ Picked' : 'Pick'}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleCopyVote(roundId, cardId, voteType) {
+    if (!activeDesign) return;
+    const rounds = activeDesign.copy_rounds || [];
+    for (const r of rounds) {
+      if (r.id !== roundId) continue;
+      const card = (r.cards || []).find(c => c.id === cardId);
+      if (card) {
+        card.vote = card.vote === voteType ? null : voteType;
+        break;
+      }
+    }
+    renderCopyRounds();
+  }
+
+  function patchCopyCard(roundId, cardId, updates) {
+    if (!activeDesign) return;
+    const rounds = activeDesign.copy_rounds || [];
+    for (const r of rounds) {
+      if (r.id !== roundId) continue;
+      const card = (r.cards || []).find(c => c.id === cardId);
+      if (card) { Object.assign(card, updates); break; }
+    }
+  }
+
+  async function selectCopyFromRound(roundId, cardId) {
+    if (!activeDesign) return;
+    let selectedCard = null;
+    for (const r of (activeDesign.copy_rounds || [])) {
+      selectedCard = (r.cards || []).find(c => c.id === cardId);
+      if (selectedCard) break;
+    }
+    if (!selectedCard) return;
+
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_copy: selectedCard, selected_copy_id: cardId }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCopyRounds();
+      updateSidebarMeta();
+    } catch (e) {
+      console.error('[copy] selectCopyFromRound error:', e.message);
+    }
   }
 
   // ── Sketch Module ──────────────────────────────────────────────
@@ -651,44 +837,47 @@
   let focusedSketchCard = null;
 
   function renderBriefSidebar() {
+    // Legacy shim — delegates to updateSidebarMeta
+    updateSidebarMeta();
+  }
+
+  function updateSidebarMeta() {
     if (!activeDesign) return;
 
-    // Context pills (character + art style names)
-    const ctxEl = qs('#cd-brief-ctx');
-    if (ctxEl) {
-      const pills = [];
-      if (activeDesign.character_name) pills.push(`<span class="cd-ctx-pill"><span class="cd-ctx-dot cd-ctx-dot-coral"></span>${escHtml(activeDesign.character_name)}</span>`);
-      if (activeDesign.art_style_name)  pills.push(`<span class="cd-ctx-pill"><span class="cd-ctx-dot cd-ctx-dot-grad"></span>${escHtml(activeDesign.art_style_name)}</span>`);
-      ctxEl.innerHTML = pills.join('');
-    }
+    // Module progress / step row meta
+    const copyRounds    = (activeDesign.copy_rounds    || []).length;
+    const sketchRounds  = (activeDesign.sketch_rounds  || []).length;
+    const conceptRounds = (activeDesign.concept_rounds || []).length;
 
-    // Selected copy recap
-    const copyRecap = qs('#cd-brief-copy-recap');
-    const copyBody  = qs('#cd-brief-copy-body');
-    const copy = activeDesign?.selected_copy || {};
-    if (copyRecap && copyBody) {
-      if (copy.cover || copy.inside_left) {
-        copyBody.innerHTML = copyFieldsHtml(copy);
-        copyRecap.classList.remove('hidden');
-      } else {
-        copyRecap.classList.add('hidden');
-      }
-    }
-
-    // Collapse toggle
-    qs('#cd-brief-copy-collapse')?.addEventListener('click', () => {
-      const body = qs('#cd-brief-copy-body');
-      const isHidden = body?.classList.toggle('hidden');
-      const btn = qs('#cd-brief-copy-collapse');
-      if (btn) btn.textContent = isHidden ? '▸' : '▾';
-    });
-
-    // Module check indicators
     const prog = activeDesign.progress || ['empty', 'empty', 'empty'];
-    const checkFor = (el, state) => { if (el) el.textContent = state === 'done' ? '✓' : ''; };
-    checkFor(qs('#cd-mod-check-copy'),    prog[0]);
-    checkFor(qs('#cd-mod-check-sketch'),  prog[1]);
-    checkFor(qs('#cd-mod-check-concept'), prog[2]);
+    const copyDone    = prog[0] === 'done';
+    const sketchDone  = prog[1] === 'done';
+    const conceptDone = prog[2] === 'done';
+
+    // Step metas
+    const copyMetaEl = qs('#cd-step-meta-copy');
+    if (copyMetaEl) copyMetaEl.textContent = copyRounds > 0 ? `${copyRounds} round${copyRounds !== 1 ? 's' : ''}` : 'Not started';
+    const sketchMetaEl = qs('#cd-step-meta-sketch');
+    if (sketchMetaEl) sketchMetaEl.textContent = sketchRounds > 0 ? `${sketchRounds} round${sketchRounds !== 1 ? 's' : ''}` : 'Not started';
+    const conceptMetaEl = qs('#cd-step-meta-concept');
+    if (conceptMetaEl) conceptMetaEl.textContent = conceptRounds > 0 ? `${conceptRounds} round${conceptRounds !== 1 ? 's' : ''}` : 'Not started';
+
+    // Step icons — show ✓ when done
+    const updateStepIcon = (iconId, done, defaultText) => {
+      const iconEl = qs(iconId);
+      if (!iconEl) return;
+      iconEl.classList.toggle('done', done);
+      iconEl.textContent = done ? '✓' : defaultText;
+    };
+    updateStepIcon('#cd-step-icon-copy',    copyDone,    'T');
+    updateStepIcon('#cd-step-icon-sketch',  sketchDone,  '◈');
+    updateStepIcon('#cd-step-icon-concept', conceptDone, '✦');
+
+    // Mod check marks
+    const setCheck = (id, done) => { const el = qs(id); if (el) el.textContent = done ? '✓' : ''; };
+    setCheck('#cd-mod-check-copy',    copyDone);
+    setCheck('#cd-mod-check-sketch',  sketchDone);
+    setCheck('#cd-mod-check-concept', conceptDone);
 
     // Fidelity — restore from localStorage
     const savedFidelity = lsGet(activeDesign.id, 'fidelity', 'standard');
@@ -973,13 +1162,13 @@
   // ── Detailed Concept ───────────────────────────────────────────
   async function generateConcept() {
     if (!activeDesign) return;
-    const btn       = qs('#cd-concept-generate-btn');
-    const container = qs('#cd-concept-options');
+    const btn       = qs('#cd-regen-btn');
+    const container = qs('#cd-concept-rounds');
     setGenerating(btn, container, '⏳ Generating concepts…', 'Generating 3 detailed concepts via Gemini… (this may take up to 30s per image)');
 
-    const direction    = qs('#cd-concept-direction')?.value   || '';
-    const character_id = qs('#cd-concept-character')?.value   || '';
-    const art_style_id = qs('#cd-concept-artstyle')?.value    || '';
+    const direction    = qs('#cd-creative-direction')?.value || '';
+    const character_id = qs('#cd-char-select')?.value         || '';
+    const art_style_id = qs('#cd-style-select')?.value        || '';
     const feedback     = buildImageFeedback(conceptVotes, conceptUrls);
 
     try {
@@ -996,7 +1185,7 @@
     } catch (e) {
       showError(container, e.message);
     } finally {
-      resetBtn(btn, '✨ Generate 3 Concepts');
+      resetBtn(btn, '✨ Generate concepts');
     }
   }
 
@@ -1072,8 +1261,9 @@
       const characters = await charResp.json();
       const artStyles  = await styleResp.json();
 
-      const charSel  = qs('#cd-concept-character');
-      const styleSel = qs('#cd-concept-artstyle');
+      // New IDs in unified layout
+      const charSel  = qs('#cd-char-select');
+      const styleSel = qs('#cd-style-select');
 
       if (charSel && Array.isArray(characters)) {
         characters.forEach(c => {

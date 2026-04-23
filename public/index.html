@@ -1317,149 +1317,183 @@
 
       <!-- ── Workspace ──────────────────────────────────────────── -->
       <div id="cd-workspace-view" class="hidden">
+  <div class="cd-uni-layout">
 
-        <div class="cd-ws-topbar">
-          <button class="cd-back-btn" id="cd-back-btn">← My Cards</button>
-          <div class="cd-ws-title" id="cd-ws-title">Untitled Design</div>
-          <button class="btn-primary" id="cd-new-btn-ws">+ New Design</button>
+    <!-- ── LEFT: Design Brief sidebar ──────────────────── -->
+    <aside class="cd-uni-aside">
+
+      <div class="cd-uni-aside-hdr">
+        <div class="cd-brief-eyebrow">Design brief</div>
+        <input type="text" id="cd-design-name" class="cd-brief-name" placeholder="Untitled Design" />
+        <div class="cd-brief-meta" id="cd-brief-meta">Draft</div>
+      </div>
+
+      <div class="cd-uni-aside-body">
+
+        <!-- Product -->
+        <div class="cd-brief-section">
+          <label class="cd-brief-label">Product</label>
+          <div class="cd-product-search-wrap">
+            <button class="cd-product-picker-btn" id="cd-product-picker-btn">
+              <div class="cd-product-thumb" id="cd-product-thumb"></div>
+              <div class="cd-product-picker-info">
+                <div class="cd-product-picker-name" id="cd-sku-name">— select a product —</div>
+                <div class="cd-product-picker-sku" id="cd-sku-badge"></div>
+              </div>
+              <span class="cd-product-chevron">▾</span>
+            </button>
+            <div class="cd-product-search-inner hidden" id="cd-product-search-inner">
+              <input type="text" id="cd-product-search" class="cd-brief-search" placeholder="Search products…" autocomplete="off" />
+              <div id="cd-product-dropdown" class="cd-product-dropdown hidden"></div>
+            </div>
+          </div>
         </div>
 
-        <div class="cd-shell">
+        <!-- Creative direction -->
+        <div class="cd-brief-section">
+          <label class="cd-brief-label">Creative direction</label>
+          <textarea id="cd-creative-direction" class="cd-brief-textarea" rows="4" placeholder="Mood, tone, imagery notes…"></textarea>
+        </div>
 
-          <div class="cd-sidebar">
-            <div id="cd-design-list"><div class="cd-design-list-empty">No designs yet</div></div>
+        <!-- Character + Art Style -->
+        <div class="cd-brief-2col">
+          <div class="cd-brief-section">
+            <label class="cd-brief-label">Character</label>
+            <select id="cd-char-select" class="cd-brief-select"><option value="">None</option></select>
           </div>
+          <div class="cd-brief-section">
+            <label class="cd-brief-label">Art style</label>
+            <select id="cd-style-select" class="cd-brief-select"><option value="">None</option></select>
+          </div>
+        </div>
 
-          <div class="cd-workspace">
-            <div id="cd-active-workspace" class="cd-unified">
+        <!-- Fidelity (sketch only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-fidelity">
+          <label class="cd-brief-label">Sketch fidelity</label>
+          <div class="cd-fidelity-track">
+            <button class="cd-fidelity-stop" data-fidelity="loose">Loose</button>
+            <button class="cd-fidelity-stop active" data-fidelity="standard">Standard</button>
+            <button class="cd-fidelity-stop" data-fidelity="tight">Tight</button>
+          </div>
+          <div class="cd-fidelity-desc" id="cd-fidelity-desc">Clean architectural sketch with clear fold lines.</div>
+        </div>
 
-              <!-- ── LEFT: Brief sidebar ──────────────────────────── -->
-              <div class="cd-brief">
+        <!-- Progress / module switcher -->
+        <div class="cd-brief-section">
+          <label class="cd-brief-label">Progress</label>
+          <div class="cd-step-rows">
+            <button class="cd-step-row cd-module-tab" data-module="copy" id="cd-step-copy">
+              <div class="cd-step-icon" id="cd-step-icon-copy">T</div>
+              <div class="cd-step-info">
+                <div class="cd-step-label">Copy</div>
+                <div class="cd-step-meta" id="cd-step-meta-copy">Not started</div>
+              </div>
+              <span class="cd-mod-check" id="cd-mod-check-copy"></span>
+            </button>
+            <button class="cd-step-row cd-module-tab" data-module="sketch" id="cd-step-sketch">
+              <div class="cd-step-icon" id="cd-step-icon-sketch">◈</div>
+              <div class="cd-step-info">
+                <div class="cd-step-label">Concept Sketch</div>
+                <div class="cd-step-meta" id="cd-step-meta-sketch">Not started</div>
+              </div>
+              <span class="cd-mod-check" id="cd-mod-check-sketch"></span>
+            </button>
+            <button class="cd-step-row cd-module-tab" data-module="concept" id="cd-step-concept">
+              <div class="cd-step-icon" id="cd-step-icon-concept">✦</div>
+              <div class="cd-step-info">
+                <div class="cd-step-label">Detailed Concept</div>
+                <div class="cd-step-meta" id="cd-step-meta-concept">Not started</div>
+              </div>
+              <span class="cd-mod-check" id="cd-mod-check-concept"></span>
+            </button>
+          </div>
+        </div>
 
-                <div class="cd-brief-product">
-                  <div class="cd-brief-product-meta">
-                    <div class="cd-brief-sku" id="cd-sku-badge"></div>
-                    <div class="cd-brief-product-name" id="cd-sku-name">— no product —</div>
-                  </div>
-                  <div class="cd-product-search-wrap">
-                    <input type="text" id="cd-product-search" class="cd-brief-search" placeholder="Change product…" autocomplete="off" />
-                    <div id="cd-product-dropdown" class="cd-product-dropdown hidden"></div>
-                  </div>
-                </div>
+      </div><!-- /cd-uni-aside-body -->
 
-                <div class="cd-brief-name-row">
-                  <input type="text" id="cd-design-name" class="cd-brief-name-input" placeholder="Design name…" />
-                  <button class="cd-brief-save-btn" id="cd-save-meta-btn">Save</button>
-                </div>
+      <div class="cd-uni-aside-footer">
+        <button class="cd-regen-btn" id="cd-regen-btn">✨ Regenerate copy</button>
+        <div class="cd-regen-hint">Uses your votes + notes as feedback</div>
+        <div class="cd-aside-nav">
+          <button class="cd-back-btn" id="cd-back-btn">← My Cards</button>
+          <button class="btn-primary" id="cd-new-btn-ws">+ New Design</button>
+        </div>
+      </div>
 
-                <div class="cd-brief-ctx" id="cd-brief-ctx">
-                  <!-- Context pills rendered by JS -->
-                </div>
+    </aside><!-- /cd-uni-aside -->
 
-                <div id="cd-brief-copy-recap" class="cd-brief-section hidden">
-                  <div class="cd-brief-section-hdr">
-                    <span class="cd-brief-section-label">Selected Copy</span>
-                    <button class="cd-brief-collapse-btn" id="cd-brief-copy-collapse">▾</button>
-                  </div>
-                  <div id="cd-brief-copy-body" class="cd-brief-copy-body"></div>
-                </div>
+    <!-- ── RIGHT: Main content ──────────────────────────── -->
+    <main class="cd-uni-main">
 
-                <div id="cd-brief-fidelity" class="cd-brief-section hidden">
-                  <div class="cd-brief-section-label">Sketch Fidelity</div>
-                  <div class="cd-fidelity-track">
-                    <button class="cd-fidelity-stop" data-fidelity="loose">Loose</button>
-                    <button class="cd-fidelity-stop active" data-fidelity="standard">Standard</button>
-                    <button class="cd-fidelity-stop" data-fidelity="tight">Tight</button>
-                  </div>
-                  <div class="cd-fidelity-desc" id="cd-fidelity-desc">Clean architectural sketch with clear fold lines.</div>
-                </div>
+      <!-- Track tabs + generate count -->
+      <div class="cd-track-bar">
+        <div class="cd-track-tabs">
+          <button class="cd-track-tab cd-module-tab active" data-module="copy">
+            <span class="cd-track-icon">T</span> Copy
+          </button>
+          <button class="cd-track-tab cd-module-tab" data-module="sketch">
+            <span class="cd-track-icon">◈</span> Sketches
+          </button>
+          <button class="cd-track-tab cd-module-tab" data-module="concept">
+            <span class="cd-track-icon">✦</span> Detailed concepts
+          </button>
+        </div>
+        <div class="cd-track-controls">
+          <span class="cd-gen-label">Generate</span>
+          <div class="cd-gen-count" id="cd-gen-count">
+            <button class="cd-gen-n active" data-count="3">3</button>
+            <button class="cd-gen-n" data-count="6">6</button>
+            <button class="cd-gen-n" data-count="9">9</button>
+          </div>
+        </div>
+      </div>
 
-                <div class="cd-brief-modules">
-                  <button class="cd-module-tab" data-module="copy">
-                    <span class="cd-mod-check" id="cd-mod-check-copy"></span>Copy
-                  </button>
-                  <button class="cd-module-tab" data-module="sketch">
-                    <span class="cd-mod-check" id="cd-mod-check-sketch"></span>Sketch
-                  </button>
-                  <button class="cd-module-tab" data-module="concept">
-                    <span class="cd-mod-check" id="cd-mod-check-concept"></span>Concept
-                  </button>
-                </div>
+      <!-- Module content -->
+      <div class="cd-track-content">
 
-              </div><!-- /cd-brief -->
+        <!-- Copy -->
+        <div id="cd-module-copy" class="cd-module">
+          <div class="cd-rounds-empty" id="cd-copy-empty">
+            <div class="cd-rounds-empty-icon">✍</div>
+            <div class="cd-rounds-empty-title">No copy yet</div>
+            <div class="cd-rounds-empty-sub">Click "Regenerate copy" in the sidebar to generate the first round.</div>
+          </div>
+          <div id="cd-copy-rounds" class="cd-rounds-list"></div>
+        </div>
 
-              <!-- ── CENTER: Gallery ──────────────────────────────── -->
-              <div class="cd-center">
-                <div class="cd-center-scroll">
+        <!-- Sketch -->
+        <div id="cd-module-sketch" class="cd-module hidden">
+          <div class="cd-sketch-empty" id="cd-sketch-empty">
+            <div class="cd-sketch-empty-icon">✏️</div>
+            <div class="cd-sketch-empty-title">No sketches yet</div>
+            <div class="cd-sketch-empty-sub">Use the bar below to generate the first round.</div>
+          </div>
+          <div id="cd-sketch-rounds" class="cd-sketch-rounds"></div>
+        </div>
 
-                  <!-- Copy module -->
-                  <div id="cd-module-copy" class="cd-module hidden">
-                    <div class="cd-module-controls">
-                      <textarea id="cd-copy-direction" class="form-textarea" rows="2" placeholder="Direction or notes for this generation (optional)…"></textarea>
-                      <button class="btn-ai-generate" id="cd-copy-generate-btn">✨ Generate 3 Options</button>
-                    </div>
-                    <div id="cd-copy-selected" class="cd-selected-output hidden"></div>
-                    <div id="cd-copy-options" class="cd-options-grid"></div>
-                  </div>
+        <!-- Concept -->
+        <div id="cd-module-concept" class="cd-module hidden">
+          <div class="cd-rounds-empty" id="cd-concept-empty">
+            <div class="cd-rounds-empty-icon">✦</div>
+            <div class="cd-rounds-empty-title">No concepts yet</div>
+            <div class="cd-rounds-empty-sub">Select a sketch first, then generate detailed concepts here.</div>
+          </div>
+          <div id="cd-concept-rounds" class="cd-rounds-list"></div>
+        </div>
 
-                  <!-- Sketch module (round-based) -->
-                  <div id="cd-module-sketch" class="cd-module hidden">
-                    <div class="cd-sketch-empty" id="cd-sketch-empty">
-                      <div class="cd-sketch-empty-icon">✏️</div>
-                      <div class="cd-sketch-empty-title">No sketches yet</div>
-                      <div class="cd-sketch-empty-sub">Use the bar below to set direction and generate the first round.</div>
-                    </div>
-                    <div id="cd-sketch-rounds" class="cd-sketch-rounds"></div>
-                  </div>
+      </div><!-- /cd-track-content -->
 
-                  <!-- Concept module -->
-                  <div id="cd-module-concept" class="cd-module hidden">
-                    <div class="cd-module-controls">
-                      <div class="cd-concept-selectors">
-                        <div class="form-group">
-                          <label class="form-label">Character</label>
-                          <select id="cd-concept-character" class="form-select"><option value="">— none —</option></select>
-                        </div>
-                        <div class="form-group">
-                          <label class="form-label">Art Style</label>
-                          <select id="cd-concept-artstyle" class="form-select"><option value="">— none —</option></select>
-                        </div>
-                      </div>
-                      <textarea id="cd-concept-direction" class="form-textarea" rows="2" placeholder="Direction or notes (optional)…"></textarea>
-                      <button class="btn-ai-generate" id="cd-concept-generate-btn">✨ Generate 3 Concepts</button>
-                    </div>
-                    <div id="cd-concept-selected" class="cd-selected-output hidden"></div>
-                    <div id="cd-concept-options" class="cd-options-grid cd-options-grid-images"></div>
-                  </div>
+      <!-- Refine bar (sketch module only) -->
+      <div class="cd-refine-bar hidden" id="cd-refine-bar">
+        <div class="cd-refine-chips" id="cd-refine-chips"></div>
+        <input type="text" id="cd-refine-input" class="cd-refine-input" placeholder="What should change in the next round?" autocomplete="off" />
+        <button class="cd-refine-btn" id="cd-sketch-generate-btn">Generate Round 1 →</button>
+      </div>
 
-                </div><!-- /cd-center-scroll -->
+    </main><!-- /cd-uni-main -->
 
-                <!-- Refine bar (sketch module) -->
-                <div class="cd-refine-bar hidden" id="cd-refine-bar">
-                  <div class="cd-refine-chips" id="cd-refine-chips"></div>
-                  <input type="text" id="cd-refine-input" class="cd-refine-input" placeholder="What should change in the next round?" autocomplete="off" />
-                  <button class="cd-refine-btn" id="cd-sketch-generate-btn">Generate Round 1 →</button>
-                </div>
-
-              </div><!-- /cd-center -->
-
-              <!-- ── RIGHT: Selected card panel ───────────────────── -->
-              <div class="cd-right-panel" id="cd-right-panel">
-                <div class="cd-right-empty" id="cd-right-empty">
-                  Pin or click a sketch to see it here.
-                </div>
-                <div id="cd-right-card" class="cd-right-card hidden">
-                  <img id="cd-right-img" class="cd-right-img" src="" alt="Selected sketch" />
-                  <textarea id="cd-right-note" class="cd-right-note" placeholder="Notes on this sketch…" rows="3"></textarea>
-                  <button class="btn-secondary cd-right-refine-btn" id="cd-right-refine-btn">Refine just this one</button>
-                  <button class="btn-primary cd-promote-btn" id="cd-promote-sketch-btn">Promote to Concept →</button>
-                </div>
-              </div><!-- /cd-right-panel -->
-
-            </div><!-- /cd-active-workspace -->
-          </div><!-- /cd-workspace -->
-        </div><!-- /cd-shell -->
-      </div><!-- /cd-workspace-view -->
+  </div><!-- /cd-uni-layout -->
+</div><!-- /cd-workspace-view -->
 
     </div><!-- /view-card-designer -->
 
