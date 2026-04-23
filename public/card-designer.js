@@ -7,6 +7,7 @@
   let activeDesign = null;
   let allProducts = null;
   let selectedStyleId = null;   // art style visual grid
+  let selectedCharId  = null;   // character modal selection
 
   // Dashboard filters
   let cdFilter = 'all';
@@ -59,6 +60,16 @@
 
     // Product title auto-save on blur
     qs('#cd-product-title')?.addEventListener('blur', saveMeta);
+
+    // Character picker modal
+    qs('#cd-char-picker-btn')?.addEventListener('click', openCharModal);
+    qs('#cd-char-modal-close')?.addEventListener('click', closeCharModal);
+    qs('#cd-char-modal-cancel')?.addEventListener('click', closeCharModal);
+    qs('#cd-char-modal-confirm')?.addEventListener('click', confirmCharSelection);
+    qs('#cd-char-modal-none')?.addEventListener('click', () => selectCharInModal(null, null));
+    qs('#cd-char-modal')?.addEventListener('click', e => {
+      if (e.target === qs('#cd-char-modal')) closeCharModal();
+    });
 
     // Art style picker modal
     qs('#cd-style-picker-btn')?.addEventListener('click', openStyleModal);
@@ -452,9 +463,8 @@
     const directionEl = qs('#cd-creative-direction');
     if (directionEl) directionEl.value = activeDesign.notes || '';
 
-    // Character selector
-    const charSel = qs('#cd-char-select');
-    if (charSel && activeDesign.character_id) charSel.value = activeDesign.character_id;
+    // Character picker
+    applyCharSelection(activeDesign.character_id || null);
 
     // Art style visual grid selection
     applyStyleSelection(activeDesign.art_style_id || null);
@@ -471,7 +481,9 @@
     clearRightCard();
 
     // Restore last active module for this card (defaults to 'copy')
-    switchModule(lsGet(activeDesign.id, 'active_module', 'copy'));
+    const activeModule = lsGet(activeDesign.id, 'active_module', 'copy');
+    switchModule(activeModule);
+    updateRegenBtn(activeModule);
   }
 
   function renderSelectedOutputs() {
@@ -553,18 +565,71 @@
       m.classList.toggle('active', isTarget);
     });
 
-    const isSketch = name === 'sketch';
-    qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
-    qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
-    if (isSketch) updateRefineBar();
+    const isSketch  = name === 'sketch';
+    const isCopy    = name === 'copy';
+    const needsStyle = isSketch || name === 'concept';
 
-    // Update regen button label based on active module
-    const regenBtn = qs('#cd-regen-btn');
-    if (regenBtn) {
-      if (name === 'copy') regenBtn.textContent = '✨ Regenerate copy';
-      else if (name === 'sketch') regenBtn.textContent = '✨ Generate sketches';
-      else regenBtn.textContent = '✨ Generate concepts';
+    // Sidebar section visibility
+    qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-brief-art-style')?.classList.toggle('hidden', !needsStyle);
+    qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
+    if (isSketch) {
+      updateRefineBar();
+      renderSelectedCopyBrief();
     }
+
+    // Update regen button label + hint based on active module and existing rounds
+    updateRegenBtn(name);
+  }
+
+  function updateRegenBtn(moduleName) {
+    const mod = moduleName || lsGet(activeDesign?.id, 'active_module', 'copy');
+    const regenBtn  = qs('#cd-regen-btn');
+    const regenHint = qs('#cd-regen-hint');
+    if (!regenBtn) return;
+
+    if (mod === 'copy') {
+      const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
+      regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
+      if (regenHint) regenHint.textContent = hasRounds
+        ? 'Iterate on feedback from your comments.'
+        : 'Generate the first round of copy options.';
+    } else if (mod === 'sketch') {
+      const hasRounds = (activeDesign?.sketch_rounds?.length || 0) > 0;
+      regenBtn.textContent = hasRounds ? '✨ Regenerate sketches' : '✨ Generate sketches';
+      if (regenHint) regenHint.textContent = hasRounds
+        ? 'Generate a new sketch round.'
+        : 'Generate the first round of sketches.';
+    } else {
+      const hasRounds = (activeDesign?.concept_rounds?.length || 0) > 0;
+      regenBtn.textContent = hasRounds ? '✨ Regenerate concepts' : '✨ Generate concepts';
+      if (regenHint) regenHint.textContent = hasRounds
+        ? 'Generate a new concept round.'
+        : 'Generate the first detailed concepts.';
+    }
+  }
+
+  function renderSelectedCopyBrief() {
+    const el = qs('#cd-brief-selected-copy-content');
+    if (!el) return;
+    const copy = activeDesign?.selected_copy;
+    if (!copy || (!copy.cover && !copy.inside_left && !copy.inside_right && !copy.sculpture)) {
+      el.innerHTML = '<em class="cd-brief-no-selection">No copy selected yet — go to Copy tab first.</em>';
+      return;
+    }
+    const fields = [
+      ['Cover', copy.cover],
+      ['Inside Left', copy.inside_left],
+      ['Inside Right', copy.inside_right],
+      ['Sculpture', copy.sculpture],
+    ].filter(([, v]) => v);
+    el.innerHTML = fields.map(([lbl, val]) => `
+      <div class="cd-brief-copy-field">
+        <div class="cd-brief-copy-field-lbl">${lbl}</div>
+        <div class="cd-brief-copy-field-val">${escHtml(val)}</div>
+      </div>
+    `).join('');
   }
 
   // ── Save design name + notes ───────────────────────────────────
@@ -672,7 +737,7 @@
 
     const count        = parseInt(qs('.cd-gen-n.active')?.dataset.count || '3', 10);
     const direction    = qs('#cd-creative-direction')?.value || '';
-    const character_id = qs('#cd-char-select')?.value        || '';
+    const character_id = selectedCharId                      || '';
     const art_style_id = selectedStyleId                     || '';
     const feedback     = buildCopyRoundFeedback();
 
@@ -700,6 +765,7 @@
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       renderCopyRounds();
       updateSidebarMeta();
+      updateRegenBtn('copy');
     } catch (e) {
       alert(`Copy generation failed: ${e.message}`);
     } finally {
@@ -1219,7 +1285,7 @@
     setGenerating(btn, container, '⏳ Generating concepts…', 'Generating 3 detailed concepts via Gemini… (this may take up to 30s per image)');
 
     const direction    = qs('#cd-creative-direction')?.value || '';
-    const character_id = qs('#cd-char-select')?.value         || '';
+    const character_id = selectedCharId                       || '';
     const art_style_id = selectedStyleId                      || '';
     const feedback     = buildImageFeedback(conceptVotes, conceptUrls);
 
@@ -1313,14 +1379,25 @@
       const characters = await charResp.json();
       const artStyles  = await styleResp.json();
 
-      // Character — keep as <select>
-      const charSel = qs('#cd-char-select');
-      if (charSel && Array.isArray(characters)) {
+      // Character — populate modal grid
+      const charGrid = qs('#cd-char-modal-grid');
+      if (charGrid && Array.isArray(characters)) {
         characters.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = c.name || `Character #${c.id}`;
-          charSel.appendChild(opt);
+          const tile = document.createElement('button');
+          tile.type = 'button';
+          tile.className = 'cd-style-modal-tile';
+          tile.dataset.charId = c.id;
+          const img = (c.images || [])[0] || null;
+          tile.innerHTML = `
+            <div class="cd-style-modal-tile-img-wrap">
+              ${img
+                ? `<img src="${escAttr(img)}" class="cd-style-modal-tile-img" alt="${escHtml(c.name || '')}" loading="lazy" />`
+                : `<div class="cd-style-modal-tile-placeholder">${escHtml((c.name || '?').charAt(0).toUpperCase())}</div>`}
+            </div>
+            <div class="cd-style-modal-tile-name">${escHtml(c.name || `Character ${c.id}`)}</div>
+          `;
+          tile.addEventListener('click', () => selectCharInModal(c.id, c));
+          charGrid.appendChild(tile);
         });
       }
 
@@ -1429,6 +1506,86 @@
     selectedStyleId = id || null;
     applyStylePickerDisplay(selectedStyleId, null);
     syncModalSelection(selectedStyleId);
+  }
+
+  // ── Character modal ────────────────────────────────────────────
+  let pendingCharId   = null;
+  let pendingCharData = null;
+
+  function openCharModal() {
+    pendingCharId   = selectedCharId;
+    pendingCharData = null;
+    syncCharModalSelection(selectedCharId);
+    qs('#cd-char-modal')?.classList.remove('hidden');
+  }
+
+  function closeCharModal() {
+    qs('#cd-char-modal')?.classList.add('hidden');
+  }
+
+  function selectCharInModal(id, charObj) {
+    pendingCharId   = id || null;
+    pendingCharData = charObj || null;
+    syncCharModalSelection(id);
+  }
+
+  function syncCharModalSelection(id) {
+    document.querySelectorAll('#cd-char-modal-grid .cd-style-modal-tile').forEach(tile => {
+      tile.classList.toggle('active', tile.dataset.charId == (id || ''));
+    });
+    const noneEl = qs('#cd-char-modal-none');
+    if (noneEl) noneEl.classList.toggle('active', !id);
+  }
+
+  function confirmCharSelection() {
+    selectCharacter(pendingCharId, pendingCharData);
+    closeCharModal();
+  }
+
+  function selectCharacter(id, charObj) {
+    selectedCharId = id || null;
+    applyCharPickerDisplay(selectedCharId, charObj);
+    // Persist to design
+    if (activeDesign) {
+      fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ character_id: selectedCharId }),
+      }).then(r => r.json()).then(d => {
+        activeDesign = d;
+        designs = designs.map(x => x.id === d.id ? d : x);
+      }).catch(e => console.warn('[card-designer] selectCharacter save error:', e.message));
+    }
+  }
+
+  function applyCharPickerDisplay(id, charObj) {
+    const thumbEl = qs('#cd-char-picker-thumb');
+    const nameEl  = qs('#cd-char-picker-name');
+    if (!id) {
+      if (thumbEl) thumbEl.style.backgroundImage = '';
+      if (nameEl)  nameEl.textContent = 'None selected';
+      return;
+    }
+    // Find char data in modal grid if not passed
+    if (!charObj) {
+      const tile = qs(`#cd-char-modal-grid [data-char-id="${id}"]`);
+      if (tile) {
+        const img  = tile.querySelector('img');
+        const name = tile.querySelector('.cd-style-modal-tile-name')?.textContent || '';
+        if (thumbEl && img) thumbEl.style.backgroundImage = `url(${img.src})`;
+        if (nameEl) nameEl.textContent = name;
+        return;
+      }
+    }
+    const img = (charObj?.images || [])[0] || null;
+    if (thumbEl) thumbEl.style.backgroundImage = img ? `url(${img})` : '';
+    if (nameEl)  nameEl.textContent = charObj?.name || `Character ${id}`;
+  }
+
+  function applyCharSelection(id) {
+    selectedCharId = id || null;
+    applyCharPickerDisplay(selectedCharId, null);
+    syncCharModalSelection(selectedCharId);
   }
 
   // ── Settings ───────────────────────────────────────────────────

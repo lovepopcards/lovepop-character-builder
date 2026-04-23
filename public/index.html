@@ -1347,20 +1347,32 @@
           <textarea id="cd-creative-direction" class="cd-brief-textarea" rows="4" placeholder="Mood, tone, imagery notes…"></textarea>
         </div>
 
-        <!-- Character + Art Style -->
-        <div class="cd-brief-2col">
-          <div class="cd-brief-section">
-            <label class="cd-brief-label">Character</label>
-            <select id="cd-char-select" class="cd-brief-select"><option value="">None</option></select>
+        <!-- Character picker (always visible) -->
+        <div class="cd-brief-section">
+          <label class="cd-brief-label">Character</label>
+          <button type="button" class="cd-style-picker-btn" id="cd-char-picker-btn">
+            <div class="cd-style-picker-thumb" id="cd-char-picker-thumb"></div>
+            <span class="cd-style-picker-name" id="cd-char-picker-name">None selected</span>
+            <span class="cd-style-picker-chevron">▾</span>
+          </button>
+        </div>
+
+        <!-- Selected copy summary (sketch tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-selected-copy">
+          <label class="cd-brief-label">Selected Copy</label>
+          <div id="cd-brief-selected-copy-content" class="cd-brief-selected-copy-box">
+            <em class="cd-brief-no-selection">No copy selected yet — go to Copy tab first.</em>
           </div>
-          <div class="cd-brief-section">
-            <label class="cd-brief-label">Art style</label>
-            <button type="button" class="cd-style-picker-btn" id="cd-style-picker-btn">
-              <div class="cd-style-picker-thumb" id="cd-style-picker-thumb"></div>
-              <span class="cd-style-picker-name" id="cd-style-picker-name">None selected</span>
-              <span class="cd-style-picker-chevron">▾</span>
-            </button>
-          </div>
+        </div>
+
+        <!-- Art style (sketch + concept tabs only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-art-style">
+          <label class="cd-brief-label">Art style</label>
+          <button type="button" class="cd-style-picker-btn" id="cd-style-picker-btn">
+            <div class="cd-style-picker-thumb" id="cd-style-picker-thumb"></div>
+            <span class="cd-style-picker-name" id="cd-style-picker-name">None selected</span>
+            <span class="cd-style-picker-chevron">▾</span>
+          </button>
         </div>
 
         <!-- Fidelity (sketch only) -->
@@ -1390,8 +1402,8 @@
       </div><!-- /cd-uni-aside-body -->
 
       <div class="cd-uni-aside-footer">
-        <button class="cd-regen-btn" id="cd-regen-btn">✨ Regenerate copy</button>
-        <div class="cd-regen-hint">Uses your votes + notes as feedback</div>
+        <button class="cd-regen-btn" id="cd-regen-btn">✨ Generate copy</button>
+        <div class="cd-regen-hint" id="cd-regen-hint">Generate the first round of copy options.</div>
         <div class="cd-aside-nav">
           <button class="cd-back-btn" id="cd-back-btn">← My Cards</button>
           <button class="btn-primary" id="cd-new-btn-ws">+ New Design</button>
@@ -1434,7 +1446,7 @@
           <div class="cd-rounds-empty" id="cd-copy-empty">
             <div class="cd-rounds-empty-icon">✍</div>
             <div class="cd-rounds-empty-title">No copy yet</div>
-            <div class="cd-rounds-empty-sub">Click "Regenerate copy" in the sidebar to generate the first round.</div>
+            <div class="cd-rounds-empty-sub">Click "Generate copy" in the sidebar to generate the first round.</div>
           </div>
           <div id="cd-copy-rounds" class="cd-rounds-list"></div>
         </div>
@@ -1691,6 +1703,36 @@
         <button class="btn-primary" id="cd-style-modal-confirm">Use this style</button>
       </div>
     </div>
+  </div>
+
+  <!-- ═══ CHARACTER PICKER MODAL ══════════════════════════════════ -->
+  <div id="cd-char-modal" class="cd-style-modal-overlay hidden">
+    <div class="cd-style-modal-box">
+      <div class="cd-style-modal-hdr">
+        <h2 class="cd-style-modal-title">Select Character</h2>
+        <button class="cd-style-modal-close" id="cd-char-modal-close">✕</button>
+      </div>
+      <div class="cd-style-modal-body">
+        <div class="cd-style-modal-grid" id="cd-char-modal-grid">
+          <button type="button" class="cd-style-modal-tile cd-style-modal-none active" id="cd-char-modal-none" data-char-id="">
+            <div class="cd-style-modal-tile-img-wrap" style="background:var(--sand,#f5f0e8);display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:22px;color:var(--gray)">—</span>
+            </div>
+            <div class="cd-style-modal-tile-name">None</div>
+          </button>
+        </div>
+      </div>
+      <div class="cd-style-modal-footer">
+        <button class="btn-secondary" id="cd-char-modal-cancel">Cancel</button>
+        <button class="btn-primary" id="cd-char-modal-confirm">Use this character</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image lightbox overlay -->
+  <div id="img-lightbox" class="img-lightbox hidden" role="dialog" aria-modal="true">
+    <button class="img-lightbox-close" id="img-lightbox-close" aria-label="Close">&times;</button>
+    <img class="img-lightbox-img" id="img-lightbox-img" src="" alt="Zoomed image" />
   </div>
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>

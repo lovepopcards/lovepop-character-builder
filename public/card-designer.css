@@ -3,12 +3,20 @@
    controls visibility. Only add flex layout when the view is active. */
 .cd-view {
   flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 52px);
   overflow: hidden;
 }
 .view.active.cd-view {
   display: flex;
 }
+
+#cd-workspace-view {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+#cd-workspace-view.hidden { display: none; }
 
 /* ── Dashboard ────────────────────────────────────────────────── */
 #cd-dashboard {
@@ -360,10 +368,15 @@
 .cd-back-btn:hover { background: var(--bg); }
 
 /* ── Unified 2-col workspace layout ────────────────────────── */
+/* Strip app-main padding when card-designer is active so layout fills the viewport */
+.app-main:has(#view-card-designer.active) {
+  padding: 0;
+}
+
 .cd-uni-layout {
   display: grid;
   grid-template-columns: 360px 1fr;
-  height: calc(100vh - 56px); /* below app nav */
+  height: calc(100vh - 52px); /* exact header height */
   overflow: hidden;
   background: var(--cream, #FBF8F3);
 }
@@ -631,6 +644,36 @@
   font-weight: 700;
   color: var(--green, #2D9B5E);
   flex-shrink: 0;
+}
+
+/* ── Selected-copy brief panel (shown in sidebar on sketch tab) ── */
+.cd-brief-selected-copy-box {
+  background: var(--sand, #F5EFE6);
+  border: 1px solid var(--sand-mid, #E2D9CE);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd-brief-no-selection {
+  color: var(--gray, #8A9AB0);
+  font-style: italic;
+  font-size: 11px;
+}
+.cd-brief-copy-field { display: flex; flex-direction: column; gap: 1px; }
+.cd-brief-copy-field-lbl {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gray, #8A9AB0);
+  font-weight: 700;
+}
+.cd-brief-copy-field-val {
+  font-size: 12px;
+  color: var(--navy, #1A2B3C);
+  line-height: 1.4;
 }
 
 /* Aside footer */
