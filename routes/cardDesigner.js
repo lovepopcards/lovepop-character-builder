@@ -169,8 +169,10 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
           lines.push(`  Example ${i + 1}: Cover: "${ex.cover}" | Inside Left: "${ex.inside_left}" | Inside Right: "${ex.inside_right}"`);
         });
       }
-      if (feedback.disliked_notes?.filter(Boolean).length) {
-        lines.push(`\nThings to avoid in this generation: ${feedback.disliked_notes.filter(Boolean).join('; ')}`);
+      // support both old key (disliked_notes) and new key (direction_notes)
+      const dirNotes = feedback.direction_notes || feedback.disliked_notes;
+      if (dirNotes?.filter(Boolean).length) {
+        lines.push(`\nComments / direction from previous rounds: ${dirNotes.filter(Boolean).join('; ')}`);
       }
     }
 
@@ -251,7 +253,10 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
   const productTitle  = design.product_title || product.name || '';
   const basePrompt    = settings.cd_sketch_system_prompt_base || settings.cd_sketch_system_prompt || db.DEFAULTS.cd_sketch_system_prompt_base || db.DEFAULTS.cd_sketch_system_prompt || '';
   const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
-  const sampleImages  = (settings.cd_sketch_sample_images || '').split('\n').map(s => s.trim()).filter(Boolean);
+  // Sketch sample images — from uploaded files (stored as JSON array in cd_sketch_samples)
+  const sampleImages = (() => {
+    try { return JSON.parse(settings.cd_sketch_samples || '[]'); } catch { return []; }
+  })();
 
   const buildPrompt = () => {
     const lines = [
@@ -263,7 +268,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
       copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
-      sampleImages.length > 0 ? `\nSample sketch references (URLs for style reference):\n${sampleImages.map(u => `- ${u}`).join('\n')}` : '',
+      sampleImages.length > 0 ? `\nStyle reference sketches provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
     const prevRounds = design.sketch_rounds || [];
     if (prevRounds.length > 0) {
@@ -273,8 +278,27 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
+  // Load sample sketch images as Gemini reference parts (max 3 to stay within limits)
+  // loadRefParts reads from the filesystem — add sketch-samples dir to search candidates
+  const sketchRefParts = (() => {
+    if (!sampleImages.length) return [];
+    const parts = [];
+    for (const imgPath of sampleImages.slice(0, 3)) {
+      const filename = path.basename(imgPath);
+      const fullPath = path.join(UPLOADS_DIR, 'sketch-samples', filename);
+      if (!fs.existsSync(fullPath)) continue;
+      try {
+        const buf = fs.readFileSync(fullPath);
+        const ext = path.extname(fullPath).slice(1).toLowerCase();
+        const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
+      } catch (e) { console.warn('[sketch] ref image load error:', e.message); }
+    }
+    return parts;
+  })();
+
   const generateOne = async () => {
-    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt());
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), sketchRefParts);
     return saveBase64Image(base64, 'cd-sketch');
   };
 

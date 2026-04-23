@@ -196,6 +196,33 @@
 .cd-status-review { background: var(--gold, #C9A84C); color: white; }
 .cd-status-complete { background: var(--green, #2D9E5F); color: white; }
 
+.cd-tile-delete-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 10;
+}
+.cd-card-tile:hover .cd-tile-delete-btn {
+  opacity: 1;
+}
+.cd-tile-delete-btn:hover {
+  background: rgba(180,30,30,0.85);
+}
+
 .cd-tile-ribbon {
   position: absolute;
   top: 14px;
@@ -779,17 +806,16 @@
   box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.07));
 }
 .cd-copy-card.selected {
-  border: 2px solid var(--coral, #E8604C);
-  box-shadow: 0 0 0 4px var(--coral-light, #FFF0EE);
+  border: 2px solid var(--green, #2D9B5E);
+  box-shadow: 0 0 0 4px rgba(45,155,94,0.12);
 }
 .cd-copy-card-hdr {
   padding: 10px 14px 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid var(--sand, #F0EAE0);
 }
-.cd-copy-card-hdr-left { display: flex; align-items: center; gap: 8px; }
 .cd-copy-opt-label { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray, #8A9AB0); font-weight: 700; }
 .cd-copy-selected-badge {
   font-size: 10px;
@@ -800,8 +826,9 @@
   font-weight: 700;
   letter-spacing: 0.05em;
 }
-.cd-copy-vote-btns { display: flex; gap: 4px; }
+.cd-copy-vote-btns { display: none; } /* legacy — hidden */
 .cd-copy-vote-btn {
+  display: none; /* legacy */
   border: 1.5px solid var(--sand-mid, #E2D9CE);
   background: #fff;
   border-radius: 6px;
@@ -856,8 +883,11 @@
   align-items: center;
   gap: 4px;
 }
-.cd-copy-pick-btn.picked { background: var(--green, #2D9B5E); }
-.cd-copy-pick-btn:hover { opacity: 0.9; }
+.cd-copy-pick-btn.picked {
+  background: var(--green, #2D9B5E);
+  cursor: default;
+}
+.cd-copy-pick-btn:not(.picked):hover { opacity: 0.88; }
 
 /* ── Sketch module rounds ──────────────────────────────────────── */
 .cd-sketch-empty {

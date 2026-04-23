@@ -1484,6 +1484,12 @@ function bindSettings() {
     e.target.value = '';
   });
 
+  // Sketch sample upload
+  document.getElementById('cd-sketch-samples-upload')?.addEventListener('change', (e) => {
+    if (e.target.files.length) uploadSketchSamples(Array.from(e.target.files));
+    e.target.value = '';
+  });
+
   // Collapsible section toggles
   document.querySelectorAll('.settings-section-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1785,6 +1791,7 @@ async function loadSettings() {
 
     loadImageSamples();
     loadArtStyleSamples();
+    loadSketchSamples();
     // Art Style Generator
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
@@ -3722,6 +3729,60 @@ async function uploadArtStyleSamples(files) {
   renderArtStyleSamples(lastSamples);
   status.textContent = 'Uploaded!';
   setTimeout(() => status.classList.add('hidden'), 2000);
+}
+
+// ── Sketch Sample images ──────────────────────────────────────
+async function loadSketchSamples() {
+  try {
+    const res = await fetch('/api/settings/sketch-samples');
+    const { samples } = await res.json();
+    renderSketchSamples(samples);
+  } catch (e) { console.error('Could not load sketch samples:', e); }
+}
+
+function renderSketchSamples(samples) {
+  const grid = document.getElementById('cd-sketch-samples-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!samples || !samples.length) {
+    grid.innerHTML = '<div class="img-samples-empty">No sample sketches uploaded yet.</div>';
+    return;
+  }
+  samples.forEach(src => {
+    const filename = src.split('/').pop();
+    const card = document.createElement('div');
+    card.className = 'img-sample-card';
+    card.innerHTML = `
+      <img src="${esc(src)}" class="img-sample-thumb" alt="Sketch sample" />
+      <button class="img-sample-delete" data-filename="${esc(filename)}" title="Remove">✕</button>`;
+    card.querySelector('.img-sample-delete').addEventListener('click', () => deleteSketchSample(filename));
+    grid.appendChild(card);
+  });
+}
+
+async function deleteSketchSample(filename) {
+  if (!confirm('Remove this sketch sample?')) return;
+  try {
+    const res = await fetch(`/api/settings/sketch-samples/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const { samples } = await res.json();
+    renderSketchSamples(samples);
+  } catch (e) { alert('Could not delete sketch sample: ' + e.message); }
+}
+
+async function uploadSketchSamples(files) {
+  const status = document.getElementById('cd-sketch-samples-status');
+  if (status) { status.textContent = `Uploading ${files.length} image${files.length > 1 ? 's' : ''}…`; status.classList.remove('hidden'); }
+  let lastSamples = [];
+  for (const file of files) {
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/api/settings/sketch-samples', { method: 'POST', body: fd });
+      const data = await res.json();
+      lastSamples = data.samples;
+    } catch (e) { console.error('Upload failed:', e); }
+  }
+  renderSketchSamples(lastSamples);
+  if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
 }
 
 // ── Helpers ───────────────────────────────────────────────────

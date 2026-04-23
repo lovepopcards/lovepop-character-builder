@@ -1100,13 +1100,11 @@
 
               <div class="form-group" style="margin-top:20px">
                 <label class="form-label">Sample Sketches</label>
-                <div class="form-hint" style="margin-bottom:8px">One image URL per line. These are included in the Gemini sketch prompt as style references / examples. Leave blank to skip.</div>
-                <textarea id="cd-s-sketch-sample-images" class="form-textarea" rows="4" placeholder="https://example.com/sketch1.jpg&#10;https://example.com/sketch2.jpg"></textarea>
-              </div>
-
-              <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
-                <button class="btn-primary" id="cd-settings-save-btn">Save Card Designer Settings</button>
-                <span id="cd-settings-save-status" style="font-size:13px;color:var(--gray)"></span>
+                <div class="form-hint" style="margin-bottom:8px">Upload reference sketch images to guide Gemini's style when generating concept sketches. These are passed as visual references to the model.</div>
+                <div id="cd-sketch-samples-grid" class="img-samples-grid"></div>
+                <label class="btn-add-image img-samples-upload-btn" for="cd-sketch-samples-upload">+ Upload Sample Sketch</label>
+                <input type="file" id="cd-sketch-samples-upload" accept="image/*" multiple style="display:none" />
+                <div id="cd-sketch-samples-status" class="img-samples-status hidden"></div>
               </div>
             </div>
           </div>

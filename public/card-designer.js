@@ -107,8 +107,7 @@
     // Right panel refine
     qs('#cd-right-refine-btn')?.addEventListener('click', refineRightCard);
 
-    // Card Designer settings save buttons
-    qs('#cd-settings-save-btn')?.addEventListener('click', saveCDSettings);
+    // Gemini key save (inline key field in settings)
     qs('#cd-gemini-key-save-btn')?.addEventListener('click', saveGeminiKey);
   }
 
@@ -238,7 +237,16 @@
 
     grid.innerHTML = filtered.map(d => cardTileHtml(d)).join('');
     grid.querySelectorAll('.cd-card-tile').forEach(tile => {
-      tile.addEventListener('click', () => selectDesign(tile.dataset.id));
+      tile.addEventListener('click', e => {
+        if (e.target.closest('.cd-tile-delete-btn')) return; // don't open on delete click
+        selectDesign(tile.dataset.id);
+      });
+    });
+    grid.querySelectorAll('.cd-tile-delete-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        deleteDesign(btn.dataset.id, btn.dataset.name);
+      });
     });
   }
 
@@ -285,6 +293,7 @@
           ${tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone)}
           <span class="cd-tile-status ${statusClass}">${escHtml(statusLabel)}</span>
           ${isReview ? '<div class="cd-tile-ribbon">READY FOR REVIEW</div>' : ''}
+          <button class="cd-tile-delete-btn" data-id="${escAttr(d.id)}" data-name="${escAttr(d.name || 'this design')}" title="Delete design">✕</button>
         </div>
         <div class="cd-tile-body">
           ${d.sku ? `<div class="cd-tile-sku">${escHtml(d.sku)}</div>` : ''}
@@ -379,6 +388,24 @@
       showWorkspace();
     } catch (e) {
       alert(`Failed to create design: ${e.message}`);
+    }
+  }
+
+  // ── Delete design ──────────────────────────────────────────────
+  async function deleteDesign(id, name) {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${id}`, { method: 'DELETE' });
+      if (!resp.ok) throw new Error('Server error');
+      designs = designs.filter(d => d.id !== id);
+      if (activeDesign?.id === id) {
+        activeDesign = null;
+        showDashboard();
+      } else {
+        renderDashboard();
+      }
+    } catch (e) {
+      alert(`Could not delete design: ${e.message}`);
     }
   }
 
@@ -694,15 +721,23 @@
     const rounds = activeDesign?.copy_rounds || [];
     if (!rounds.length) return null;
     const liked_examples = [];
-    const disliked_notes = [];
+    const direction_notes = [];
+    // Use notes from all cards (regardless of selection) as direction
     for (const r of rounds) {
       for (const card of (r.cards || [])) {
-        if (card.vote === 'up') liked_examples.push(card);
-        if (card.vote === 'down' && card.note) disliked_notes.push(card.note);
+        if (card.note && card.note.trim()) direction_notes.push(card.note.trim());
       }
     }
-    if (!liked_examples.length && !disliked_notes.length) return null;
-    return { liked_examples, disliked_notes };
+    // The currently selected copy is the liked example to build upon
+    const selectedId = activeDesign?.selected_copy_id;
+    if (selectedId) {
+      for (const r of rounds) {
+        const found = (r.cards || []).find(c => c.id === selectedId);
+        if (found) { liked_examples.push(found); break; }
+      }
+    }
+    if (!liked_examples.length && !direction_notes.length) return null;
+    return { liked_examples, direction_notes };
   }
 
   function renderCopyOptions() {
@@ -756,20 +791,12 @@
       const cardId  = cardEl.dataset.cardId;
       const roundId = cardEl.closest('.cd-round')?.dataset.roundId;
 
-      // Vote buttons
-      cardEl.querySelector('.cd-copy-vote-up')?.addEventListener('click', () => {
-        toggleCopyVote(roundId, cardId, 'up');
-      });
-      cardEl.querySelector('.cd-copy-vote-dn')?.addEventListener('click', () => {
-        toggleCopyVote(roundId, cardId, 'down');
-      });
-
-      // Note input
+      // Note input — debounced save
       cardEl.querySelector('.cd-copy-note-input')?.addEventListener('input', e => {
         patchCopyCard(roundId, cardId, { note: e.target.value });
       });
 
-      // Pick button
+      // "Select as final" button
       cardEl.querySelector('.cd-copy-pick-btn')?.addEventListener('click', () => {
         selectCopyFromRound(roundId, cardId);
       });
@@ -778,19 +805,11 @@
 
   function copyCardHtml(card, cardIdx, roundId) {
     const isSelected = activeDesign?.selected_copy_id === card.id;
-    const voteUp   = card.vote === 'up';
-    const voteDn   = card.vote === 'down';
     return `
       <div class="cd-copy-card${isSelected ? ' selected' : ''}" data-card-id="${escAttr(card.id)}" data-round-id="${escAttr(roundId)}">
         <div class="cd-copy-card-hdr">
-          <div class="cd-copy-card-hdr-left">
-            <span class="cd-copy-opt-label">OPTION ${cardIdx + 1}</span>
-            ${isSelected ? '<span class="cd-copy-selected-badge">SELECTED</span>' : ''}
-          </div>
-          <div class="cd-copy-vote-btns">
-            <button class="cd-copy-vote-btn cd-copy-vote-up${voteUp ? ' up-active' : ''}" title="Like">👍</button>
-            <button class="cd-copy-vote-btn cd-copy-vote-dn${voteDn ? ' down-active' : ''}" title="Dislike">👎</button>
-          </div>
+          <span class="cd-copy-opt-label">OPTION ${cardIdx + 1}</span>
+          ${isSelected ? '<span class="cd-copy-selected-badge">✓ SELECTED</span>' : ''}
         </div>
         <div class="cd-copy-card-body">
           ${card.cover       ? `<div><div class="cd-copy-field-lbl">Cover</div><div class="cd-copy-field-cover">${escHtml(card.cover)}</div></div>` : ''}
@@ -799,9 +818,9 @@
           ${card.sculpture   ? `<div><div class="cd-copy-field-lbl">Sculpture</div><div class="cd-copy-field-sc">${escHtml(card.sculpture)}</div></div>` : ''}
         </div>
         <div class="cd-copy-card-footer">
-          <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Note for next round…" value="${escAttr(card.note || '')}" />
+          <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Add a comment or direction…" value="${escAttr(card.note || '')}" />
           <button class="cd-copy-pick-btn${isSelected ? ' picked' : ''}">
-            ${isSelected ? '✓ Final' : 'Select as final'}
+            ${isSelected ? '✓ Selected' : 'Select this option'}
           </button>
         </div>
       </div>
@@ -851,6 +870,8 @@
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       renderCopyRounds();
       updateSidebarMeta();
+      // Move to Sketches tab now that a copy has been selected as final
+      switchModule('sketch');
     } catch (e) {
       console.error('[copy] selectCopyFromRound error:', e.message);
     }
@@ -1411,54 +1432,9 @@
   }
 
   // ── Settings ───────────────────────────────────────────────────
-  async function loadCDSettings() {
-    try {
-      const resp = await fetch('/api/settings');
-      const s    = await resp.json();
-      setVal('#cd-s-gemini-key',           s.gemini_api_key                  || '');
-      setVal('#cd-s-gemini-model',         s.gemini_model                    || 'gemini-3.1-flash-image-preview');
-      setVal('#cd-s-copy-cover',           s.cd_copy_instruction_cover       || '');
-      setVal('#cd-s-copy-inside-left',     s.cd_copy_instruction_inside_left || '');
-      setVal('#cd-s-copy-inside-right',    s.cd_copy_instruction_inside_right|| '');
-      setVal('#cd-s-copy-sculpture',       s.cd_copy_instruction_sculpture   || '');
-      setVal('#cd-s-copy-back',            s.cd_copy_instruction_back        || '');
-      setVal('#cd-s-sketch-prompt',        s.cd_sketch_system_prompt         || '');
-      setVal('#cd-s-sketch-sample-images', s.cd_sketch_sample_images         || '');
-    } catch (e) {
-      console.warn('[card-designer] loadCDSettings error:', e.message);
-    }
-  }
-
-  async function saveCDSettings() {
-    const btn    = qs('#cd-settings-save-btn');
-    const status = qs('#cd-settings-save-status');
-    if (btn) btn.disabled = true;
-    if (status) status.textContent = 'Saving…';
-
-    const payload = {
-      gemini_model:                     getVal('#cd-s-gemini-model'),
-      cd_copy_instruction_cover:        getVal('#cd-s-copy-cover'),
-      cd_copy_instruction_inside_left:  getVal('#cd-s-copy-inside-left'),
-      cd_copy_instruction_inside_right: getVal('#cd-s-copy-inside-right'),
-      cd_copy_instruction_sculpture:    getVal('#cd-s-copy-sculpture'),
-      cd_copy_instruction_back:         getVal('#cd-s-copy-back'),
-      cd_sketch_system_prompt:          getVal('#cd-s-sketch-prompt'),
-      cd_sketch_sample_images:          getVal('#cd-s-sketch-sample-images'),
-    };
-
-    try {
-      await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (status) { status.textContent = 'Saved ✓'; setTimeout(() => { if (status) status.textContent = ''; }, 2000); }
-    } catch (e) {
-      if (status) status.textContent = 'Error: ' + e.message;
-    } finally {
-      if (btn) btn.disabled = false;
-    }
-  }
+  // CD settings (gemini model, copy instructions, sketch prompt) are saved
+  // by the main handleSettingsSave() in app.js. Only the Gemini key has
+  // its own inline save button here.
 
   async function saveGeminiKey() {
     const btn    = qs('#cd-gemini-key-save-btn');
@@ -1484,11 +1460,6 @@
     }
   }
 
-  // Load CD settings when either settings nav item is clicked
-  document.addEventListener('click', e => {
-    const navItem = e.target.closest('[data-section="s-section-cd-ai"], [data-section="s-section-gemini"]');
-    if (navItem) loadCDSettings();
-  });
 
   // ── Shared helpers ─────────────────────────────────────────────
   function bindOptionCardEvents(container, votes, rerender, onSelect) {

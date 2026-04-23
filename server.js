@@ -29,6 +29,10 @@ if (!fs.existsSync(IMAGE_SAMPLES_DIR)) fs.mkdirSync(IMAGE_SAMPLES_DIR, { recursi
 const ARTSTYLE_SAMPLES_DIR = path.join(UPLOADS_DIR, 'artstyle-samples');
 if (!fs.existsSync(ARTSTYLE_SAMPLES_DIR)) fs.mkdirSync(ARTSTYLE_SAMPLES_DIR, { recursive: true });
 
+// Sketch samples dir
+const SKETCH_SAMPLES_DIR = path.join(UPLOADS_DIR, 'sketch-samples');
+if (!fs.existsSync(SKETCH_SAMPLES_DIR)) fs.mkdirSync(SKETCH_SAMPLES_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -54,6 +58,14 @@ const uploadDisk   = multer({ storage: diskStorage,  limits: { fileSize: 10 * 10
 const uploadMem    = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadSample = multer({ storage: sampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 const uploadArtstyleSample = multer({ storage: artstyleSampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+const sketchSampleStorage = multer.diskStorage({
+  destination: SKETCH_SAMPLES_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `sketch-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadSketchSample = multer({ storage: sketchSampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
@@ -143,7 +155,7 @@ app.post('/api/characters/:id/stories/generate', async (req, res) => {
   const occasionLine = occasion ? `\nOCCASION: ${occasion}` : '';
   const directionLine = direction ? `\nDIRECTION / NOTES: ${direction}` : '';
 
-  const prompt = `${systemPrompt}
+  const userPrompt = `${systemPrompt}
 
 CHARACTER:
 Name: ${char.name || 'Unknown'}
@@ -155,25 +167,45 @@ Key Passions: ${char.key_passions || ''}
 What They Care About: ${char.what_they_care_about || ''}
 Tone & Voice: ${char.tone_and_voice || ''}
 Hook & Audience: ${char.hook_and_audience || ''}
-${occasionLine}${directionLine}
-
-Respond with valid JSON only:
-{
-  "quote": "...",
-  "context": "..."
-}`;
+${occasionLine}${directionLine}`;
 
   try {
     const response = await anthropicMessages({
       apiKey,
       model: db.getSetting('ai_model') || db.DEFAULTS.ai_model,
       max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }],
+      system: 'You are a creative writer. Always respond with valid JSON only — no markdown fences, no prose, no extra text. Your entire response must be a single JSON object: {"quote": "...", "context": "..."}. The quote and context values must be single-line strings with no embedded newlines.',
+      messages: [{ role: 'user', content: userPrompt }],
     });
     const raw = response.content[0]?.text?.trim() || '';
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON in response');
-    const parsed = JSON.parse(match[0]);
+
+    // Strip markdown code fences if the model wrapped its response
+    const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
+    // Extract the JSON object
+    const match = stripped.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON object in response');
+
+    let parsed;
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch (parseErr) {
+      // Fallback: pull quote and context out with regex in case the model
+      // embedded literal newlines or unescaped quotes inside the strings
+      const quoteMatch  = match[0].match(/"quote"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+      const ctxMatch    = match[0].match(/"context"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+      if (quoteMatch || ctxMatch) {
+        const unescape = s => s.replace(/\\n/g, ' ').replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\n/g, ' ').trim();
+        parsed = {
+          quote:   quoteMatch ? unescape(quoteMatch[1]) : '',
+          context: ctxMatch   ? unescape(ctxMatch[1])   : '',
+        };
+      } else {
+        console.error('Raw quote response:', raw);
+        throw new Error(`JSON parse failed: ${parseErr.message}`);
+      }
+    }
+
     res.json({ quote: parsed.quote || '', context: parsed.context || '' });
   } catch (e) {
     console.error('Quote generation error:', e.message);
@@ -603,6 +635,34 @@ app.delete('/api/settings/artstyle-samples/:filename', (req, res) => {
   const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
   const updated = current.filter(p => !p.endsWith('/' + filename));
   db.setSetting('ai_artstyle_samples', JSON.stringify(updated));
+  res.json({ success: true, samples: updated });
+});
+
+// ── Sketch Sample endpoints ───────────────────────────────────
+app.get('/api/settings/sketch-samples', (req, res) => {
+  const raw = db.getSetting('cd_sketch_samples');
+  const samples = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  res.json({ samples });
+});
+
+app.post('/api/settings/sketch-samples', uploadSketchSample.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const imgPath = `/uploads/sketch-samples/${req.file.filename}`;
+  const raw = db.getSetting('cd_sketch_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  current.push(imgPath);
+  db.setSetting('cd_sketch_samples', JSON.stringify(current));
+  res.json({ path: imgPath, samples: current });
+});
+
+app.delete('/api/settings/sketch-samples/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(SKETCH_SAMPLES_DIR, filename);
+  if (fs.existsSync(filepath)) { try { fs.unlinkSync(filepath); } catch (e) { console.warn('Could not delete sketch sample:', e.message); } }
+  const raw = db.getSetting('cd_sketch_samples');
+  const current = (() => { try { return JSON.parse(raw || '[]'); } catch { return []; } })();
+  const updated = current.filter(p => !p.endsWith('/' + filename));
+  db.setSetting('cd_sketch_samples', JSON.stringify(updated));
   res.json({ success: true, samples: updated });
 });
 
