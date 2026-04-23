@@ -1076,7 +1076,7 @@
     const classes = ['cd-sk-card', isPinned ? 'pinned' : '', isDisliked ? 'disliked' : ''].filter(Boolean).join(' ');
     return `
       <div class="${classes}" data-card-id="${escAttr(card.id)}">
-        <img src="${escAttr(card.url)}" class="cd-sk-card-img" loading="lazy" alt="Sketch" />
+        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch" title="Click to view full size" />
         <div class="cd-sk-card-footer">
           <button class="cd-sk-vote-btn cd-sk-vote-pin${isPinned ? ' active' : ''}" title="Pin">📌</button>
           <button class="cd-sk-vote-btn cd-sk-vote-dis${isDisliked ? ' active' : ''}" title="Dislike">👎</button>
