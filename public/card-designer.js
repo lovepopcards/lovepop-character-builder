@@ -131,8 +131,9 @@
     qs('#cd-new-btn-ws')?.addEventListener('click', newDesign);
     qs('#cd-empty-new-btn')?.addEventListener('click', newDesign);
 
-    // Back to dashboard
+    // Back to dashboard (footer button + top breadcrumb)
     qs('#cd-back-btn')?.addEventListener('click', showDashboard);
+    qs('#cd-back-btn-top')?.addEventListener('click', showDashboard);
 
     // Filter pills
     document.querySelectorAll('.cd-filter-pill').forEach(pill => {
@@ -298,13 +299,18 @@
     const charPill = d.character_name ? `<span class="cd-ctx-pill"><span class="cd-ctx-dot cd-ctx-dot-coral"></span>${escHtml(d.character_name)}</span>` : '';
     const stylePill = d.art_style_name ? `<span class="cd-ctx-pill"><span class="cd-ctx-dot cd-ctx-dot-grad"></span>${escHtml(d.art_style_name)}</span>` : '';
 
-    const rc = d.rounds_count || 0;
-    const roundsText = rc > 0 ? `${rc} round${rc !== 1 ? 's' : ''}` : 'No rounds yet';
+    // Progress summary text
+    const hasCopySelected   = !!(d.selected_copy?.cover || d.selected_copy?.inside_left);
+    const hasSketchSelected = !!d.selected_sketch_url;
+    const roundsText = hasSketchSelected ? 'Sketch selected ✓'
+      : hasCopySelected ? 'Copy selected ✓'
+      : (d.rounds_count || 0) > 0 ? `${d.rounds_count} round${d.rounds_count !== 1 ? 's' : ''} in progress`
+      : 'No rounds yet';
 
     return `
       <div class="cd-card-tile" data-id="${escAttr(d.id)}">
         <div class="cd-tile-preview">
-          ${tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone)}
+          ${tilePreviewImg(d)}
           <span class="cd-tile-status ${statusClass}">${escHtml(statusLabel)}</span>
           ${isReview ? '<div class="cd-tile-ribbon">READY FOR REVIEW</div>' : ''}
           <button class="cd-tile-delete-btn" data-id="${escAttr(d.id)}" data-name="${escAttr(d.name || 'this design')}" title="Delete design">✕</button>
@@ -326,49 +332,62 @@
     `;
   }
 
+  function tilePreviewImg(d) {
+    // Prefer the most advanced selected image — concept → sketch — then fall back to SVG placeholder
+    const imgUrl = d.selected_concept_url || d.selected_sketch_url || null;
+    if (imgUrl) {
+      return `<img src="${escAttr(imgUrl)}" class="cd-tile-preview-img" alt="Selected design" loading="lazy" />`;
+    }
+    // SVG fallback based on progress state
+    const progress   = d.progress || ['empty', 'empty', 'empty'];
+    const copyDone   = progress[0] === 'done';
+    const sketchDone = progress[1] === 'done';
+    const conceptDone= progress[2] === 'done';
+    const isDone     = d.status === 'complete';
+    return tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone);
+  }
+
   function tilePreviewSvg(id, copyDone, sketchDone, conceptDone, isDone) {
     const uid = `pg${id}`.replace(/[^a-z0-9]/gi, '');
     if (isDone || conceptDone) {
-      return `<svg width="100%" height="140" viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="${uid}" x1="0" y1="0" x2="280" y2="140" gradientUnits="userSpaceOnUse">
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="${uid}" x1="0" y1="0" x2="280" y2="160" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#1B2A4A"/><stop offset="100%" stop-color="#3D5A99"/>
         </linearGradient></defs>
-        <rect width="280" height="140" fill="url(#${uid})" rx="4"/>
+        <rect width="280" height="160" fill="url(#${uid})" rx="4"/>
         ${isDone
-          ? '<circle cx="140" cy="70" r="28" fill="#2D9E5F" opacity="0.9"/><text x="140" y="78" text-anchor="middle" font-size="22" fill="white">✓</text>'
-          : '<circle cx="140" cy="70" r="28" fill="white" opacity="0.08"/><text x="140" y="78" text-anchor="middle" font-size="22" fill="white" opacity="0.4">✦</text>'}
+          ? '<circle cx="140" cy="80" r="28" fill="#2D9E5F" opacity="0.9"/><text x="140" y="88" text-anchor="middle" font-size="22" fill="white">✓</text>'
+          : '<circle cx="140" cy="80" r="28" fill="white" opacity="0.08"/><text x="140" y="88" text-anchor="middle" font-size="22" fill="white" opacity="0.4">✦</text>'}
       </svg>`;
     } else if (sketchDone) {
-      return `<svg width="100%" height="140" viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
-        <rect width="280" height="140" fill="#F7F4EF" rx="4"/>
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="160" fill="#F7F4EF" rx="4"/>
         <g stroke="#1B2A4A" stroke-width="1" opacity="0.55">
-          <line x1="80" y1="110" x2="200" y2="110"/>
-          <line x1="90" y1="110" x2="140" y2="48" stroke-width="1.5"/>
-          <line x1="190" y1="110" x2="140" y2="48" stroke-width="1.5"/>
-          <line x1="100" y1="92" x2="180" y2="92"/>
-          <line x1="110" y1="76" x2="170" y2="76"/>
-          <line x1="106" y1="92" x2="140" y2="60"/>
-          <line x1="174" y1="92" x2="140" y2="60"/>
+          <line x1="80" y1="125" x2="200" y2="125"/>
+          <line x1="90" y1="125" x2="140" y2="55" stroke-width="1.5"/>
+          <line x1="190" y1="125" x2="140" y2="55" stroke-width="1.5"/>
+          <line x1="100" y1="105" x2="180" y2="105"/>
+          <line x1="110" y1="88" x2="170" y2="88"/>
         </g>
-        <text x="140" y="130" text-anchor="middle" font-size="9" fill="#1B2A4A" opacity="0.35" font-family="monospace">CONCEPT SKETCH</text>
+        <text x="140" y="148" text-anchor="middle" font-size="9" fill="#1B2A4A" opacity="0.35" font-family="monospace">CONCEPT SKETCH</text>
       </svg>`;
     } else if (copyDone) {
-      return `<svg width="100%" height="140" viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
-        <rect width="280" height="140" fill="#FBF9F6" rx="4"/>
-        <rect x="70" y="18" width="140" height="104" rx="5" fill="white" stroke="#E5DFD5" stroke-width="1.5"/>
-        <line x1="90" y1="44" x2="190" y2="44" stroke="#C9BFB0" stroke-width="1.5"/>
-        <line x1="90" y1="58" x2="190" y2="58" stroke="#C9BFB0" stroke-width="1.5"/>
-        <line x1="90" y1="72" x2="165" y2="72" stroke="#C9BFB0" stroke-width="1.5"/>
-        <line x1="90" y1="90" x2="178" y2="90" stroke="#E5DFD5" stroke-width="1"/>
-        <line x1="90" y1="103" x2="152" y2="103" stroke="#E5DFD5" stroke-width="1"/>
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="160" fill="#FBF9F6" rx="4"/>
+        <rect x="70" y="22" width="140" height="116" rx="5" fill="white" stroke="#E5DFD5" stroke-width="1.5"/>
+        <line x1="90" y1="50" x2="190" y2="50" stroke="#C9BFB0" stroke-width="1.5"/>
+        <line x1="90" y1="66" x2="190" y2="66" stroke="#C9BFB0" stroke-width="1.5"/>
+        <line x1="90" y1="82" x2="165" y2="82" stroke="#C9BFB0" stroke-width="1.5"/>
+        <line x1="90" y1="102" x2="178" y2="102" stroke="#E5DFD5" stroke-width="1"/>
+        <line x1="90" y1="116" x2="152" y2="116" stroke="#E5DFD5" stroke-width="1"/>
       </svg>`;
     } else {
-      return `<svg width="100%" height="140" viewBox="0 0 280 140" xmlns="http://www.w3.org/2000/svg">
-        <rect width="280" height="140" fill="#F2EDE6" rx="4"/>
-        <rect x="95" y="30" width="90" height="80" rx="5" fill="white" stroke="#DDD6CA" stroke-width="1.5" stroke-dasharray="5 3"/>
-        <line x1="112" y1="55" x2="168" y2="55" stroke="#DDD6CA" stroke-width="1.5"/>
-        <line x1="112" y1="68" x2="158" y2="68" stroke="#DDD6CA" stroke-width="1.5"/>
-        <line x1="112" y1="81" x2="163" y2="81" stroke="#DDD6CA" stroke-width="1"/>
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="160" fill="#F2EDE6" rx="4"/>
+        <rect x="95" y="35" width="90" height="90" rx="5" fill="white" stroke="#DDD6CA" stroke-width="1.5" stroke-dasharray="5 3"/>
+        <line x1="112" y1="62" x2="168" y2="62" stroke="#DDD6CA" stroke-width="1.5"/>
+        <line x1="112" y1="77" x2="158" y2="77" stroke="#DDD6CA" stroke-width="1.5"/>
+        <line x1="112" y1="92" x2="163" y2="92" stroke="#DDD6CA" stroke-width="1"/>
       </svg>`;
     }
   }
@@ -1177,8 +1196,16 @@
         toggleSketchVote(cardId, 'dislike');
       });
 
-      // Click card to focus in right panel
-      cardEl.addEventListener('click', () => {
+      // Select-as-final button
+      cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        selectSketchCard(cardId);
+      });
+
+      // Click card body to focus in right panel (but not the image — lightbox handles that)
+      cardEl.addEventListener('click', e => {
+        if (e.target.closest('img.zoomable')) return; // let lightbox handle image clicks
+        if (e.target.closest('.cd-sk-card-footer')) return; // buttons handle themselves
         const allRounds = activeDesign.sketch_rounds || [];
         let found = null;
         for (const r of allRounds) {
@@ -1193,13 +1220,23 @@
   function sketchCardHtml(card) {
     const isPinned   = card.vote === 'pin';
     const isDisliked = card.vote === 'dislike';
-    const classes = ['cd-sk-card', isPinned ? 'pinned' : '', isDisliked ? 'disliked' : ''].filter(Boolean).join(' ');
+    const isSelected = activeDesign?.selected_sketch_url === card.url;
+    const classes = ['cd-sk-card',
+      isPinned   ? 'pinned'   : '',
+      isDisliked ? 'disliked' : '',
+      isSelected ? 'selected' : '',
+    ].filter(Boolean).join(' ');
     return `
       <div class="${classes}" data-card-id="${escAttr(card.id)}">
-        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch" title="Click to view full size" />
+        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch" title="Click image to enlarge" />
         <div class="cd-sk-card-footer">
-          <button class="cd-sk-vote-btn cd-sk-vote-pin${isPinned ? ' active' : ''}" title="Pin">📌</button>
-          <button class="cd-sk-vote-btn cd-sk-vote-dis${isDisliked ? ' active' : ''}" title="Dislike">👎</button>
+          <div class="cd-sk-footer-votes">
+            <button class="cd-sk-vote-btn cd-sk-vote-pin${isPinned ? ' active' : ''}" title="Pin for next round">📌</button>
+            <button class="cd-sk-vote-btn cd-sk-vote-dis${isDisliked ? ' active' : ''}" title="Dislike">👎</button>
+          </div>
+          <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}" title="${isSelected ? 'Selected as final' : 'Select as final sketch'}">
+            ${isSelected ? '✓ Selected' : 'Select'}
+          </button>
         </div>
       </div>
     `;
@@ -1360,33 +1397,32 @@
     }
   }
 
-  async function promoteSketch() {
-    if (!activeDesign || !focusedSketchCard) {
-      alert('Click a sketch to select it, then click "Select as final".');
-      return;
-    }
-    const btn = qs('#cd-sketch-final-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+  async function selectSketchCard(cardId) {
+    if (!activeDesign) return;
     try {
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/promote-sketch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ card_id: focusedSketchCard.id }),
+        body: JSON.stringify({ card_id: cardId }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Promote failed');
-      // promote-sketch route returns the design directly (not wrapped)
       activeDesign = data;
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
-      renderBriefSidebar();
+      renderSketchRounds();
       renderSelectedSketch();
-      // Visual feedback — update button label then restore
-      if (btn) { btn.textContent = '✓ Saved!'; }
-      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '✓ Select as final'; } }, 1500);
+      updateSidebarMeta();
     } catch (e) {
       alert(`Could not select sketch: ${e.message}`);
-      if (btn) { btn.disabled = false; btn.textContent = '✓ Select as final'; }
     }
+  }
+
+  async function promoteSketch() {
+    // Legacy: called by refine bar "Select as final" button when a card is focused
+    if (!activeDesign || !focusedSketchCard) return;
+    await selectSketchCard(focusedSketchCard.id);
+    const btn = qs('#cd-sketch-final-btn');
+    if (btn) { btn.textContent = '✓ Selected'; setTimeout(() => { btn.textContent = '✓ Select as final'; }, 1500); }
   }
 
   async function refineRightCard() {

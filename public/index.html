@@ -646,6 +646,10 @@
         <div class="toolbar-left">
           <h1 class="view-title">Lovepop Art Styles</h1>
           <span id="art-styles-count" class="count-badge">0 art styles</span>
+          <div class="status-filter-pills" id="art-styles-status-filter">
+            <button class="status-pill active" data-status="active">Active</button>
+            <button class="status-pill" data-status="all">All</button>
+          </div>
         </div>
         <div class="toolbar-right">
           <div class="view-toggle">
@@ -842,10 +846,20 @@
       <div id="art-style-editor-tab-products" class="editor-tab-panel hidden">
         <div class="products-tab-body">
 
-          <!-- Load from a Land -->
+          <!-- Add Products — two paths: browse all / load from a land -->
           <div class="form-section" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)">
-            <div class="form-section-title">Load from a Land</div>
-            <div class="form-hint" style="margin-bottom:12px">Select a Lovepop Land to add all of its products, or browse just that land's product library.</div>
+            <div class="form-section-title">Add Products</div>
+
+            <!-- Path 1: Browse / search all products directly -->
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+              <input type="text" id="as-sku-search" class="form-input" placeholder="Search by name or SKU…" style="flex:1;min-width:180px" autocomplete="off" />
+              <button class="btn-secondary" id="as-browse-all-btn">Browse All Products</button>
+            </div>
+            <!-- Inline search results -->
+            <div id="as-sku-results" class="sku-search-results hidden"></div>
+
+            <!-- Path 2: Load from a Land -->
+            <div class="form-hint" style="margin-bottom:8px;margin-top:10px">Or load from a Lovepop Land:</div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="as-land-select" class="form-select" style="flex:1;min-width:180px">
                 <option value="">— choose a land —</option>
@@ -1285,7 +1299,7 @@
         <div class="cd-dash-header">
           <div class="cd-dash-header-left">
             <div class="cd-dash-eyebrow">Card Builder</div>
-            <h1 class="cd-dash-title">My Cards</h1>
+            <h1 class="cd-dash-title">Card Concepts</h1>
             <p class="cd-dash-subtitle">Designs in development across your product line</p>
           </div>
           <div class="cd-dash-header-right">
@@ -1328,7 +1342,7 @@
     <aside class="cd-uni-aside">
 
       <div class="cd-uni-aside-hdr">
-        <div class="cd-brief-eyebrow">Design brief</div>
+        <button class="cd-breadcrumb-back" id="cd-back-btn-top">← Card Concepts</button>
         <input type="text" id="cd-design-name" class="cd-brief-name" placeholder="Untitled Design" />
         <div class="cd-brief-meta" id="cd-brief-meta">Draft</div>
       </div>
@@ -1421,7 +1435,7 @@
         <button class="cd-regen-btn" id="cd-regen-btn">✨ Generate copy</button>
         <div class="cd-regen-hint" id="cd-regen-hint">Generate the first round of copy options.</div>
         <div class="cd-aside-nav">
-          <button class="cd-back-btn" id="cd-back-btn">← My Cards</button>
+          <button class="cd-back-btn" id="cd-back-btn">← Card Concepts</button>
           <button class="btn-primary" id="cd-new-btn-ws">+ New Design</button>
         </div>
       </div>
