@@ -123,6 +123,15 @@
 
     // Sculpture reference drop zone
     initSculptureRefZone();
+
+    // Cover ref zone
+    initCoverRefZone();
+
+    // Exit button (top-right of track bar)
+    qs('#cd-exit-btn')?.addEventListener('click', showDashboard);
+
+    // Concept generate button
+    qs('#cd-concept-generate-btn')?.addEventListener('click', generateConcept);
   }
 
   function bindDashboardUI() {
@@ -500,6 +509,7 @@
     updateSidebarMeta();
     renderCopyRounds();
     renderSketchRounds();
+    renderConceptRounds();
     clearRightCard();
 
     // Restore last active module for this card (defaults to 'copy')
@@ -588,19 +598,28 @@
     });
 
     const isSketch  = name === 'sketch';
-    const isCopy    = name === 'copy';
-    const needsStyle = isSketch || name === 'concept';
+    const isConcept = name === 'concept';
+    const needsStyle = isConcept; // art style only on concept now
 
     // Sidebar section visibility
     qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
     qs('#cd-brief-art-style')?.classList.toggle('hidden', !needsStyle);
-    qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isSketch && !isConcept);
+    qs('#cd-brief-selected-sketch')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-brief-cover-ref')?.classList.toggle('hidden', !isSketch);
     qs('#cd-brief-sculpture-ref')?.classList.toggle('hidden', !isSketch);
     qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-concept-refine-bar')?.classList.toggle('hidden', !isConcept);
     if (isSketch) {
       updateRefineBar();
       renderSelectedCopyBrief();
       renderSculptureRef();
+      renderCoverRef();
+    }
+    if (isConcept) {
+      renderSelectedCopyBrief();
+      renderSelectedSketchBrief();
+      updateConceptGenerateBtn();
     }
 
     // Update regen button label + hint based on active module and existing rounds
@@ -654,6 +673,23 @@
         <div class="cd-brief-copy-field-val">${escHtml(val)}</div>
       </div>
     `).join('');
+  }
+
+  function renderSelectedSketchBrief() {
+    const el = qs('#cd-brief-selected-sketch-content');
+    if (!el) return;
+    const url = activeDesign?.selected_sketch_url;
+    if (!url) {
+      el.innerHTML = '<em class="cd-brief-no-selection">No sketch selected yet — go to Sketches tab first.</em>';
+      return;
+    }
+    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected sketch" title="Click to enlarge" />`;
+  }
+
+  function updateConceptGenerateBtn() {
+    const allRounds = activeDesign?.concept_rounds || [];
+    const btn = qs('#cd-concept-generate-btn');
+    if (btn) btn.textContent = `Generate Round ${allRounds.length + 1} →`;
   }
 
   // ── Sculpture reference image ──────────────────────────────────
@@ -768,6 +804,109 @@
       renderSculptureRef();
     } catch (e) {
       alert(`Failed to remove reference image: ${e.message}`);
+    }
+  }
+
+  // ── Cover reference image ──────────────────────────────────────
+  function renderCoverRef() {
+    const emptyEl   = qs('#cd-cover-ref-empty');
+    const previewEl = qs('#cd-cover-ref-preview');
+    const imgEl     = qs('#cd-cover-ref-img');
+    if (!emptyEl || !previewEl || !imgEl) return;
+    const url = activeDesign?.cover_ref_image;
+    if (url) {
+      emptyEl.classList.add('hidden');
+      previewEl.classList.remove('hidden');
+      imgEl.src = url;
+    } else {
+      emptyEl.classList.remove('hidden');
+      previewEl.classList.add('hidden');
+      imgEl.src = '';
+    }
+  }
+
+  function initCoverRefZone() {
+    const zone     = qs('#cd-cover-ref-zone');
+    const input    = qs('#cd-cover-ref-input');
+    const clearBtn = qs('#cd-cover-ref-clear');
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', e => {
+      if (e.target === clearBtn || clearBtn?.contains(e.target)) return;
+      if (e.target.closest('.cd-ref-zone-preview')) return;
+      input.click();
+    });
+    input.addEventListener('change', () => {
+      if (input.files?.[0]) uploadCoverRef(input.files[0]);
+      input.value = '';
+    });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) uploadCoverRef(file);
+    });
+    let pasteHandler = null;
+    zone.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); uploadCoverRef(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+      zone.classList.add('paste-ready');
+    });
+    zone.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+      zone.classList.remove('paste-ready');
+    });
+    clearBtn?.addEventListener('click', e => { e.stopPropagation(); clearCoverRef(); });
+  }
+
+  async function uploadCoverRef(file) {
+    if (!activeDesign) return;
+    const localUrl = URL.createObjectURL(file);
+    const emptyEl   = qs('#cd-cover-ref-empty');
+    const previewEl = qs('#cd-cover-ref-preview');
+    const imgEl     = qs('#cd-cover-ref-img');
+    const zone      = qs('#cd-cover-ref-zone');
+    if (emptyEl)   emptyEl.classList.add('hidden');
+    if (previewEl) previewEl.classList.remove('hidden');
+    if (imgEl)     imgEl.src = localUrl;
+    if (zone)      zone.classList.add('uploading');
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/cover-ref`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!resp.ok) throw new Error((await resp.json()).error || 'Upload failed');
+      const data = await resp.json();
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      if (imgEl) imgEl.src = data.path;
+      URL.revokeObjectURL(localUrl);
+    } catch (e) {
+      alert(`Failed to upload cover reference: ${e.message}`);
+      renderCoverRef();
+    } finally {
+      if (zone) zone.classList.remove('uploading');
+    }
+  }
+
+  async function clearCoverRef() {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/cover-ref`, { method: 'DELETE' });
+      if (!resp.ok) throw new Error('Failed to clear cover reference');
+      const data = await resp.json();
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCoverRef();
+    } catch (e) {
+      alert(`Failed to remove cover reference: ${e.message}`);
     }
   }
 
@@ -1176,7 +1315,7 @@
             ${round.refine_note ? `<span class="cd-round-note">${escHtml(round.refine_note)}</span>` : ''}
           </div>
           <div class="cd-round-grid">
-            ${cards.map(card => sketchCardHtml(card)).join('')}
+            ${cards.map((card, ci) => sketchCardHtml(card, ri, ci)).join('')}
           </div>
         </div>
       `;
@@ -1185,56 +1324,37 @@
     // Bind card interactions
     listEl.querySelectorAll('.cd-sk-card').forEach(cardEl => {
       const cardId  = cardEl.dataset.cardId;
-      const roundId = cardEl.closest('.cd-round')?.dataset.roundId;
 
-      cardEl.querySelector('.cd-sk-vote-pin')?.addEventListener('click', e => {
-        e.stopPropagation();
-        toggleSketchVote(cardId, 'pin');
-      });
-      cardEl.querySelector('.cd-sk-vote-dis')?.addEventListener('click', e => {
-        e.stopPropagation();
-        toggleSketchVote(cardId, 'dislike');
+      // Note input
+      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
+        patchSketchCard(cardId, { note: e.target.value });
       });
 
-      // Select-as-final button
+      // Select button
       cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
         e.stopPropagation();
         selectSketchCard(cardId);
       });
 
-      // Click card body to focus in right panel (but not the image — lightbox handles that)
+      // Card body click (not on image or footer)
       cardEl.addEventListener('click', e => {
-        if (e.target.closest('img.zoomable')) return; // let lightbox handle image clicks
-        if (e.target.closest('.cd-sk-card-footer')) return; // buttons handle themselves
-        const allRounds = activeDesign.sketch_rounds || [];
-        let found = null;
-        for (const r of allRounds) {
-          found = (r.cards || []).find(c => c.id === cardId);
-          if (found) break;
-        }
-        if (found) showRightCard(found);
+        if (e.target.closest('img.zoomable')) return;
+        if (e.target.closest('.cd-sk-card-footer')) return;
       });
     });
   }
 
-  function sketchCardHtml(card) {
-    const isPinned   = card.vote === 'pin';
-    const isDisliked = card.vote === 'dislike';
+  function sketchCardHtml(card, roundIdx, cardIdx) {
+    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`; // "1A", "2B" etc
     const isSelected = activeDesign?.selected_sketch_url === card.url;
-    const classes = ['cd-sk-card',
-      isPinned   ? 'pinned'   : '',
-      isDisliked ? 'disliked' : '',
-      isSelected ? 'selected' : '',
-    ].filter(Boolean).join(' ');
+    const classes = ['cd-sk-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
     return `
-      <div class="${classes}" data-card-id="${escAttr(card.id)}">
-        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch" title="Click image to enlarge" />
+      <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
+        <div class="cd-sk-card-label">${escHtml(label)}</div>
+        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch ${label}" title="Click to enlarge" />
         <div class="cd-sk-card-footer">
-          <div class="cd-sk-footer-votes">
-            <button class="cd-sk-vote-btn cd-sk-vote-pin${isPinned ? ' active' : ''}" title="Pin for next round">📌</button>
-            <button class="cd-sk-vote-btn cd-sk-vote-dis${isDisliked ? ' active' : ''}" title="Dislike">👎</button>
-          </div>
-          <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}" title="${isSelected ? 'Selected as final' : 'Select as final sketch'}">
+          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
+          <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
             ${isSelected ? '✓ Selected' : 'Select'}
           </button>
         </div>
@@ -1327,18 +1447,8 @@
   function updateRefineBar() {
     if (!activeDesign) return;
     const allRounds = activeDesign.sketch_rounds || [];
-    const allCards  = allRounds.flatMap(r => r.cards || []);
-    const pinned    = allCards.filter(c => c.vote === 'pin').length;
-    const disliked  = allCards.filter(c => c.vote === 'dislike').length;
-
     const chipsEl = qs('#cd-refine-chips');
-    if (chipsEl) {
-      const parts = [];
-      if (pinned   > 0) parts.push(`<span class="cd-refine-chip cd-refine-chip-pin">📌 ${pinned} pinned</span>`);
-      if (disliked > 0) parts.push(`<span class="cd-refine-chip cd-refine-chip-dis">👎 ${disliked} disliked</span>`);
-      chipsEl.innerHTML = parts.join('');
-    }
-
+    if (chipsEl) chipsEl.innerHTML = ''; // no more pin/dislike chips
     const nextRound = allRounds.length + 1;
     const btn = qs('#cd-sketch-generate-btn');
     if (btn) btn.textContent = `Generate Round ${nextRound} →`;
@@ -1436,30 +1546,154 @@
   // ── Detailed Concept ───────────────────────────────────────────
   async function generateConcept() {
     if (!activeDesign) return;
-    const btn       = qs('#cd-regen-btn');
-    const container = qs('#cd-concept-rounds');
-    setGenerating(btn, container, '⏳ Generating concepts…', 'Generating 3 detailed concepts via Gemini… (this may take up to 30s per image)');
+    const btn = qs('#cd-concept-generate-btn');
+    const refineInput = qs('#cd-concept-refine-input');
+    const refine_note = refineInput?.value?.trim() || '';
+    const allRounds = activeDesign.concept_rounds || [];
+    const roundNum = allRounds.length + 1;
+    const count = parseInt(qs('.cd-gen-n.active')?.dataset.count || '3', 10);
 
-    const direction    = qs('#cd-creative-direction')?.value || '';
-    const character_id = selectedCharId                       || '';
-    const art_style_id = selectedStyleId                      || '';
-    const feedback     = buildImageFeedback(conceptVotes, conceptUrls);
+    if (btn) { btn.disabled = true; btn.textContent = `⏳ Generating Round ${roundNum}…`; }
+
+    // Show skeleton
+    const emptyEl = qs('#cd-concept-empty');
+    const listEl = qs('#cd-concept-rounds');
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (listEl) {
+      const skeleton = document.createElement('div');
+      skeleton.className = 'cd-round cd-round-skeleton';
+      skeleton.innerHTML = `
+        <div class="cd-round-header"><span class="cd-round-label">Round ${roundNum}</span></div>
+        <div class="cd-round-grid">
+          ${Array.from({ length: count }, () => '<div class="cd-sk-card cd-sk-card-skeleton"><div class="cd-sk-card-img-placeholder"></div></div>').join('')}
+        </div>`;
+      listEl.appendChild(skeleton);
+      skeleton.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     try {
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/generate-concept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, character_id, art_style_id, feedback }),
+        body: JSON.stringify({
+          character_id: selectedCharId || '',
+          art_style_id: selectedStyleId || '',
+          refine_note,
+          count,
+        }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Generation failed');
-      conceptUrls  = data.urls;
-      conceptVotes = [{}, {}, {}];
-      renderImageOptions('concept');
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      if (refineInput) refineInput.value = '';
     } catch (e) {
-      showError(container, e.message);
+      alert(`Concept generation failed: ${e.message}`);
+      if (emptyEl && !(activeDesign.concept_rounds || []).length) emptyEl.classList.remove('hidden');
     } finally {
-      resetBtn(btn, '✨ Generate concepts');
+      renderConceptRounds();
+      updateConceptGenerateBtn();
+      updateRegenBtn('concept');
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function renderConceptRounds() {
+    if (!activeDesign) return;
+    const rounds = activeDesign.concept_rounds || [];
+    const emptyEl = qs('#cd-concept-empty');
+    const listEl = qs('#cd-concept-rounds');
+    if (!listEl) return;
+
+    if (!rounds.length) {
+      if (emptyEl) emptyEl.classList.remove('hidden');
+      listEl.innerHTML = '';
+      return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+
+    listEl.innerHTML = rounds.map((round, ri) => {
+      const cards = round.cards || [];
+      return `
+        <div class="cd-round" data-round-id="${escAttr(round.id)}">
+          <div class="cd-round-header">
+            <span class="cd-round-label">Round ${ri + 1}</span>
+            ${round.refine_note ? `<span class="cd-round-note">${escHtml(round.refine_note)}</span>` : ''}
+          </div>
+          <div class="cd-round-grid">
+            ${cards.map((card, ci) => conceptCardHtml(card, ri, ci)).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Bind events
+    listEl.querySelectorAll('.cd-concept-card').forEach(cardEl => {
+      const cardId = cardEl.dataset.cardId;
+      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
+        patchConceptCard(cardId, { note: e.target.value });
+      });
+      cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        selectConceptCard(cardId);
+      });
+    });
+  }
+
+  function conceptCardHtml(card, roundIdx, cardIdx) {
+    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
+    const isSelected = activeDesign?.selected_concept_url === card.url;
+    const classes = ['cd-sk-card cd-concept-card', isSelected ? 'selected' : ''].join(' ').trim();
+    return `
+      <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
+        <div class="cd-sk-card-label">${escHtml(label)}</div>
+        <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Concept ${label}" title="Click to enlarge" />
+        <div class="cd-sk-card-footer">
+          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
+          <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
+            ${isSelected ? '✓ Selected' : 'Select'}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function patchConceptCard(cardId, updates) {
+    if (!activeDesign) return;
+    const allRounds = activeDesign.concept_rounds || [];
+    for (const r of allRounds) {
+      const card = (r.cards || []).find(c => c.id === cardId);
+      if (card) { Object.assign(card, updates); break; }
+    }
+    try {
+      await fetch(`/api/card-designer/designs/${activeDesign.id}/concept/card/${cardId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (e) { console.warn('[concept] patchConceptCard error:', e.message); }
+  }
+
+  async function selectConceptCard(cardId) {
+    if (!activeDesign) return;
+    let selectedUrl = null;
+    for (const r of (activeDesign.concept_rounds || [])) {
+      const card = (r.cards || []).find(c => c.id === cardId);
+      if (card) { selectedUrl = card.url; break; }
+    }
+    if (!selectedUrl) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_concept_url: selectedUrl }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderConceptRounds();
+      updateSidebarMeta();
+    } catch (e) {
+      alert(`Could not select concept: ${e.message}`);
     }
   }
 

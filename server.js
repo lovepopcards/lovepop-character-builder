@@ -79,6 +79,17 @@ const sketchRefStorage = multer.diskStorage({
 });
 const uploadSketchRef = multer({ storage: sketchRefStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
+const COVER_REF_DIR = path.join(UPLOADS_DIR, 'cover-refs');
+if (!fs.existsSync(COVER_REF_DIR)) fs.mkdirSync(COVER_REF_DIR, { recursive: true });
+const coverRefStorage = multer.diskStorage({
+  destination: COVER_REF_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `covref-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadCoverRef = multer({ storage: coverRefStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -701,6 +712,31 @@ app.delete('/api/card-designer/designs/:id/sketch-ref', (req, res) => {
     if (fs.existsSync(oldFile)) { try { fs.unlinkSync(oldFile); } catch {} }
   }
   const updated = db.updateCardDesign(req.params.id, { sketch_ref_image: null });
+  res.json({ success: true, design: updated });
+});
+
+// Cover reference image (per-design cover photo for concept generation)
+app.post('/api/card-designer/designs/:id/cover-ref', uploadCoverRef.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (design.cover_ref_image) {
+    const oldFile = path.join(COVER_REF_DIR, path.basename(design.cover_ref_image));
+    if (fs.existsSync(oldFile)) { try { fs.unlinkSync(oldFile); } catch {} }
+  }
+  const imgPath = `/uploads/cover-refs/${req.file.filename}`;
+  const updated = db.updateCardDesign(req.params.id, { cover_ref_image: imgPath });
+  res.json({ path: imgPath, design: updated });
+});
+
+app.delete('/api/card-designer/designs/:id/cover-ref', (req, res) => {
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (design.cover_ref_image) {
+    const oldFile = path.join(COVER_REF_DIR, path.basename(design.cover_ref_image));
+    if (fs.existsSync(oldFile)) { try { fs.unlinkSync(oldFile); } catch {} }
+  }
+  const updated = db.updateCardDesign(req.params.id, { cover_ref_image: null });
   res.json({ success: true, design: updated });
 });
 

@@ -1371,11 +1371,35 @@
           </button>
         </div>
 
-        <!-- Selected copy summary (sketch tab only) -->
+        <!-- Selected copy summary (sketch + concept tabs) -->
         <div class="cd-brief-section hidden" id="cd-brief-selected-copy">
           <label class="cd-brief-label">Selected Copy</label>
           <div id="cd-brief-selected-copy-content" class="cd-brief-selected-copy-box">
             <em class="cd-brief-no-selection">No copy selected yet — go to Copy tab first.</em>
+          </div>
+        </div>
+
+        <!-- Selected sketch thumbnail (concept tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-selected-sketch">
+          <label class="cd-brief-label">Selected Sketch</label>
+          <div id="cd-brief-selected-sketch-content" class="cd-brief-selected-copy-box">
+            <em class="cd-brief-no-selection">No sketch selected yet.</em>
+          </div>
+        </div>
+
+        <!-- Cover reference image (sketch tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-cover-ref">
+          <label class="cd-brief-label">Cover Reference</label>
+          <div class="cd-ref-zone" id="cd-cover-ref-zone" title="Drop, paste, or click to upload a cover reference">
+            <div class="cd-ref-zone-empty" id="cd-cover-ref-empty">
+              <div class="cd-ref-zone-icon">🖼</div>
+              <div class="cd-ref-zone-hint">Drop, paste, or click to upload</div>
+            </div>
+            <div class="cd-ref-zone-preview hidden" id="cd-cover-ref-preview">
+              <img id="cd-cover-ref-img" class="cd-ref-zone-thumb zoomable" src="" alt="Cover reference" title="Click to enlarge" />
+              <button class="cd-ref-zone-clear" id="cd-cover-ref-clear" title="Remove reference">✕</button>
+            </div>
+            <input type="file" id="cd-cover-ref-input" accept="image/*" style="display:none" />
           </div>
         </div>
 
@@ -1395,7 +1419,7 @@
           </div>
         </div>
 
-        <!-- Art style (sketch + concept tabs only) -->
+        <!-- Art style (concept tab only) -->
         <div class="cd-brief-section hidden" id="cd-brief-art-style">
           <label class="cd-brief-label">Art style</label>
           <button type="button" class="cd-style-picker-btn" id="cd-style-picker-btn">
@@ -1466,6 +1490,7 @@
             <button class="cd-gen-n" data-count="9">9</button>
           </div>
         </div>
+        <button class="cd-exit-btn" id="cd-exit-btn" title="Back to Card Concepts">✕</button>
       </div>
 
       <!-- Module content -->
@@ -1509,6 +1534,12 @@
         <input type="text" id="cd-refine-input" class="cd-refine-input" placeholder="What should change in the next round?" autocomplete="off" />
         <button class="cd-sketch-final-btn hidden" id="cd-sketch-final-btn">✓ Select as final</button>
         <button class="cd-refine-btn" id="cd-sketch-generate-btn">Generate Round 1 →</button>
+      </div>
+
+      <!-- Concept refine bar (concept module only) -->
+      <div class="cd-refine-bar hidden" id="cd-concept-refine-bar">
+        <input type="text" id="cd-concept-refine-input" class="cd-refine-input" placeholder="Direction for next concept round…" autocomplete="off" />
+        <button class="cd-refine-btn" id="cd-concept-generate-btn">Generate Round 1 →</button>
       </div>
 
     </main><!-- /cd-uni-main -->

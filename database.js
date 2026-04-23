@@ -213,6 +213,7 @@ if (!existingCardDesignCols.includes('concept_rounds')) db.exec(`ALTER TABLE car
 if (!existingCardDesignCols.includes('active_module'))  db.exec(`ALTER TABLE card_designs ADD COLUMN active_module TEXT DEFAULT 'copy'`);
 if (!existingCardDesignCols.includes('product_title'))    db.exec(`ALTER TABLE card_designs ADD COLUMN product_title TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('sketch_ref_image')) db.exec(`ALTER TABLE card_designs ADD COLUMN sketch_ref_image TEXT DEFAULT NULL`);
+if (!existingCardDesignCols.includes('cover_ref_image')) db.exec(`ALTER TABLE card_designs ADD COLUMN cover_ref_image TEXT DEFAULT NULL`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -703,7 +704,7 @@ module.exports = {
   },
   updateCardDesign(id, data) {
     const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
