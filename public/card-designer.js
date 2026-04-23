@@ -60,6 +60,17 @@
     // Product title auto-save on blur
     qs('#cd-product-title')?.addEventListener('blur', saveMeta);
 
+    // Art style picker modal
+    qs('#cd-style-picker-btn')?.addEventListener('click', openStyleModal);
+    qs('#cd-style-modal-close')?.addEventListener('click', closeStyleModal);
+    qs('#cd-style-modal-cancel')?.addEventListener('click', closeStyleModal);
+    qs('#cd-style-modal-confirm')?.addEventListener('click', confirmStyleSelection);
+    qs('#cd-style-modal-none')?.addEventListener('click', () => selectStyleInModal(null, null));
+    // Close on backdrop click
+    qs('#cd-style-modal')?.addEventListener('click', e => {
+      if (e.target === qs('#cd-style-modal')) closeStyleModal();
+    });
+
     // Creative direction auto-save on blur
     qs('#cd-creative-direction')?.addEventListener('blur', saveMeta);
 
@@ -1292,24 +1303,25 @@
         });
       }
 
-      // Art style — visual image grid
-      qs('#cd-style-none')?.addEventListener('click', () => selectArtStyle(null));
-
-      const styleGrid = qs('#cd-style-grid');
-      if (styleGrid && Array.isArray(artStyles)) {
+      // Art style — populate modal grid
+      const modalGrid = qs('#cd-style-modal-grid');
+      if (modalGrid && Array.isArray(artStyles)) {
         artStyles.forEach(s => {
           const tile = document.createElement('button');
-          tile.className = 'cd-style-tile';
-          tile.dataset.styleId = s.id;
           tile.type = 'button';
+          tile.className = 'cd-style-modal-tile';
+          tile.dataset.styleId = s.id;
           const img = (s.images || [])[0] || (s.sample_images || [])[0] || null;
-          tile.innerHTML = img
-            ? `<img src="${escAttr(img)}" class="cd-style-tile-img" alt="${escHtml(s.name || '')}" />`
-            : `<div class="cd-style-tile-placeholder">${escHtml((s.name || '?').charAt(0).toUpperCase())}</div>`;
-          tile.title = s.name || '';
-          tile.setAttribute('aria-label', s.name || `Style ${s.id}`);
-          tile.addEventListener('click', () => selectArtStyle(s.id));
-          styleGrid.appendChild(tile);
+          tile.innerHTML = `
+            <div class="cd-style-modal-tile-img-wrap">
+              ${img
+                ? `<img src="${escAttr(img)}" class="cd-style-modal-tile-img" alt="${escHtml(s.name || '')}" loading="lazy" />`
+                : `<div class="cd-style-modal-tile-placeholder">${escHtml((s.name || '?').charAt(0).toUpperCase())}</div>`}
+            </div>
+            <div class="cd-style-modal-tile-name">${escHtml(s.name || `Style ${s.id}`)}</div>
+          `;
+          tile.addEventListener('click', () => selectStyleInModal(s.id, s));
+          modalGrid.appendChild(tile);
         });
       }
     } catch (e) {
@@ -1317,9 +1329,44 @@
     }
   }
 
-  function selectArtStyle(id) {
+  // ── Art style modal state ──────────────────────────────────────
+  let pendingStyleId   = null;  // selection in-progress inside modal
+  let pendingStyleData = null;  // { id, name, img } for the pending pick
+
+  function openStyleModal() {
+    // Sync modal selection to current value
+    pendingStyleId   = selectedStyleId;
+    pendingStyleData = null;
+    syncModalSelection(selectedStyleId);
+    qs('#cd-style-modal')?.classList.remove('hidden');
+  }
+
+  function closeStyleModal() {
+    qs('#cd-style-modal')?.classList.add('hidden');
+  }
+
+  function selectStyleInModal(id, styleObj) {
+    pendingStyleId = id || null;
+    pendingStyleData = styleObj || null;
+    syncModalSelection(id);
+  }
+
+  function syncModalSelection(id) {
+    document.querySelectorAll('.cd-style-modal-tile').forEach(tile => {
+      tile.classList.toggle('active', tile.dataset.styleId == (id || ''));
+    });
+    const noneEl = qs('#cd-style-modal-none');
+    if (noneEl) noneEl.classList.toggle('active', !id);
+  }
+
+  function confirmStyleSelection() {
+    selectArtStyle(pendingStyleId, pendingStyleData);
+    closeStyleModal();
+  }
+
+  function selectArtStyle(id, styleObj) {
     selectedStyleId = id || null;
-    applyStyleSelection(selectedStyleId);
+    applyStylePickerDisplay(selectedStyleId, styleObj);
     // Persist to design
     if (activeDesign) {
       fetch(`/api/card-designer/designs/${activeDesign.id}`, {
@@ -1333,15 +1380,34 @@
     }
   }
 
+  function applyStylePickerDisplay(id, styleObj) {
+    const thumbEl = qs('#cd-style-picker-thumb');
+    const nameEl  = qs('#cd-style-picker-name');
+    if (!id) {
+      if (thumbEl) thumbEl.style.backgroundImage = '';
+      if (nameEl)  nameEl.textContent = 'None selected';
+      return;
+    }
+    // Find style data in modal grid if not passed
+    if (!styleObj) {
+      const tile = qs(`#cd-style-modal-grid [data-style-id="${id}"]`);
+      if (tile) {
+        const img = tile.querySelector('img');
+        const name = tile.querySelector('.cd-style-modal-tile-name')?.textContent || '';
+        if (thumbEl && img) thumbEl.style.backgroundImage = `url(${img.src})`;
+        if (nameEl) nameEl.textContent = name;
+        return;
+      }
+    }
+    const img = (styleObj?.images || [])[0] || (styleObj?.sample_images || [])[0] || null;
+    if (thumbEl) thumbEl.style.backgroundImage = img ? `url(${img})` : '';
+    if (nameEl)  nameEl.textContent = styleObj?.name || `Style ${id}`;
+  }
+
   function applyStyleSelection(id) {
     selectedStyleId = id || null;
-    // Update "None" tile
-    const noneEl = qs('#cd-style-none');
-    if (noneEl) noneEl.classList.toggle('active', !selectedStyleId);
-    // Update style tiles
-    document.querySelectorAll('.cd-style-tile').forEach(tile => {
-      tile.classList.toggle('active', tile.dataset.styleId == selectedStyleId);
-    });
+    applyStylePickerDisplay(selectedStyleId, null);
+    syncModalSelection(selectedStyleId);
   }
 
   // ── Settings ───────────────────────────────────────────────────
@@ -1408,6 +1474,9 @@
         body: JSON.stringify({ gemini_api_key: key }),
       });
       if (status) { status.textContent = 'Saved ✓'; setTimeout(() => { if (status) status.textContent = ''; }, 2000); }
+      // Update badge immediately after save
+      const badge = qs('#gemini-key-status-badge');
+      if (badge) { badge.className = 'api-key-badge configured'; badge.textContent = '✓ Gemini Key Configured'; }
     } catch (e) {
       if (status) status.textContent = 'Error: ' + e.message;
     } finally {

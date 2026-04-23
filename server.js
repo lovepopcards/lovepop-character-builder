@@ -256,8 +256,9 @@ app.get('/api/settings', (req, res) => {
   const settings = db.getAllSettings();
   const apiKeySet    = !!(process.env.ANTHROPIC_API_KEY || settings.anthropic_api_key);
   const openaiKeySet = !!(process.env.OPENAI_API_KEY    || settings.openai_api_key);
-  res.json({ ...settings, anthropic_api_key: undefined, openai_api_key: undefined,
-             api_key_configured: apiKeySet, openai_key_configured: openaiKeySet });
+  const geminiKeySet = !!(process.env.GEMINI_API_KEY    || settings.gemini_api_key);
+  res.json({ ...settings, anthropic_api_key: undefined, openai_api_key: undefined, gemini_api_key: undefined,
+             api_key_configured: apiKeySet, openai_key_configured: openaiKeySet, gemini_key_configured: geminiKeySet });
 });
 app.put('/api/settings', (req, res) => {
   db.setSettings(req.body);

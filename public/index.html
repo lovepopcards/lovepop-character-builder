@@ -1153,8 +1153,9 @@
             </button>
             <div class="settings-section-body">
               <p class="settings-card-desc">Gemini API key for image generation in the Card Designer (Concept Sketch and Detailed Concept sub-modules).</p>
-              <div class="form-group" style="margin-top:18px">
-                <label class="form-label">Gemini API Key</label>
+              <div id="gemini-key-status-badge" class="api-key-badge" style="margin-bottom:10px"></div>
+              <div class="form-group" style="margin-top:14px">
+                <label class="form-label">Gemini API Key <span class="form-hint-inline">(prefer env var in production)</span></label>
                 <input type="password" id="cd-s-gemini-key" class="form-input" placeholder="AIza…" autocomplete="new-password" data-lpignore="true" data-1p-ignore />
               </div>
               <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
@@ -1356,9 +1357,11 @@
           </div>
           <div class="cd-brief-section">
             <label class="cd-brief-label">Art style</label>
-            <div id="cd-style-grid" class="cd-style-grid">
-              <button type="button" id="cd-style-none" class="cd-style-none active" data-style-id="">None</button>
-            </div>
+            <button type="button" class="cd-style-picker-btn" id="cd-style-picker-btn">
+              <div class="cd-style-picker-thumb" id="cd-style-picker-thumb"></div>
+              <span class="cd-style-picker-name" id="cd-style-picker-name">None selected</span>
+              <span class="cd-style-picker-chevron">▾</span>
+            </button>
           </div>
         </div>
 
@@ -1663,6 +1666,31 @@
           <button class="btn-secondary" id="product-picker-cancel-btn">Cancel</button>
           <button class="btn-primary" id="product-picker-confirm-btn" disabled>Use This Product</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ART STYLE PICKER MODAL ═════════════════════════════════ -->
+  <div id="cd-style-modal" class="cd-style-modal-overlay hidden">
+    <div class="cd-style-modal-box">
+      <div class="cd-style-modal-hdr">
+        <h2 class="cd-style-modal-title">Select Art Style</h2>
+        <button class="cd-style-modal-close" id="cd-style-modal-close">✕</button>
+      </div>
+      <div class="cd-style-modal-body">
+        <!-- "None" option -->
+        <div class="cd-style-modal-grid" id="cd-style-modal-grid">
+          <button type="button" class="cd-style-modal-tile cd-style-modal-none active" id="cd-style-modal-none" data-style-id="">
+            <div class="cd-style-modal-tile-img-wrap" style="background:var(--sand,#f5f0e8);display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:22px;color:var(--gray)">—</span>
+            </div>
+            <div class="cd-style-modal-tile-name">None</div>
+          </button>
+        </div>
+      </div>
+      <div class="cd-style-modal-footer">
+        <button class="btn-secondary" id="cd-style-modal-cancel">Cancel</button>
+        <button class="btn-primary" id="cd-style-modal-confirm">Use this style</button>
       </div>
     </div>
   </div>

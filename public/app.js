@@ -1777,6 +1777,12 @@ async function loadSettings() {
     oaiBadge.className = s.openai_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
     oaiBadge.textContent = s.openai_key_configured ? '✓ OpenAI Key Configured' : '✗ OpenAI Key Not Set';
 
+    const geminiBadge = document.getElementById('gemini-key-status-badge');
+    if (geminiBadge) {
+      geminiBadge.className = s.gemini_key_configured ? 'api-key-badge configured' : 'api-key-badge missing';
+      geminiBadge.textContent = s.gemini_key_configured ? '✓ Gemini Key Configured' : '✗ Gemini Key Not Set';
+    }
+
     loadImageSamples();
     loadArtStyleSamples();
     // Art Style Generator
