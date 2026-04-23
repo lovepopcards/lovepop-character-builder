@@ -1365,6 +1365,22 @@
           </div>
         </div>
 
+        <!-- 3D sculpture reference image (sketch tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-sculpture-ref">
+          <label class="cd-brief-label">3D Sculpture Reference</label>
+          <div class="cd-ref-zone" id="cd-sculpture-ref-zone" tabindex="0" title="Drop, paste, or click to upload a reference photo">
+            <div class="cd-ref-zone-empty" id="cd-sculpture-ref-empty">
+              <div class="cd-ref-zone-icon">📷</div>
+              <div class="cd-ref-zone-hint">Drop, paste, or click to upload</div>
+            </div>
+            <div class="cd-ref-zone-preview hidden" id="cd-sculpture-ref-preview">
+              <img id="cd-sculpture-ref-img" class="cd-ref-zone-thumb zoomable" src="" alt="Sculpture reference" title="Click to enlarge" />
+              <button class="cd-ref-zone-clear" id="cd-sculpture-ref-clear" title="Remove reference">✕</button>
+            </div>
+            <input type="file" id="cd-sculpture-ref-input" accept="image/*" style="display:none" />
+          </div>
+        </div>
+
         <!-- Art style (sketch + concept tabs only) -->
         <div class="cd-brief-section hidden" id="cd-brief-art-style">
           <label class="cd-brief-label">Art style</label>

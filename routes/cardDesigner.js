@@ -258,6 +258,20 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
     try { return JSON.parse(settings.cd_sketch_samples || '[]'); } catch { return []; }
   })();
 
+  // Load per-design sculpture reference image (uploaded by user in sketch sidebar)
+  const sculptureRefPart = (() => {
+    if (!design.sketch_ref_image) return null;
+    const filename = path.basename(design.sketch_ref_image);
+    const fullPath = path.join(UPLOADS_DIR, 'sketch-refs', filename);
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch (e) { console.warn('[sketch] sculpture ref load error:', e.message); return null; }
+  })();
+
   const buildPrompt = () => {
     const lines = [
       basePrompt,
@@ -267,6 +281,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
       copy.cover       ? `COVER COPY: "${copy.cover}"` : '',
       copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
+      sculptureRefPart ? `\n3D SCULPTURE REFERENCE: A photo of an existing 3D paper sculpture is provided as a visual reference. Use it to inform the engineering style, layering approach, and dimensional quality of the design — adapt creatively, do not replicate exactly.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference sketches provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
@@ -278,11 +293,12 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
-  // Load sample sketch images as Gemini reference parts (max 3 to stay within limits)
-  // loadRefParts reads from the filesystem — add sketch-samples dir to search candidates
+  // Build Gemini image parts: [sculpture ref (first, highest priority), ...sample sketches]
   const sketchRefParts = (() => {
-    if (!sampleImages.length) return [];
     const parts = [];
+    // 1. Per-design sculpture reference photo (most specific context)
+    if (sculptureRefPart) parts.push(sculptureRefPart);
+    // 2. Global sketch style samples (max 3)
     for (const imgPath of sampleImages.slice(0, 3)) {
       const filename = path.basename(imgPath);
       const fullPath = path.join(UPLOADS_DIR, 'sketch-samples', filename);
@@ -292,7 +308,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
         const ext = path.extname(fullPath).slice(1).toLowerCase();
         const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
         parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-      } catch (e) { console.warn('[sketch] ref image load error:', e.message); }
+      } catch (e) { console.warn('[sketch] sample image load error:', e.message); }
     }
     return parts;
   })();

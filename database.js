@@ -211,7 +211,8 @@ if (!existingCardDesignCols.includes('sketch_rounds'))  db.exec(`ALTER TABLE car
 if (!existingCardDesignCols.includes('copy_rounds'))    db.exec(`ALTER TABLE card_designs ADD COLUMN copy_rounds TEXT DEFAULT '[]'`);
 if (!existingCardDesignCols.includes('concept_rounds')) db.exec(`ALTER TABLE card_designs ADD COLUMN concept_rounds TEXT DEFAULT '[]'`);
 if (!existingCardDesignCols.includes('active_module'))  db.exec(`ALTER TABLE card_designs ADD COLUMN active_module TEXT DEFAULT 'copy'`);
-if (!existingCardDesignCols.includes('product_title'))  db.exec(`ALTER TABLE card_designs ADD COLUMN product_title TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('product_title'))    db.exec(`ALTER TABLE card_designs ADD COLUMN product_title TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('sketch_ref_image')) db.exec(`ALTER TABLE card_designs ADD COLUMN sketch_ref_image TEXT DEFAULT NULL`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -562,11 +563,11 @@ module.exports = {
     return db.prepare('SELECT * FROM character_stories WHERE id = ?').get(id) || null;
   },
   createStory(data) {
-    const { character_id, title = '', occasion = '', land_id = '', story_body = '', status = 'draft' } = data;
+    const { character_id, title = '', occasion = '', land_id = '', story_body = '', quote = '', context = '', status = 'draft' } = data;
     db.prepare(`
-      INSERT INTO character_stories (character_id, title, occasion, land_id, story_body, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(String(character_id), title, occasion, land_id, story_body, status);
+      INSERT INTO character_stories (character_id, title, occasion, land_id, story_body, quote, context, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(String(character_id), title, occasion, land_id, story_body, quote, context, status);
     return db.prepare('SELECT * FROM character_stories WHERE rowid = last_insert_rowid()').get();
   },
   updateStory(id, data) {
@@ -702,7 +703,7 @@ module.exports = {
   },
   updateCardDesign(id, data) {
     const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {

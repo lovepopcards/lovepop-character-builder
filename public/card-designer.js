@@ -120,6 +120,9 @@
 
     // Gemini key save (inline key field in settings)
     qs('#cd-gemini-key-save-btn')?.addEventListener('click', saveGeminiKey);
+
+    // Sculpture reference drop zone
+    initSculptureRefZone();
   }
 
   function bindDashboardUI() {
@@ -573,10 +576,12 @@
     qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isSketch);
     qs('#cd-brief-art-style')?.classList.toggle('hidden', !needsStyle);
     qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isSketch);
+    qs('#cd-brief-sculpture-ref')?.classList.toggle('hidden', !isSketch);
     qs('#cd-refine-bar')?.classList.toggle('hidden', !isSketch);
     if (isSketch) {
       updateRefineBar();
       renderSelectedCopyBrief();
+      renderSculptureRef();
     }
 
     // Update regen button label + hint based on active module and existing rounds
@@ -630,6 +635,121 @@
         <div class="cd-brief-copy-field-val">${escHtml(val)}</div>
       </div>
     `).join('');
+  }
+
+  // ── Sculpture reference image ──────────────────────────────────
+  function renderSculptureRef() {
+    const emptyEl   = qs('#cd-sculpture-ref-empty');
+    const previewEl = qs('#cd-sculpture-ref-preview');
+    const imgEl     = qs('#cd-sculpture-ref-img');
+    if (!emptyEl || !previewEl || !imgEl) return;
+    const url = activeDesign?.sketch_ref_image;
+    if (url) {
+      emptyEl.classList.add('hidden');
+      previewEl.classList.remove('hidden');
+      imgEl.src = url;
+    } else {
+      emptyEl.classList.remove('hidden');
+      previewEl.classList.add('hidden');
+      imgEl.src = '';
+    }
+  }
+
+  function initSculptureRefZone() {
+    const zone     = qs('#cd-sculpture-ref-zone');
+    const input    = qs('#cd-sculpture-ref-input');
+    const clearBtn = qs('#cd-sculpture-ref-clear');
+    if (!zone || !input) return;
+
+    // Click zone → open file picker
+    zone.addEventListener('click', e => {
+      if (e.target === clearBtn || clearBtn?.contains(e.target)) return;
+      if (e.target.closest('.cd-ref-zone-preview')) return; // let lightbox handle img clicks
+      input.click();
+    });
+
+    // File picker change
+    input.addEventListener('change', () => {
+      if (input.files?.[0]) uploadSculptureRef(input.files[0]);
+      input.value = '';
+    });
+
+    // Drag & drop
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) uploadSculptureRef(file);
+    });
+
+    // Hover → capture paste events from clipboard
+    let pasteHandler = null;
+    zone.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); uploadSculptureRef(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+      zone.classList.add('paste-ready');
+    });
+    zone.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+      zone.classList.remove('paste-ready');
+    });
+
+    // Clear button
+    clearBtn?.addEventListener('click', e => { e.stopPropagation(); clearSculptureRef(); });
+  }
+
+  async function uploadSculptureRef(file) {
+    if (!activeDesign) return;
+    // Show immediate preview from local file
+    const localUrl = URL.createObjectURL(file);
+    const emptyEl   = qs('#cd-sculpture-ref-empty');
+    const previewEl = qs('#cd-sculpture-ref-preview');
+    const imgEl     = qs('#cd-sculpture-ref-img');
+    const zone      = qs('#cd-sculpture-ref-zone');
+    if (emptyEl)   emptyEl.classList.add('hidden');
+    if (previewEl) previewEl.classList.remove('hidden');
+    if (imgEl)     imgEl.src = localUrl;
+    if (zone)      zone.classList.add('uploading');
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/sketch-ref`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!resp.ok) throw new Error((await resp.json()).error || 'Upload failed');
+      const data = await resp.json();
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      // Replace local blob URL with server URL
+      if (imgEl) imgEl.src = data.path;
+      URL.revokeObjectURL(localUrl);
+    } catch (e) {
+      alert(`Failed to upload reference image: ${e.message}`);
+      renderSculptureRef(); // revert to saved state
+    } finally {
+      if (zone) zone.classList.remove('uploading');
+    }
+  }
+
+  async function clearSculptureRef() {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/sketch-ref`, { method: 'DELETE' });
+      if (!resp.ok) throw new Error('Failed to clear reference');
+      const data = await resp.json();
+      activeDesign = data.design;
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderSculptureRef();
+    } catch (e) {
+      alert(`Failed to remove reference image: ${e.message}`);
+    }
   }
 
   // ── Save design name + notes ───────────────────────────────────

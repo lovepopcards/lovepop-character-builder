@@ -67,6 +67,18 @@ const sketchSampleStorage = multer.diskStorage({
 });
 const uploadSketchSample = multer({ storage: sketchSampleStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
+// Sketch reference image dir — per-design 3D sculpture reference photos
+const SKETCH_REF_DIR = path.join(UPLOADS_DIR, 'sketch-refs');
+if (!fs.existsSync(SKETCH_REF_DIR)) fs.mkdirSync(SKETCH_REF_DIR, { recursive: true });
+const sketchRefStorage = multer.diskStorage({
+  destination: SKETCH_REF_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `ref-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadSketchRef = multer({ storage: sketchRefStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -664,6 +676,32 @@ app.delete('/api/settings/sketch-samples/:filename', (req, res) => {
   const updated = current.filter(p => !p.endsWith('/' + filename));
   db.setSetting('cd_sketch_samples', JSON.stringify(updated));
   res.json({ success: true, samples: updated });
+});
+
+// ── Sketch Reference Image (per-design 3D sculpture photo) ───
+app.post('/api/card-designer/designs/:id/sketch-ref', uploadSketchRef.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  // Delete old ref image from disk if any
+  if (design.sketch_ref_image) {
+    const oldFile = path.join(SKETCH_REF_DIR, path.basename(design.sketch_ref_image));
+    if (fs.existsSync(oldFile)) { try { fs.unlinkSync(oldFile); } catch {} }
+  }
+  const imgPath = `/uploads/sketch-refs/${req.file.filename}`;
+  const updated = db.updateCardDesign(req.params.id, { sketch_ref_image: imgPath });
+  res.json({ path: imgPath, design: updated });
+});
+
+app.delete('/api/card-designer/designs/:id/sketch-ref', (req, res) => {
+  const design = db.getCardDesign(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (design.sketch_ref_image) {
+    const oldFile = path.join(SKETCH_REF_DIR, path.basename(design.sketch_ref_image));
+    if (fs.existsSync(oldFile)) { try { fs.unlinkSync(oldFile); } catch {} }
+  }
+  const updated = db.updateCardDesign(req.params.id, { sketch_ref_image: null });
+  res.json({ success: true, design: updated });
 });
 
 // ── Art Style Reference Articulator ───────────────────────────
