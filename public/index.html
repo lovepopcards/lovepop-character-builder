@@ -758,15 +758,23 @@
           </button>
 
           <!-- Draft panel -->
-          <div id="art-style-draft-panel" class="hidden" style="margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-            <div style="background:var(--surface-2);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
-              <span style="font-size:12px;font-weight:600;color:var(--text)">✨ Generated Draft</span>
-              <button class="btn-ghost btn-sm" id="art-style-draft-discard-btn">Discard</button>
-            </div>
-            <div style="padding:12px 14px">
-              <img id="art-style-draft-image" class="hidden" style="width:100%;border-radius:6px;margin-bottom:12px;object-fit:cover" alt="Generated art style image" />
-              <div id="art-style-draft-fields" style="font-size:12px;color:var(--text-muted);line-height:1.6"></div>
-              <button class="btn-primary" id="art-style-draft-use-btn" style="width:100%;margin-top:12px">Use This Draft →</button>
+          <div id="art-style-draft-panel" class="hidden" style="margin-top:16px;">
+            <div class="ai-results" style="margin:0">
+              <div class="ai-results-header">
+                <span class="ai-results-title">✨ Generated Draft</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="btn-apply-all" id="art-style-draft-use-btn">Apply All →</button>
+                  <button class="btn-ghost btn-sm" id="art-style-draft-discard-btn">Discard</button>
+                </div>
+              </div>
+              <div id="art-style-draft-image-card" class="ai-result-card hidden">
+                <div class="ai-result-card-header">
+                  <span class="ai-result-card-label">Generated Image</span>
+                  <button class="btn-apply-field" id="art-style-draft-apply-image-btn">Apply →</button>
+                </div>
+                <img id="art-style-draft-image" style="width:100%;border-radius:6px;margin-top:8px;object-fit:cover;max-height:200px" alt="Generated art style image" />
+              </div>
+              <div id="art-style-draft-fields"></div>
             </div>
           </div>
         </aside>

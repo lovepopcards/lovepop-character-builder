@@ -3179,6 +3179,7 @@ function bindArtStyleAIPanel() {
   document.getElementById('art-style-ai-articulate-btn').addEventListener('click', handleArtStyleArticulate);
   document.getElementById('art-style-ai-generate-btn').addEventListener('click', handleArtStyleAIGenerate);
   document.getElementById('art-style-draft-use-btn').addEventListener('click', useDraftArtStyle);
+  document.getElementById('art-style-draft-apply-image-btn').addEventListener('click', applyArtStyleDraftImage);
   document.getElementById('art-style-draft-discard-btn').addEventListener('click', () => {
     document.getElementById('art-style-draft-panel').classList.add('hidden');
     artStyleAiGenData = {};
@@ -3366,19 +3367,20 @@ async function handleArtStyleAIGenerate() {
     // Show draft panel
     if (draftPanel) {
       draftPanel.classList.remove('hidden');
-      const draftImg = document.getElementById('art-style-draft-image');
-      if (artStyleAiGenImageUrl && draftImg) {
+
+      // Image card
+      const imageCard = document.getElementById('art-style-draft-image-card');
+      const draftImg  = document.getElementById('art-style-draft-image');
+      if (artStyleAiGenImageUrl && draftImg && imageCard) {
         draftImg.src = artStyleAiGenImageUrl;
-        draftImg.classList.remove('hidden');
-      } else if (draftImg) {
-        draftImg.classList.add('hidden');
+        imageCard.classList.remove('hidden');
+      } else if (imageCard) {
+        imageCard.classList.add('hidden');
       }
+
+      // Per-field cards
       const fieldsEl = document.getElementById('art-style-draft-fields');
-      if (fieldsEl) {
-        fieldsEl.innerHTML = ARTSTYLE_FIELD_META.map(f =>
-          data[f.key] ? `<div style="margin-bottom:8px"><strong>${esc(f.label)}:</strong> ${esc(data[f.key])}</div>` : ''
-        ).filter(Boolean).join('');
-      }
+      if (fieldsEl) renderAIResultCards(data, ARTSTYLE_FIELD_META, fieldsEl);
     }
   } catch (err) {
     alert('Generation failed: ' + err.message);
@@ -3388,23 +3390,26 @@ async function handleArtStyleAIGenerate() {
   }
 }
 
-function useDraftArtStyle() {
-  // Apply generated fields to form inputs
-  ARTSTYLE_FIELD_META.forEach(f => {
-    const el = document.getElementById(f.inputId);
-    if (el && artStyleAiGenData[f.key]) {
-      el.value = artStyleAiGenData[f.key];
-      el.style.borderColor = 'var(--green)';
-      setTimeout(() => el.style.borderColor = '', 1000);
-    }
-  });
-
-  // Queue the generated image if present
+function applyArtStyleDraftImage() {
   if (artStyleAiGenImageUrl && !pendingArtStyleGenUrls.includes(artStyleAiGenImageUrl)) {
     pendingArtStyleGenUrls.unshift(artStyleAiGenImageUrl);
     const asEditor = artStyles.find(a => String(a.id) === String(artStyleEditorId));
     renderArtStyleEditorImages(asEditor ? asEditor.images || [] : []);
+    // Flash the image card to confirm
+    const imageCard = document.getElementById('art-style-draft-image-card');
+    if (imageCard) {
+      imageCard.style.borderColor = 'var(--green)';
+      setTimeout(() => imageCard.style.borderColor = '', 1000);
+    }
   }
+}
+
+function useDraftArtStyle() {
+  // Apply all text fields
+  applyAllAI(ARTSTYLE_FIELD_META, artStyleAiGenData);
+
+  // Apply image
+  applyArtStyleDraftImage();
 
   document.getElementById('art-style-draft-panel')?.classList.add('hidden');
   artStyleAiGenData = {};
