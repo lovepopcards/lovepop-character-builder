@@ -1985,3 +1985,122 @@
   white-space: nowrap;
   font-size: 12px;
 }
+
+/* Blank card toggle */
+.cd-blank-card-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--navy);
+  cursor: pointer;
+}
+.cd-blank-card-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cd-blank-card-hint {
+  color: var(--gray);
+  font-weight: 400;
+}
+
+/* Blank card sidebar message */
+.cd-brief-blank-card-msg {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--gray);
+}
+
+/* Copy card "editing" state */
+.cd-copy-card.editing {
+  border: 2px solid var(--primary, #C0392B);
+  box-shadow: 0 0 0 4px rgba(192,57,43,0.1);
+}
+
+/* ── Copy editor panel ──────────────────────────────────────── */
+.cd-copy-editor-panel {
+  border-top: 2px solid var(--primary, #C0392B);
+  background: #fff;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.cd-copy-editor-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cd-copy-editor-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+.cd-copy-editor-clear {
+  font-size: 12px;
+  color: var(--gray);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.cd-copy-editor-clear:hover { color: var(--red, #C0392B); }
+
+.cd-copy-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.cd-copy-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cd-copy-field-row:nth-child(4),
+.cd-copy-field-row:nth-child(5) {
+  grid-column: span 1;
+}
+.cd-copy-field-row-lbl {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gray);
+  font-weight: 700;
+}
+.cd-copy-edit-ta {
+  width: 100%;
+  border: 1px solid var(--sand-mid, #E2D9CE);
+  border-radius: 5px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--navy);
+  resize: vertical;
+  background: var(--sand-light, #FAF7F4);
+  line-height: 1.4;
+}
+.cd-copy-edit-ta:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+}
+.cd-copy-confirm-btn {
+  align-self: flex-end;
+  background: var(--primary, #C0392B);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cd-copy-confirm-btn:hover { background: #a93226; }

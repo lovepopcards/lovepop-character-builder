@@ -85,7 +85,7 @@ router.get('/designs', (req, res) => {
     const charMap  = db.getCharacterNamesMap();
     const styleMap = db.getArtStyleNamesMap();
     const enriched = list.map(d => {
-      const hasCopy        = !!(d.selected_copy && (d.selected_copy.cover || d.selected_copy.inside_left));
+      const hasCopy        = !!(d.is_blank_card || (d.selected_copy && (d.selected_copy.cover || d.selected_copy.inside_left)));
       const hasInsideSketch = !!d.selected_sketch_url;
       const hasCoverSketch  = !!d.selected_cover_sketch_url;
       const hasConcept      = !!d.selected_concept_url;

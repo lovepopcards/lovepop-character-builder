@@ -138,6 +138,35 @@
 
     // Concept generate button
     qs('#cd-concept-generate-btn')?.addEventListener('click', generateConcept);
+
+    // Blank card checkbox
+    qs('#cd-blank-card-check')?.addEventListener('change', async (e) => {
+      if (!activeDesign) return;
+      const val = e.target.checked ? 1 : 0;
+      activeDesign = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_blank_card: val }),
+      }).then(r => r.json());
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderCopyRounds();
+      updateRegenBtn('copy');
+      renderSelectedCopyBrief();
+    });
+
+    // Copy editor confirm
+    qs('#cd-copy-confirm-btn')?.addEventListener('click', confirmCopy);
+
+    // Copy editor clear
+    qs('#cd-copy-editor-clear')?.addEventListener('click', () => {
+      ['#cd-copy-edit-cover','#cd-copy-edit-inside-left','#cd-copy-edit-inside-right','#cd-copy-edit-sculpture','#cd-copy-edit-back'].forEach(id => {
+        const el = qs(id); if (el) el.value = '';
+      });
+      if (activeDesign) delete activeDesign._editing_copy_source_id;
+      const panel = qs('#cd-copy-editor-panel');
+      if (panel) { panel.classList.add('hidden'); delete panel.dataset.sourceCardId; }
+      renderCopyRounds();
+    });
   }
 
   function bindDashboardUI() {
@@ -522,6 +551,10 @@
     const productFormatEl = qs('#cd-product-format');
     if (productFormatEl) productFormatEl.value = activeDesign.product_format || '';
 
+    // Blank card checkbox
+    const blankCheck = qs('#cd-blank-card-check');
+    if (blankCheck) blankCheck.checked = !!activeDesign.is_blank_card;
+
     updateSidebarMeta();
     renderCopyRounds();
     renderSketchRounds();
@@ -529,9 +562,24 @@
     renderConceptRounds();
     clearRightCard();
 
+    // Re-populate copy editor if confirmed copy exists
+    const confirmedCopy = activeDesign?.selected_copy;
+    const editorPanel = qs('#cd-copy-editor-panel');
+    if (editorPanel && confirmedCopy && (confirmedCopy.cover || confirmedCopy.inside_left)) {
+      const setField = (id, val) => { const el = qs(id); if (el) el.value = val || ''; };
+      setField('#cd-copy-edit-cover',        confirmedCopy.cover);
+      setField('#cd-copy-edit-inside-left',  confirmedCopy.inside_left);
+      setField('#cd-copy-edit-inside-right', confirmedCopy.inside_right);
+      setField('#cd-copy-edit-sculpture',    confirmedCopy.sculpture);
+      setField('#cd-copy-edit-back',         confirmedCopy.back);
+      // Only show if on copy module (switchModule below will handle toggling)
+    }
+
     // Restore last active module for this card (defaults to 'copy')
     const activeModule = lsGet(activeDesign.id, 'active_module', 'copy');
     switchModule(activeModule);
+    // Explicitly enforce blank-card visibility (belt-and-suspenders after async re-renders)
+    qs('#cd-brief-blank-card')?.classList.toggle('hidden', activeModule !== 'copy');
     updateRegenBtn(activeModule);
   }
 
@@ -628,6 +676,27 @@
     qs('#cd-refine-bar')?.classList.toggle('hidden', !isInsideSketch);
     qs('#cd-cover-sketch-refine-bar')?.classList.toggle('hidden', !isCoverSketch);
     qs('#cd-concept-refine-bar')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-brief-blank-card')?.classList.toggle('hidden', name !== 'copy');
+
+    // Show copy editor panel only on copy tab
+    const editorPanel = qs('#cd-copy-editor-panel');
+    if (editorPanel) {
+      if (name !== 'copy') {
+        editorPanel.classList.add('hidden');
+      } else {
+        // Re-show if confirmed copy exists and user switches back
+        const copy = activeDesign?.selected_copy;
+        if (copy && (copy.cover || copy.inside_left)) {
+          const setField = (id, val) => { const el = qs(id); if (el) el.value = val || ''; };
+          setField('#cd-copy-edit-cover',        copy.cover);
+          setField('#cd-copy-edit-inside-left',  copy.inside_left);
+          setField('#cd-copy-edit-inside-right', copy.inside_right);
+          setField('#cd-copy-edit-sculpture',    copy.sculpture);
+          setField('#cd-copy-edit-back',         copy.back);
+          editorPanel.classList.remove('hidden');
+        }
+      }
+    }
 
     if (isInsideSketch) {
       updateRefineBar();
@@ -657,11 +726,18 @@
     if (!regenBtn) return;
 
     if (mod === 'copy') {
-      const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
-      regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
-      if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new round of copy options.'
-        : 'Generate the first round of copy options.';
+      if (activeDesign?.is_blank_card) {
+        regenBtn.textContent = 'Blank card selected';
+        regenBtn.classList.add('cd-regen-btn--disabled');
+        if (regenHint) regenHint.textContent = 'Uncheck "Blank card" to generate copy options.';
+      } else {
+        regenBtn.classList.remove('cd-regen-btn--disabled');
+        const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
+        regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
+        if (regenHint) regenHint.textContent = hasRounds
+          ? 'Generate a new round of copy options.'
+          : 'Generate the first round of copy options.';
+      }
     } else if (mod === 'sketch') {
       const hasRounds = (activeDesign?.sketch_rounds?.length || 0) > 0;
       regenBtn.textContent = hasRounds ? '✨ Regenerate sketches' : '✨ Generate sketches';
@@ -686,6 +762,11 @@
   function renderSelectedCopyBrief() {
     const el = qs('#cd-brief-selected-copy-content');
     if (!el) return;
+    if (activeDesign?.is_blank_card) {
+      el.innerHTML = '<span class="cd-brief-blank-card-msg">Blank card — no sentiment copy</span>';
+      qs('#cd-brief-selected-copy')?.classList.remove('hidden');
+      return;
+    }
     const copy = activeDesign?.selected_copy;
     if (!copy || (!copy.cover && !copy.inside_left && !copy.inside_right && !copy.sculpture)) {
       el.innerHTML = '<em class="cd-brief-no-selection">No copy selected yet — go to Copy tab first.</em>';
@@ -1153,10 +1234,26 @@
 
   function renderCopyRounds() {
     if (!activeDesign) return;
-    const rounds  = activeDesign.copy_rounds || [];
+    const rounds  = Array.isArray(activeDesign.copy_rounds) ? activeDesign.copy_rounds : [];
     const emptyEl = qs('#cd-copy-empty');
     const listEl  = qs('#cd-copy-rounds');
     if (!listEl) return;
+
+    // Blank card state
+    if (activeDesign?.is_blank_card) {
+      if (emptyEl) {
+        emptyEl.classList.remove('hidden');
+        const iconEl = emptyEl.querySelector('.cd-rounds-empty-icon');
+        const titleEl = emptyEl.querySelector('.cd-rounds-empty-title');
+        const subEl = emptyEl.querySelector('.cd-rounds-empty-sub');
+        if (iconEl) iconEl.textContent = '○';
+        if (titleEl) titleEl.textContent = 'Blank card';
+        if (subEl) subEl.textContent = 'This card has no sentiment copy. Uncheck "Blank card" in the sidebar to generate copy options.';
+      }
+      listEl.innerHTML = '';
+      qs('#cd-copy-editor-panel')?.classList.add('hidden');
+      return;
+    }
 
     if (!rounds.length) {
       if (emptyEl) emptyEl.classList.remove('hidden');
@@ -1198,20 +1295,30 @@
         patchCopyCard(roundId, cardId, { note: e.target.value });
       });
 
-      // "Select as final" button
+      // "Use this →" button — load into editor
       cardEl.querySelector('.cd-copy-pick-btn')?.addEventListener('click', () => {
-        selectCopyFromRound(roundId, cardId);
+        // Find the card object from rounds
+        let selectedCard = null;
+        for (const r of (activeDesign?.copy_rounds || [])) {
+          selectedCard = (r.cards || []).find(c => c.id === cardId);
+          if (selectedCard) break;
+        }
+        if (selectedCard) loadCopyIntoEditor(selectedCard);
       });
     });
   }
 
   function copyCardHtml(card, cardIdx, roundId) {
     const isSelected = activeDesign?.selected_copy_id === card.id;
+    const isEditing  = activeDesign?._editing_copy_source_id === card.id;
+    const cardClass  = `cd-copy-card${isSelected ? ' selected' : ''}${isEditing ? ' editing' : ''}`;
+    const btnLabel   = isSelected ? '✓ Confirmed' : isEditing ? '↑ In editor' : 'Use this →';
+    const btnPicked  = (isSelected || isEditing) ? ' picked' : '';
     return `
-      <div class="cd-copy-card${isSelected ? ' selected' : ''}" data-card-id="${escAttr(card.id)}" data-round-id="${escAttr(roundId)}">
+      <div class="${cardClass}" data-card-id="${escAttr(card.id)}" data-round-id="${escAttr(roundId)}">
         <div class="cd-copy-card-hdr">
           <span class="cd-copy-opt-label">OPTION ${cardIdx + 1}</span>
-          ${isSelected ? '<span class="cd-copy-selected-badge">✓ SELECTED</span>' : ''}
+          ${isSelected ? '<span class="cd-copy-selected-badge">✓ CONFIRMED</span>' : ''}
         </div>
         <div class="cd-copy-card-body">
           ${card.cover       ? `<div><div class="cd-copy-field-lbl">Cover</div><div class="cd-copy-field-cover">${escHtml(card.cover)}</div></div>` : ''}
@@ -1221,8 +1328,8 @@
         </div>
         <div class="cd-copy-card-footer">
           <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Add a comment or direction…" value="${escAttr(card.note || '')}" />
-          <button class="cd-copy-pick-btn${isSelected ? ' picked' : ''}">
-            ${isSelected ? '✓ Selected' : 'Select this option'}
+          <button class="cd-copy-pick-btn${btnPicked}">
+            ${btnLabel}
           </button>
         </div>
       </div>
@@ -1276,6 +1383,63 @@
       switchModule('sketch');
     } catch (e) {
       console.error('[copy] selectCopyFromRound error:', e.message);
+    }
+  }
+
+  function loadCopyIntoEditor(card) {
+    const panel = qs('#cd-copy-editor-panel');
+    if (!panel) return;
+
+    // Populate fields
+    const setField = (id, val) => { const el = qs(id); if (el) el.value = val || ''; };
+    setField('#cd-copy-edit-cover',        card.cover);
+    setField('#cd-copy-edit-inside-left',  card.inside_left);
+    setField('#cd-copy-edit-inside-right', card.inside_right);
+    setField('#cd-copy-edit-sculpture',    card.sculpture);
+    setField('#cd-copy-edit-back',         card.back);
+
+    // Track which card was loaded
+    panel.dataset.sourceCardId = card.id;
+
+    // Show the panel
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Mark editing source on activeDesign (transient, not persisted)
+    activeDesign._editing_copy_source_id = card.id;
+    renderCopyRounds();
+  }
+
+  async function confirmCopy() {
+    if (!activeDesign) return;
+    const getField = (id) => (qs(id)?.value || '').trim();
+    const copy = {
+      cover:        getField('#cd-copy-edit-cover'),
+      inside_left:  getField('#cd-copy-edit-inside-left'),
+      inside_right: getField('#cd-copy-edit-inside-right'),
+      sculpture:    getField('#cd-copy-edit-sculpture'),
+      back:         getField('#cd-copy-edit-back'),
+    };
+    const panel = qs('#cd-copy-editor-panel');
+    const sourceCardId = panel?.dataset.sourceCardId || null;
+
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_copy: copy, selected_copy_id: sourceCardId }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      delete activeDesign._editing_copy_source_id;
+      renderCopyRounds();
+      renderSelectedCopyBrief();
+      updateSidebarMeta();
+      // Hide editor and move to Inside Sketch
+      if (panel) panel.classList.add('hidden');
+      switchModule('sketch');
+    } catch (e) {
+      alert('Could not save copy: ' + e.message);
     }
   }
 
@@ -1352,7 +1516,7 @@
 
   function renderSketchRounds() {
     if (!activeDesign) return;
-    const rounds  = activeDesign.sketch_rounds || [];
+    const rounds  = Array.isArray(activeDesign.sketch_rounds) ? activeDesign.sketch_rounds : [];
     const emptyEl = qs('#cd-sketch-empty');
     const listEl  = qs('#cd-sketch-rounds');
     if (!emptyEl || !listEl) return;
@@ -1662,7 +1826,7 @@
 
   function renderCoverSketchRounds() {
     if (!activeDesign) return;
-    const rounds  = activeDesign.cover_sketch_rounds || [];
+    const rounds  = Array.isArray(activeDesign.cover_sketch_rounds) ? activeDesign.cover_sketch_rounds : [];
     const emptyEl = qs('#cd-cover-sketch-empty');
     const listEl  = qs('#cd-cover-sketch-rounds');
     if (!emptyEl || !listEl) return;
@@ -1820,7 +1984,7 @@
 
   function renderConceptRounds() {
     if (!activeDesign) return;
-    const rounds = activeDesign.concept_rounds || [];
+    const rounds = Array.isArray(activeDesign.concept_rounds) ? activeDesign.concept_rounds : [];
     const emptyEl = qs('#cd-concept-empty');
     const listEl = qs('#cd-concept-rounds');
     if (!listEl) return;

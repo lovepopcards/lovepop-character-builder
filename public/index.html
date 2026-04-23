@@ -1375,15 +1375,18 @@
           <label class="cd-brief-label">Product Format</label>
           <select id="cd-product-format" class="cd-brief-select">
             <option value="">Select format…</option>
-            <option value="popup-standard">Pop-Up Card (Standard)</option>
-            <option value="popup-oversize">Pop-Up Card (Oversize)</option>
-            <option value="popup-mini">Pop-Up Card (Mini)</option>
+            <option value="popup-card">Pop-Up Card</option>
+            <option value="luxe-popup-card">Luxe Pop-Up Card</option>
+            <option value="mini-popup-card">Mini Pop-Up Card</option>
+            <option value="oversize-popup-card">Oversize Pop-Up Card</option>
+            <option value="sliceform-card">Sliceform Card</option>
             <option value="flat-card">Flat Card</option>
-            <option value="sliceform">Sliceform Card</option>
-            <option value="letterpress">Letterpress Card</option>
+            <option value="letterpress-card">Letterpress Card</option>
+            <option value="postcard">Postcard</option>
             <option value="boxed-set">Boxed Set</option>
-            <option value="ornament">Ornament</option>
-            <option value="notebook">Notebook</option>
+            <option value="popup-ornament">Pop-Up Ornament</option>
+            <option value="popup-gift-tag">Pop-Up Gift Tag</option>
+            <option value="popup-notebook">Pop-Up Notebook</option>
           </select>
         </div>
 
@@ -1401,6 +1404,14 @@
             <span class="cd-style-picker-name" id="cd-char-picker-name">None selected</span>
             <span class="cd-style-picker-chevron">▾</span>
           </button>
+        </div>
+
+        <!-- Blank card toggle (copy tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-blank-card">
+          <label class="cd-blank-card-label">
+            <input type="checkbox" id="cd-blank-card-check" />
+            <span>Blank card <span class="cd-blank-card-hint">(no sentiment copy)</span></span>
+          </label>
         </div>
 
         <!-- Selected copy summary (sketch + concept tabs) -->
@@ -1583,6 +1594,37 @@
         </div>
 
       </div><!-- /cd-track-content -->
+
+      <!-- Copy editor panel (copy module only) -->
+      <div class="cd-copy-editor-panel hidden" id="cd-copy-editor-panel">
+        <div class="cd-copy-editor-hdr">
+          <span class="cd-copy-editor-title">Edit &amp; confirm copy</span>
+          <button class="cd-copy-editor-clear" id="cd-copy-editor-clear" title="Clear">✕ Clear</button>
+        </div>
+        <div class="cd-copy-editor-fields">
+          <div class="cd-copy-field-row">
+            <label class="cd-copy-field-row-lbl">Cover</label>
+            <textarea id="cd-copy-edit-cover" class="cd-copy-edit-ta" rows="2" placeholder="Cover text…"></textarea>
+          </div>
+          <div class="cd-copy-field-row">
+            <label class="cd-copy-field-row-lbl">Inside Left</label>
+            <textarea id="cd-copy-edit-inside-left" class="cd-copy-edit-ta" rows="2" placeholder="Inside left text…"></textarea>
+          </div>
+          <div class="cd-copy-field-row">
+            <label class="cd-copy-field-row-lbl">Inside Right</label>
+            <textarea id="cd-copy-edit-inside-right" class="cd-copy-edit-ta" rows="2" placeholder="Inside right text…"></textarea>
+          </div>
+          <div class="cd-copy-field-row">
+            <label class="cd-copy-field-row-lbl">Sculpture</label>
+            <textarea id="cd-copy-edit-sculpture" class="cd-copy-edit-ta" rows="1" placeholder="Sculpture text…"></textarea>
+          </div>
+          <div class="cd-copy-field-row">
+            <label class="cd-copy-field-row-lbl">Back</label>
+            <textarea id="cd-copy-edit-back" class="cd-copy-edit-ta" rows="1" placeholder="Back of card text…"></textarea>
+          </div>
+        </div>
+        <button class="cd-copy-confirm-btn" id="cd-copy-confirm-btn">✓ Confirm copy — proceed to Inside Sketch</button>
+      </div>
 
       <!-- Refine bar (inside sketch module only) -->
       <div class="cd-refine-bar hidden" id="cd-refine-bar">

@@ -217,6 +217,7 @@ if (!existingCardDesignCols.includes('cover_ref_image')) db.exec(`ALTER TABLE ca
 if (!existingCardDesignCols.includes('cover_sketch_rounds'))       db.exec(`ALTER TABLE card_designs ADD COLUMN cover_sketch_rounds TEXT DEFAULT '[]'`);
 if (!existingCardDesignCols.includes('selected_cover_sketch_url')) db.exec(`ALTER TABLE card_designs ADD COLUMN selected_cover_sketch_url TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('product_format'))            db.exec(`ALTER TABLE card_designs ADD COLUMN product_format TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('is_blank_card')) db.exec(`ALTER TABLE card_designs ADD COLUMN is_blank_card INTEGER DEFAULT 0`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -348,7 +349,7 @@ for (const [key, value] of Object.entries(DEFAULTS)) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
-const parseJSON = (val, fallback = []) => { try { return JSON.parse(val); } catch { return fallback; } };
+const parseJSON = (val, fallback = []) => { if (val === null || val === undefined) return fallback; try { const p = JSON.parse(val); return (p !== null && p !== undefined) ? p : fallback; } catch { return fallback; } };
 
 const serializeChar = (row) => ({
   ...row,
@@ -693,6 +694,7 @@ module.exports = {
       copy_rounds:    parseJSON(row.copy_rounds, []),
       concept_rounds: parseJSON(row.concept_rounds, []),
       cover_sketch_rounds: parseJSON(row.cover_sketch_rounds, []),
+      is_blank_card: row.is_blank_card === 1 || row.is_blank_card === true,
     };
   },
   getAllCardDesigns() {
@@ -711,7 +713,7 @@ module.exports = {
   },
   updateCardDesign(id, data) {
     const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'cover_sketch_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format', 'is_blank_card'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
