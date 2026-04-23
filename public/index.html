@@ -1098,6 +1098,12 @@
                 <textarea id="cd-s-sketch-prompt" class="form-textarea" rows="5"></textarea>
               </div>
 
+              <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Sample Sketches</label>
+                <div class="form-hint" style="margin-bottom:8px">One image URL per line. These are included in the Gemini sketch prompt as style references / examples. Leave blank to skip.</div>
+                <textarea id="cd-s-sketch-sample-images" class="form-textarea" rows="4" placeholder="https://example.com/sketch1.jpg&#10;https://example.com/sketch2.jpg"></textarea>
+              </div>
+
               <div style="margin-top:20px;display:flex;align-items:center;gap:14px">
                 <button class="btn-primary" id="cd-settings-save-btn">Save Card Designer Settings</button>
                 <span id="cd-settings-save-status" style="font-size:13px;color:var(--gray)"></span>
@@ -1332,21 +1338,8 @@
 
         <!-- Product -->
         <div class="cd-brief-section">
-          <label class="cd-brief-label">Product</label>
-          <div class="cd-product-search-wrap">
-            <button class="cd-product-picker-btn" id="cd-product-picker-btn">
-              <div class="cd-product-thumb" id="cd-product-thumb"></div>
-              <div class="cd-product-picker-info">
-                <div class="cd-product-picker-name" id="cd-sku-name">— select a product —</div>
-                <div class="cd-product-picker-sku" id="cd-sku-badge"></div>
-              </div>
-              <span class="cd-product-chevron">▾</span>
-            </button>
-            <div class="cd-product-search-inner hidden" id="cd-product-search-inner">
-              <input type="text" id="cd-product-search" class="cd-brief-search" placeholder="Search products…" autocomplete="off" />
-              <div id="cd-product-dropdown" class="cd-product-dropdown hidden"></div>
-            </div>
-          </div>
+          <label class="cd-brief-label">Product Title</label>
+          <input type="text" id="cd-product-title" class="cd-brief-input" placeholder="e.g. Birthday Sunflowers Pop-Up Card" autocomplete="off" />
         </div>
 
         <!-- Creative direction -->
@@ -1363,7 +1356,9 @@
           </div>
           <div class="cd-brief-section">
             <label class="cd-brief-label">Art style</label>
-            <select id="cd-style-select" class="cd-brief-select"><option value="">None</option></select>
+            <div id="cd-style-grid" class="cd-style-grid">
+              <button type="button" id="cd-style-none" class="cd-style-none active" data-style-id="">None</button>
+            </div>
           </div>
         </div>
 
@@ -1378,35 +1373,17 @@
           <div class="cd-fidelity-desc" id="cd-fidelity-desc">Clean architectural sketch with clear fold lines.</div>
         </div>
 
-        <!-- Progress / module switcher -->
-        <div class="cd-brief-section">
-          <label class="cd-brief-label">Progress</label>
-          <div class="cd-step-rows">
-            <button class="cd-step-row cd-module-tab" data-module="copy" id="cd-step-copy">
-              <div class="cd-step-icon" id="cd-step-icon-copy">T</div>
-              <div class="cd-step-info">
-                <div class="cd-step-label">Copy</div>
-                <div class="cd-step-meta" id="cd-step-meta-copy">Not started</div>
-              </div>
-              <span class="cd-mod-check" id="cd-mod-check-copy"></span>
-            </button>
-            <button class="cd-step-row cd-module-tab" data-module="sketch" id="cd-step-sketch">
-              <div class="cd-step-icon" id="cd-step-icon-sketch">◈</div>
-              <div class="cd-step-info">
-                <div class="cd-step-label">Concept Sketch</div>
-                <div class="cd-step-meta" id="cd-step-meta-sketch">Not started</div>
-              </div>
-              <span class="cd-mod-check" id="cd-mod-check-sketch"></span>
-            </button>
-            <button class="cd-step-row cd-module-tab" data-module="concept" id="cd-step-concept">
-              <div class="cd-step-icon" id="cd-step-icon-concept">✦</div>
-              <div class="cd-step-info">
-                <div class="cd-step-label">Detailed Concept</div>
-                <div class="cd-step-meta" id="cd-step-meta-concept">Not started</div>
-              </div>
-              <span class="cd-mod-check" id="cd-mod-check-concept"></span>
-            </button>
-          </div>
+        <!-- Hidden progress state holders (used by JS only, not rendered) -->
+        <div style="display:none">
+          <span id="cd-step-meta-copy"></span>
+          <span id="cd-step-meta-sketch"></span>
+          <span id="cd-step-meta-concept"></span>
+          <span id="cd-step-icon-copy"></span>
+          <span id="cd-step-icon-sketch"></span>
+          <span id="cd-step-icon-concept"></span>
+          <span id="cd-mod-check-copy"></span>
+          <span id="cd-mod-check-sketch"></span>
+          <span id="cd-mod-check-concept"></span>
         </div>
 
       </div><!-- /cd-uni-aside-body -->
@@ -1487,6 +1464,7 @@
       <div class="cd-refine-bar hidden" id="cd-refine-bar">
         <div class="cd-refine-chips" id="cd-refine-chips"></div>
         <input type="text" id="cd-refine-input" class="cd-refine-input" placeholder="What should change in the next round?" autocomplete="off" />
+        <button class="cd-sketch-final-btn hidden" id="cd-sketch-final-btn">✓ Select as final</button>
         <button class="cd-refine-btn" id="cd-sketch-generate-btn">Generate Round 1 →</button>
       </div>
 

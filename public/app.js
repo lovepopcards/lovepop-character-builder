@@ -20,6 +20,7 @@ let editorMode = 'create';
 let editorCharId = null;
 let landEditorMode = 'create';
 let landEditorId = null;
+let landEditorDirty = false;
 let artStyleEditorMode = 'create';
 let artStyleEditorId = null;
 let aiImageFile = null;
@@ -826,6 +827,7 @@ function buildLandTile(land) {
 function openLandEditorView(mode, landId = null) {
   landEditorMode = mode;
   landEditorId = landId;
+  landEditorDirty = false;
   landAiGeneratedData = {};
   landAiImageFile = null;
   pendingLandImages = [];
@@ -926,9 +928,21 @@ function bindLandEditor() {
   document.querySelectorAll('#view-land-editor .editor-tab').forEach(btn => {
     btn.addEventListener('click', () => switchLandEditorTab(btn.dataset.tab));
   });
-  document.getElementById('land-editor-back-btn').addEventListener('click', () => goBack('lands'));
-  document.getElementById('land-editor-cancel-btn').addEventListener('click', () => goBack('lands'));
+  document.getElementById('land-editor-back-btn').addEventListener('click', () => {
+    if (landEditorDirty && !confirm('You have unsaved changes. Leave without saving?')) return;
+    goBack('lands');
+  });
+  document.getElementById('land-editor-cancel-btn').addEventListener('click', () => {
+    if (landEditorDirty && !confirm('You have unsaved changes. Leave without saving?')) return;
+    goBack('lands');
+  });
   document.getElementById('land-editor-save-btn').addEventListener('click', handleLandEditorSave);
+
+  // Mark dirty on any form field change
+  document.querySelectorAll('#view-land-editor input, #view-land-editor textarea, #view-land-editor select').forEach(el => {
+    el.addEventListener('input',  () => { landEditorDirty = true; });
+    el.addEventListener('change', () => { landEditorDirty = true; });
+  });
   document.getElementById('land-editor-image-upload').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -1012,6 +1026,7 @@ async function handleLandEditorSave() {
       lands.unshift(saved);
     }
     renderLands();
+    landEditorDirty = false;
     document.getElementById('land-editor-save-status').textContent = '✓ Saved';
     setTimeout(() => { switchView('lands'); }, 600);
   } catch (err) {

@@ -6,6 +6,7 @@
   let designs = [];
   let activeDesign = null;
   let allProducts = null;
+  let selectedStyleId = null;   // art style visual grid
 
   // Dashboard filters
   let cdFilter = 'all';
@@ -35,6 +36,7 @@
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         if (tab.dataset.view === 'card-designer') {
+          showDashboard();
           loadDesigns();
           if (!conceptSelectorsLoaded) {
             loadConceptSelectors();
@@ -55,28 +57,8 @@
       tab.addEventListener('click', () => switchModule(tab.dataset.module));
     });
 
-    // Product picker toggle
-    qs('#cd-product-picker-btn')?.addEventListener('click', () => {
-      qs('#cd-product-search-inner')?.classList.toggle('hidden');
-      if (!qs('#cd-product-search-inner')?.classList.contains('hidden')) {
-        qs('#cd-product-search')?.focus();
-      }
-    });
-
-    // Product search
-    const searchInput = qs('#cd-product-search');
-    if (searchInput) {
-      searchInput.addEventListener('input', handleProductSearch);
-      searchInput.addEventListener('focus', handleProductSearch);
-    }
-
-    // Close product search on outside click
-    document.addEventListener('click', e => {
-      if (!e.target.closest('.cd-product-search-wrap')) {
-        qs('#cd-product-dropdown')?.classList.add('hidden');
-        qs('#cd-product-search-inner')?.classList.add('hidden');
-      }
-    });
+    // Product title auto-save on blur
+    qs('#cd-product-title')?.addEventListener('blur', saveMeta);
 
     // Creative direction auto-save on blur
     qs('#cd-creative-direction')?.addEventListener('blur', saveMeta);
@@ -108,8 +90,8 @@
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generateSketchRound();
     });
 
-    // Promote sketch
-    qs('#cd-promote-sketch-btn')?.addEventListener('click', promoteSketch);
+    // Select as final — sketch (in refine bar)
+    qs('#cd-sketch-final-btn')?.addEventListener('click', promoteSketch);
 
     // Right panel refine
     qs('#cd-right-refine-btn')?.addEventListener('click', refineRightCard);
@@ -391,10 +373,24 @@
 
   // ── Select design ──────────────────────────────────────────────
   async function selectDesign(id) {
-    const resp = await fetch(`/api/card-designer/designs/${id}`);
-    activeDesign = await resp.json();
-    showWorkspaceView();
-    showWorkspace();
+    // Render immediately with cached data to avoid perceived lag
+    const cached = designs.find(d => d.id === id);
+    if (cached) {
+      activeDesign = cached;
+      showWorkspaceView();
+      showWorkspace();
+    }
+    // Fetch full data in background (may include rounds not in list response)
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${id}`);
+      const full = await resp.json();
+      if (!resp.ok) return;
+      activeDesign = full;
+      designs = designs.map(d => d.id === id ? full : d);
+      showWorkspace(); // refresh with full round data
+    } catch (e) {
+      console.error('[card-designer] selectDesign fetch error:', e.message);
+    }
   }
 
   // ── Workspace ──────────────────────────────────────────────────
@@ -410,21 +406,20 @@
       metaEl.textContent = ago ? `Draft · ${ago}` : 'Draft';
     }
 
-    // Product picker display
-    const skuBadge = qs('#cd-sku-badge');
-    const skuName  = qs('#cd-sku-name');
-    if (skuBadge) skuBadge.textContent = activeDesign.sku || '';
-    if (skuName)  skuName.textContent  = activeDesign.product_data?.name || activeDesign.sku || '— select a product —';
+    // Product title field
+    const productTitleEl = qs('#cd-product-title');
+    if (productTitleEl) productTitleEl.value = activeDesign.product_title || activeDesign.product_data?.name || activeDesign.sku || '';
 
     // Creative direction
     const directionEl = qs('#cd-creative-direction');
     if (directionEl) directionEl.value = activeDesign.notes || '';
 
-    // Character + Art Style selectors — set current values if loaded
-    const charSel  = qs('#cd-char-select');
-    const styleSel = qs('#cd-style-select');
-    if (charSel  && activeDesign.character_id)  charSel.value  = activeDesign.character_id;
-    if (styleSel && activeDesign.art_style_id)  styleSel.value = activeDesign.art_style_id;
+    // Character selector
+    const charSel = qs('#cd-char-select');
+    if (charSel && activeDesign.character_id) charSel.value = activeDesign.character_id;
+
+    // Art style visual grid selection
+    applyStyleSelection(activeDesign.art_style_id || null);
 
     // Reset ephemeral state
     sketchUrls   = [];
@@ -537,12 +532,13 @@
   // ── Save design name + notes ───────────────────────────────────
   async function saveMeta() {
     if (!activeDesign) return;
-    const name  = (qs('#cd-design-name')?.value || '').trim() || 'Untitled Design';
-    const notes = qs('#cd-creative-direction')?.value || '';
+    const name          = (qs('#cd-design-name')?.value || '').trim() || 'Untitled Design';
+    const notes         = qs('#cd-creative-direction')?.value || '';
+    const product_title = qs('#cd-product-title')?.value || '';
     const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, notes }),
+      body: JSON.stringify({ name, notes, product_title }),
     });
     activeDesign = await resp.json();
     designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
@@ -639,13 +635,14 @@
     const count        = parseInt(qs('.cd-gen-n.active')?.dataset.count || '3', 10);
     const direction    = qs('#cd-creative-direction')?.value || '';
     const character_id = qs('#cd-char-select')?.value        || '';
-    const art_style_id = qs('#cd-style-select')?.value       || '';
+    const art_style_id = selectedStyleId                     || '';
+    const feedback     = buildCopyRoundFeedback();
 
     try {
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/generate-copy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ direction, count, character_id, art_style_id }),
+        body: JSON.stringify({ direction, count, character_id, art_style_id, feedback }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Generation failed');
@@ -679,7 +676,22 @@
   }
 
   function buildCopyFeedback() {
-    return null; // votes are tracked per-round now
+    return null; // legacy — use buildCopyRoundFeedback for round-based flow
+  }
+
+  function buildCopyRoundFeedback() {
+    const rounds = activeDesign?.copy_rounds || [];
+    if (!rounds.length) return null;
+    const liked_examples = [];
+    const disliked_notes = [];
+    for (const r of rounds) {
+      for (const card of (r.cards || [])) {
+        if (card.vote === 'up') liked_examples.push(card);
+        if (card.vote === 'down' && card.note) disliked_notes.push(card.note);
+      }
+    }
+    if (!liked_examples.length && !disliked_notes.length) return null;
+    return { liked_examples, disliked_notes };
   }
 
   function renderCopyOptions() {
@@ -776,8 +788,10 @@
           ${card.sculpture   ? `<div><div class="cd-copy-field-lbl">Sculpture</div><div class="cd-copy-field-sc">${escHtml(card.sculpture)}</div></div>` : ''}
         </div>
         <div class="cd-copy-card-footer">
-          <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Note for refinement…" value="${escAttr(card.note || '')}" />
-          <button class="cd-copy-pick-btn${isSelected ? ' picked' : ''}">${isSelected ? '✓ Picked' : 'Pick'}</button>
+          <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Note for next round…" value="${escAttr(card.note || '')}" />
+          <button class="cd-copy-pick-btn${isSelected ? ' picked' : ''}">
+            ${isSelected ? '✓ Final' : 'Select as final'}
+          </button>
         </div>
       </div>
     `;
@@ -1042,6 +1056,9 @@
     document.querySelectorAll('.cd-sk-card').forEach(el => {
       el.classList.toggle('focused', el.dataset.cardId === card.id);
     });
+
+    // Show "Select as final" button in refine bar
+    qs('#cd-sketch-final-btn')?.classList.remove('hidden');
   }
 
   function clearRightCard() {
@@ -1049,6 +1066,7 @@
     qs('#cd-right-empty')?.classList.remove('hidden');
     qs('#cd-right-card')?.classList.add('hidden');
     document.querySelectorAll('.cd-sk-card').forEach(el => el.classList.remove('focused'));
+    qs('#cd-sketch-final-btn')?.classList.add('hidden');
   }
 
   function updateRefineBar() {
@@ -1126,11 +1144,11 @@
 
   async function promoteSketch() {
     if (!activeDesign || !focusedSketchCard) {
-      alert('Select a sketch in the right panel to promote it to concept.');
+      alert('Click a sketch to select it, then click "Select as final".');
       return;
     }
-    const btn = qs('#cd-promote-sketch-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Promoting…'; }
+    const btn = qs('#cd-sketch-final-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
     try {
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/promote-sketch`, {
         method: 'POST',
@@ -1139,15 +1157,17 @@
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Promote failed');
-      activeDesign = data.design;
+      // promote-sketch route returns the design directly (not wrapped)
+      activeDesign = data;
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       renderBriefSidebar();
       renderSelectedSketch();
-      switchModule('concept');
+      // Visual feedback — update button label then restore
+      if (btn) { btn.textContent = '✓ Saved!'; }
+      setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '✓ Select as final'; } }, 1500);
     } catch (e) {
-      alert(`Promote failed: ${e.message}`);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Promote to Concept →'; }
+      alert(`Could not select sketch: ${e.message}`);
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Select as final'; }
     }
   }
 
@@ -1168,7 +1188,7 @@
 
     const direction    = qs('#cd-creative-direction')?.value || '';
     const character_id = qs('#cd-char-select')?.value         || '';
-    const art_style_id = qs('#cd-style-select')?.value        || '';
+    const art_style_id = selectedStyleId                      || '';
     const feedback     = buildImageFeedback(conceptVotes, conceptUrls);
 
     try {
@@ -1261,10 +1281,8 @@
       const characters = await charResp.json();
       const artStyles  = await styleResp.json();
 
-      // New IDs in unified layout
-      const charSel  = qs('#cd-char-select');
-      const styleSel = qs('#cd-style-select');
-
+      // Character — keep as <select>
+      const charSel = qs('#cd-char-select');
       if (charSel && Array.isArray(characters)) {
         characters.forEach(c => {
           const opt = document.createElement('option');
@@ -1273,12 +1291,25 @@
           charSel.appendChild(opt);
         });
       }
-      if (styleSel && Array.isArray(artStyles)) {
+
+      // Art style — visual image grid
+      qs('#cd-style-none')?.addEventListener('click', () => selectArtStyle(null));
+
+      const styleGrid = qs('#cd-style-grid');
+      if (styleGrid && Array.isArray(artStyles)) {
         artStyles.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.textContent = s.name || `Style #${s.id}`;
-          styleSel.appendChild(opt);
+          const tile = document.createElement('button');
+          tile.className = 'cd-style-tile';
+          tile.dataset.styleId = s.id;
+          tile.type = 'button';
+          const img = (s.images || [])[0] || (s.sample_images || [])[0] || null;
+          tile.innerHTML = img
+            ? `<img src="${escAttr(img)}" class="cd-style-tile-img" alt="${escHtml(s.name || '')}" />`
+            : `<div class="cd-style-tile-placeholder">${escHtml((s.name || '?').charAt(0).toUpperCase())}</div>`;
+          tile.title = s.name || '';
+          tile.setAttribute('aria-label', s.name || `Style ${s.id}`);
+          tile.addEventListener('click', () => selectArtStyle(s.id));
+          styleGrid.appendChild(tile);
         });
       }
     } catch (e) {
@@ -1286,19 +1317,47 @@
     }
   }
 
+  function selectArtStyle(id) {
+    selectedStyleId = id || null;
+    applyStyleSelection(selectedStyleId);
+    // Persist to design
+    if (activeDesign) {
+      fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ art_style_id: selectedStyleId }),
+      }).then(r => r.json()).then(d => {
+        activeDesign = d;
+        designs = designs.map(x => x.id === d.id ? d : x);
+      }).catch(e => console.warn('[card-designer] selectArtStyle save error:', e.message));
+    }
+  }
+
+  function applyStyleSelection(id) {
+    selectedStyleId = id || null;
+    // Update "None" tile
+    const noneEl = qs('#cd-style-none');
+    if (noneEl) noneEl.classList.toggle('active', !selectedStyleId);
+    // Update style tiles
+    document.querySelectorAll('.cd-style-tile').forEach(tile => {
+      tile.classList.toggle('active', tile.dataset.styleId == selectedStyleId);
+    });
+  }
+
   // ── Settings ───────────────────────────────────────────────────
   async function loadCDSettings() {
     try {
       const resp = await fetch('/api/settings');
       const s    = await resp.json();
-      setVal('#cd-s-gemini-key',       s.gemini_api_key             || '');
-      setVal('#cd-s-gemini-model',     s.gemini_model               || 'gemini-3.1-flash-image-preview');
-      setVal('#cd-s-copy-cover',       s.cd_copy_instruction_cover        || '');
-      setVal('#cd-s-copy-inside-left', s.cd_copy_instruction_inside_left  || '');
-      setVal('#cd-s-copy-inside-right',s.cd_copy_instruction_inside_right || '');
-      setVal('#cd-s-copy-sculpture',   s.cd_copy_instruction_sculpture    || '');
-      setVal('#cd-s-copy-back',        s.cd_copy_instruction_back         || '');
-      setVal('#cd-s-sketch-prompt',    s.cd_sketch_system_prompt          || '');
+      setVal('#cd-s-gemini-key',           s.gemini_api_key                  || '');
+      setVal('#cd-s-gemini-model',         s.gemini_model                    || 'gemini-3.1-flash-image-preview');
+      setVal('#cd-s-copy-cover',           s.cd_copy_instruction_cover       || '');
+      setVal('#cd-s-copy-inside-left',     s.cd_copy_instruction_inside_left || '');
+      setVal('#cd-s-copy-inside-right',    s.cd_copy_instruction_inside_right|| '');
+      setVal('#cd-s-copy-sculpture',       s.cd_copy_instruction_sculpture   || '');
+      setVal('#cd-s-copy-back',            s.cd_copy_instruction_back        || '');
+      setVal('#cd-s-sketch-prompt',        s.cd_sketch_system_prompt         || '');
+      setVal('#cd-s-sketch-sample-images', s.cd_sketch_sample_images         || '');
     } catch (e) {
       console.warn('[card-designer] loadCDSettings error:', e.message);
     }
@@ -1311,13 +1370,14 @@
     if (status) status.textContent = 'Saving…';
 
     const payload = {
-      gemini_model:                    getVal('#cd-s-gemini-model'),
-      cd_copy_instruction_cover:       getVal('#cd-s-copy-cover'),
-      cd_copy_instruction_inside_left: getVal('#cd-s-copy-inside-left'),
+      gemini_model:                     getVal('#cd-s-gemini-model'),
+      cd_copy_instruction_cover:        getVal('#cd-s-copy-cover'),
+      cd_copy_instruction_inside_left:  getVal('#cd-s-copy-inside-left'),
       cd_copy_instruction_inside_right: getVal('#cd-s-copy-inside-right'),
-      cd_copy_instruction_sculpture:   getVal('#cd-s-copy-sculpture'),
-      cd_copy_instruction_back:        getVal('#cd-s-copy-back'),
-      cd_sketch_system_prompt:         getVal('#cd-s-sketch-prompt'),
+      cd_copy_instruction_sculpture:    getVal('#cd-s-copy-sculpture'),
+      cd_copy_instruction_back:         getVal('#cd-s-copy-back'),
+      cd_sketch_system_prompt:          getVal('#cd-s-sketch-prompt'),
+      cd_sketch_sample_images:          getVal('#cd-s-sketch-sample-images'),
     };
 
     try {

@@ -138,8 +138,9 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
   if (!design) return res.status(404).json({ error: 'Design not found' });
 
   const settings = db.getAllSettings();
-  const { direction = '', feedback = null } = req.body;
+  const { direction = '', feedback = null, count = 3 } = req.body;
   const product = design.product_data || {};
+  const productTitle = design.product_title || product.name || product.sku || '';
 
   const instructions = {
     cover:        settings.cd_copy_instruction_cover        || db.DEFAULTS.cd_copy_instruction_cover,
@@ -154,8 +155,8 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
   const buildPrompt = () => {
     const lines = [
       `Generate card copy for this Lovepop product:`,
-      `SKU: ${product.sku || '—'}`,
-      `Name: ${product.name || '—'}`,
+      productTitle ? `Product: ${productTitle}` : '',
+      product.sku ? `SKU: ${product.sku}` : '',
       `Occasion: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || '—')}`,
       product.description ? `Description: ${product.description}` : '',
       direction ? `\nDirection / notes: ${direction}` : '',
@@ -208,8 +209,25 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
   };
 
   try {
-    const options = await Promise.all([callClaude(), callClaude(), callClaude()]);
-    res.json({ options });
+    const n = Math.min(Math.max(1, parseInt(count, 10) || 3), 9);
+    const options = await Promise.all(Array.from({ length: n }, () => callClaude()));
+
+    // Persist as a new copy round
+    const newRound = {
+      id: crypto.randomBytes(8).toString('hex'),
+      index: (design.copy_rounds?.length || 0) + 1,
+      created_at: new Date().toISOString(),
+      refine_note: direction || '',
+      cards: options.map(opt => ({
+        id: crypto.randomBytes(8).toString('hex'),
+        ...opt,
+        vote: null,
+        note: '',
+      })),
+    };
+    const updatedRounds = [...(design.copy_rounds || []), newRound];
+    const updated = db.updateCardDesign(req.params.id, { copy_rounds: updatedRounds });
+    res.json({ round: newRound, design: updated });
   } catch (e) {
     console.error('[card-designer] generate-copy error:', e.message);
     res.status(500).json({ error: e.message });
@@ -230,19 +248,22 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
 
   const product = design.product_data || {};
   const copy    = design.selected_copy || {};
+  const productTitle  = design.product_title || product.name || '';
   const basePrompt    = settings.cd_sketch_system_prompt_base || settings.cd_sketch_system_prompt || db.DEFAULTS.cd_sketch_system_prompt_base || db.DEFAULTS.cd_sketch_system_prompt || '';
   const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
+  const sampleImages  = (settings.cd_sketch_sample_images || '').split('\n').map(s => s.trim()).filter(Boolean);
 
   const buildPrompt = () => {
     const lines = [
       basePrompt,
       fidelityPart ? `\n${fidelityPart}` : '',
-      `\nPRODUCT: ${product.name || 'Lovepop Card'}`,
+      `\nPRODUCT: ${productTitle || 'Lovepop Card'}`,
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover       ? `COVER COPY: "${copy.cover}"` : '',
       copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
+      sampleImages.length > 0 ? `\nSample sketch references (URLs for style reference):\n${sampleImages.map(u => `- ${u}`).join('\n')}` : '',
     ];
     const prevRounds = design.sketch_rounds || [];
     if (prevRounds.length > 0) {
