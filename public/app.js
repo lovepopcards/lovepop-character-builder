@@ -2679,6 +2679,24 @@ function bindArtStyles() {
   document.getElementById('art-styles-new-btn').addEventListener('click', () => openArtStyleEditorView('create'));
   document.getElementById('art-styles-empty-new-btn').addEventListener('click', () => openArtStyleEditorView('create'));
   document.getElementById('art-styles-export-btn').addEventListener('click', exportArtStylesToExcel);
+
+  // Status filter pills — wire clicks and set initial active state
+  const filterEl = document.getElementById('art-styles-status-filter');
+  function applyArtStyleStatusFilter(status) {
+    artStyleStatusFilter = status;
+    filterEl.querySelectorAll('.status-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.status === status);
+    });
+    renderArtStyles();
+  }
+  // Set initial pill appearance to match the default 'active' filter
+  applyArtStyleStatusFilter('active');
+
+  filterEl.addEventListener('click', e => {
+    const pill = e.target.closest('.status-pill');
+    if (!pill) return;
+    applyArtStyleStatusFilter(pill.dataset.status);
+  });
 }
 
 function setArtStylesDisplayMode(mode) {
@@ -2689,9 +2707,21 @@ function setArtStylesDisplayMode(mode) {
   document.getElementById('art-styles-list-view').classList.toggle('hidden', mode !== 'list');
 }
 
+let artStyleStatusFilter = 'active'; // default: show active only
+
+function getFilteredArtStyles() {
+  if (artStyleStatusFilter === 'all') return artStyles;
+  return artStyles.filter(a => a.status === artStyleStatusFilter);
+}
+
 function renderArtStyles() {
-  const n = artStyles.length;
-  document.getElementById('art-styles-count').textContent = `${n} art style${n !== 1 ? 's' : ''}`;
+  const filtered = getFilteredArtStyles();
+  const total = artStyles.length;
+  const n = filtered.length;
+  document.getElementById('art-styles-count').textContent =
+    artStyleStatusFilter === 'all'
+      ? `${total} art style${total !== 1 ? 's' : ''}`
+      : `${n} of ${total} art style${total !== 1 ? 's' : ''}`;
   renderArtStylesTileView();
   renderArtStylesListView();
   if (!productsLoaded && artStyles.some(a => a.product_skus && a.product_skus.length)) {
@@ -2700,18 +2730,20 @@ function renderArtStyles() {
 }
 
 function renderArtStylesTileView() {
+  const filtered = getFilteredArtStyles();
   const grid = document.getElementById('art-styles-tile-view');
   const empty = document.getElementById('art-styles-empty');
   Array.from(grid.children).forEach(el => { if (el.id !== 'art-styles-empty') el.remove(); });
-  if (!artStyles.length) { empty.classList.remove('hidden'); return; }
+  if (!filtered.length) { empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
-  artStyles.forEach(as => grid.appendChild(buildArtStyleTile(as)));
+  filtered.forEach(as => grid.appendChild(buildArtStyleTile(as)));
 }
 
 function renderArtStylesListView() {
+  const filtered = getFilteredArtStyles();
   const tbody = document.getElementById('art-styles-list-body');
   tbody.innerHTML = '';
-  artStyles.forEach(as => {
+  filtered.forEach(as => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><div class="list-char-name">${esc(as.name)}</div></td>
@@ -2877,6 +2909,73 @@ function bindArtStyleEditor() {
     e.target.value = '';
   });
 
+  // "Browse All Products" — open the product picker with no land pre-filter
+  document.getElementById('as-browse-all-btn').addEventListener('click', () => {
+    openProductPicker('art-style');
+  });
+
+  // Inline product search by name / SKU
+  const asSkuSearch  = document.getElementById('as-sku-search');
+  const asSkuResults = document.getElementById('as-sku-results');
+  let asSkuSearchTimer = null;
+
+  asSkuSearch.addEventListener('input', () => {
+    clearTimeout(asSkuSearchTimer);
+    const q = asSkuSearch.value.trim().toLowerCase();
+    if (!q) { asSkuResults.classList.add('hidden'); asSkuResults.innerHTML = ''; return; }
+
+    asSkuSearchTimer = setTimeout(async () => {
+      if (!productsLoaded) { try { await loadProducts(); } catch { return; } }
+      const matches = allProducts.filter(p =>
+        (p.name || '').toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q)
+      ).slice(0, 12);
+
+      asSkuResults.innerHTML = '';
+      if (!matches.length) {
+        asSkuResults.innerHTML = '<div class="sku-search-empty">No products found</div>';
+      } else {
+        matches.forEach(p => {
+          const row = document.createElement('div');
+          row.className = 'sku-search-row' + (artStyleSelectedProductSkus.has(p.sku) ? ' sku-search-row-added' : '');
+          row.innerHTML = p.image_url
+            ? `<img class="sku-search-thumb" src="${esc(p.image_url)}" alt="" loading="lazy" />`
+            : `<div class="sku-search-thumb sku-search-thumb-empty">📦</div>`;
+          row.innerHTML += `<div class="sku-search-info"><div class="sku-search-name">${esc(p.name || p.sku)}</div><div class="sku-search-sku">${esc(p.sku)}</div></div>`;
+          const addBtn = document.createElement('button');
+          addBtn.className = 'btn-secondary sku-search-add-btn';
+          if (artStyleSelectedProductSkus.has(p.sku)) {
+            addBtn.textContent = '✓ Added';
+            addBtn.disabled = true;
+          } else {
+            addBtn.textContent = '+ Add';
+            addBtn.addEventListener('click', e => {
+              e.stopPropagation();
+              artStyleSelectedProductSkus.add(p.sku);
+              artStyleSelectedProducts = [...artStyleSelectedProductSkus].map(
+                sku => allProducts.find(x => x.sku === sku) || { sku, name: sku, image_url: '' }
+              );
+              renderArtStyleProductSelection();
+              // Update button state in-place
+              addBtn.textContent = '✓ Added';
+              addBtn.disabled = true;
+              row.classList.add('sku-search-row-added');
+            });
+          }
+          row.appendChild(addBtn);
+          asSkuResults.appendChild(row);
+        });
+      }
+      asSkuResults.classList.remove('hidden');
+    }, 200);
+  });
+
+  // Hide results when clicking outside
+  document.addEventListener('click', e => {
+    if (!asSkuSearch.contains(e.target) && !asSkuResults.contains(e.target)) {
+      asSkuResults.classList.add('hidden');
+    }
+  });
+
   // Land selector: enable/disable action buttons
   document.getElementById('as-land-select').addEventListener('change', function () {
     const hasVal = !!this.value;
@@ -2997,7 +3096,7 @@ function renderArtStyleEditorImages(existingUrls) {
     item.className = 'editor-image-item';
     const isGen = pendingArtStyleGenUrls.includes(url);
     item.innerHTML = `
-      <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" />
+      <img src="${esc(url)}" alt="Image ${idx + 1}" loading="lazy" class="zoomable" />
       ${idx === 0 ? '<span class="img-primary-badge">Primary</span>' : ''}
       ${isGen ? '<span class="img-gen-badge">✨ Generated</span>' : ''}
       <button class="img-remove-btn" title="Remove">✕</button>`;
@@ -3326,7 +3425,7 @@ function renderArtStyleProductSection(products, emptyId, scrollId, cardsId, coun
     const card = document.createElement('div');
     card.className = 'land-pf-card land-editor-pf-card';
     card.innerHTML = p.image_url
-      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img" loading="lazy" /></div>
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || p.sku)}" class="land-pf-card-img zoomable" loading="lazy" /></div>
          <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
       : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
          <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`;
@@ -3602,7 +3701,7 @@ function renderArtStyleDetailImages(as) {
     as.images.forEach((src, idx) => {
       const wrapper = document.createElement('div');
       wrapper.style.cssText = 'position:relative;';
-      wrapper.innerHTML = `<img src="${esc(src)}" alt="${esc(as.name)}" style="cursor:default" />
+      wrapper.innerHTML = `<img src="${esc(src)}" alt="${esc(as.name)}" class="zoomable" />
         <button style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(214,59,47,.8);color:#fff;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0" title="Remove image">✕</button>`;
       wrapper.querySelector('button').addEventListener('click', async () => {
         try {
@@ -3636,7 +3735,7 @@ function renderArtStyleDetailProducts(as) {
     const card = document.createElement('div');
     card.className = 'land-pf-card';
     card.innerHTML = p.image_url
-      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || sku)}" class="land-pf-card-img" loading="lazy" /></div>
+      ? `<div class="land-pf-card-img-wrap"><img src="${esc(p.image_url)}" alt="${esc(p.name || sku)}" class="land-pf-card-img zoomable" loading="lazy" /></div>
          <div class="land-pf-card-body">${buildProductCardBody(p)}</div>`
       : `<div class="land-pf-card-img-wrap land-pf-card-img-empty"><span class="land-pf-card-img-icon">📦</span></div>
          <div class="land-pf-card-body"><div class="land-pf-card-name">${esc(sku)}</div><div class="land-pf-card-sku">${product ? product.name : 'Loading…'}</div></div>`;
@@ -4581,20 +4680,28 @@ async function saveStory() {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
+    let res;
     if (activeStoryId) {
-      await fetch(`/api/characters/${editorCharId}/stories/${activeStoryId}`, {
+      res = await fetch(`/api/characters/${editorCharId}/stories/${activeStoryId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quote, context, occasion, status }),
       });
     } else {
-      await fetch(`/api/characters/${editorCharId}/stories`, {
+      res = await fetch(`/api/characters/${editorCharId}/stories`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quote, context, occasion, status }),
       });
     }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Save failed (${res.status})`);
+    }
     await loadCharStories();
     closeStoryEditor();
-  } catch (e) { console.error('saveStory error:', e); }
+  } catch (e) {
+    console.error('saveStory error:', e);
+    alert('Could not save quote: ' + e.message);
+  }
   finally { btn.disabled = false; btn.textContent = 'Save Quote'; }
 }
 
@@ -4719,3 +4826,44 @@ function bindBulkEdit() {
     await loadCharacters();
   });
 }
+
+// ── Image Lightbox ────────────────────────────────────────────
+(function initLightbox() {
+  const overlay = document.getElementById('img-lightbox');
+  const img     = document.getElementById('img-lightbox-img');
+  const closeBtn = document.getElementById('img-lightbox-close');
+  if (!overlay || !img || !closeBtn) return;
+
+  function openLightbox(src, alt) {
+    img.src = src;
+    img.alt = alt || '';
+    overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    overlay.classList.add('hidden');
+    img.src = '';
+    document.body.style.overflow = '';
+  }
+
+  // Close on overlay click (backdrop) or close button
+  overlay.addEventListener('click', closeLightbox);
+  closeBtn.addEventListener('click', e => { e.stopPropagation(); closeLightbox(); });
+
+  // Close on Escape key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeLightbox();
+  });
+
+  // Delegate clicks on any .zoomable image anywhere in the document
+  document.addEventListener('click', e => {
+    const target = e.target.closest('img.zoomable');
+    if (!target) return;
+    e.stopPropagation();
+    openLightbox(target.src, target.alt);
+  });
+
+  // Expose globally so render functions can use it
+  window.openLightbox = openLightbox;
+})();
