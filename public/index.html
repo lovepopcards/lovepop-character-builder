@@ -1144,6 +1144,16 @@
                 <input type="file" id="cd-cover-sketch-samples-upload" accept="image/*" multiple style="display:none" />
                 <div id="cd-cover-sketch-samples-status" class="img-samples-status hidden"></div>
               </div>
+
+              <div class="form-group" style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+                <label class="form-label">Product Formats</label>
+                <div class="form-hint" style="margin-bottom:8px">One format per line. These populate the Product Format dropdown in the Card Builder. Click "Pull from Taxonomy" to load formats from your product library.</div>
+                <div style="display:flex;gap:10px;margin-bottom:10px">
+                  <button type="button" class="btn-secondary" id="cd-pull-formats-btn">↓ Pull from Taxonomy</button>
+                  <span id="cd-pull-formats-status" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
+                </div>
+                <textarea id="cd-s-product-formats" class="form-textarea" rows="8" placeholder="Pop-Up Card&#10;Luxe Pop-Up Card&#10;Mini Pop-Up Card&#10;…"></textarea>
+              </div>
             </div>
           </div>
 
@@ -1320,14 +1330,13 @@
       <!-- ── Dashboard ─────────────────────────────────────────── -->
       <div id="cd-dashboard">
 
-        <div class="cd-dash-header">
-          <div class="cd-dash-header-left">
-            <div class="cd-dash-eyebrow">Card Builder</div>
-            <h1 class="cd-dash-title">Card Concepts</h1>
-            <p class="cd-dash-subtitle">Designs in development across your product line</p>
+        <div class="view-toolbar">
+          <div class="toolbar-left">
+            <h1 class="view-title">Card Builder</h1>
+            <span id="cd-dash-count" class="count-badge">0 designs</span>
           </div>
-          <div class="cd-dash-header-right">
-            <input type="text" id="cd-dash-search" class="cd-dash-search" placeholder="Search designs…" autocomplete="off" />
+          <div class="toolbar-right">
+            <input type="text" id="cd-dash-search" class="search-input" placeholder="Search designs…" autocomplete="off" />
             <button class="btn-primary" id="cd-new-btn">+ New Design</button>
           </div>
         </div>
@@ -1522,8 +1531,8 @@
         <button class="cd-regen-btn" id="cd-regen-btn">✨ Generate copy</button>
         <div class="cd-regen-hint" id="cd-regen-hint">Generate the first round of copy options.</div>
         <div class="cd-aside-nav">
-          <button class="cd-back-btn" id="cd-back-btn">← Card Concepts</button>
-          <button class="btn-primary" id="cd-new-btn-ws">+ New Design</button>
+          <button class="cd-back-btn" id="cd-back-btn">← Card Builder</button>
+          <button class="cd-next-step-btn" id="cd-next-step-btn">Next: Inside Sketch →</button>
         </div>
       </div>
 
@@ -1542,10 +1551,13 @@
             <span class="cd-track-icon">◈</span> Inside Sketch
           </button>
           <button class="cd-track-tab cd-module-tab" data-module="cover-sketch">
-            <span class="cd-track-icon">◻</span> Cover Sketch
+            <span class="cd-track-icon">◨</span> Cover Sketch
           </button>
           <button class="cd-track-tab cd-module-tab" data-module="concept">
-            <span class="cd-track-icon">✦</span> Detailed concepts
+            <span class="cd-track-icon">✦</span> Detailed Concepts
+          </button>
+          <button class="cd-track-tab cd-module-tab" data-module="finalize">
+            <span class="cd-track-icon">📋</span> Finalize
           </button>
         </div>
         <div class="cd-track-controls">
@@ -1602,6 +1614,36 @@
           <div id="cd-concept-rounds" class="cd-rounds-list"></div>
         </div>
 
+        <!-- Finalize -->
+        <div id="cd-module-finalize" class="cd-module hidden">
+          <div class="cd-finalize-wrap">
+            <div class="cd-finalize-concept-preview" id="cd-finalize-concept-img-wrap">
+              <div class="cd-finalize-no-concept">No concept selected yet — select a concept in the Detailed Concepts tab first.</div>
+            </div>
+            <div class="cd-finalize-fields">
+              <div class="cd-finalize-field-group">
+                <label class="cd-finalize-label">Design Notes</label>
+                <textarea id="cd-finalize-notes" class="cd-finalize-textarea" rows="5" placeholder="Overall design direction, special requirements, engineering notes…"></textarea>
+              </div>
+              <div class="cd-finalize-field-group">
+                <label class="cd-finalize-label">Comments &amp; Feedback</label>
+                <textarea id="cd-finalize-comments" class="cd-finalize-textarea" rows="4" placeholder="Feedback from stakeholders, revision requests…"></textarea>
+              </div>
+              <div class="cd-finalize-field-group">
+                <label class="cd-finalize-label">Additional Reference Images</label>
+                <div class="cd-finalize-refs" id="cd-finalize-refs">
+                  <div class="cd-finalize-ref-dropzone" id="cd-finalize-ref-zone">
+                    <div class="cd-ref-zone-icon">📎</div>
+                    <div class="cd-ref-zone-hint">Drop or click to add reference images</div>
+                    <input type="file" id="cd-finalize-ref-input" accept="image/*" multiple style="display:none" />
+                  </div>
+                  <div id="cd-finalize-ref-grid" class="cd-finalize-ref-img-grid"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div><!-- /cd-track-content -->
 
       <!-- Copy editor panel (copy module only) -->
@@ -1653,6 +1695,12 @@
       <div class="cd-refine-bar hidden" id="cd-concept-refine-bar">
         <input type="text" id="cd-concept-refine-input" class="cd-refine-input" placeholder="Direction for next concept round…" autocomplete="off" />
         <button class="cd-refine-btn" id="cd-concept-generate-btn">Generate Round 1 →</button>
+      </div>
+
+      <!-- Finalize action bar -->
+      <div class="cd-refine-bar hidden" id="cd-finalize-bar">
+        <div style="font-size:13px;color:var(--text-muted);flex:1">Add notes and references, then export the design specification.</div>
+        <button class="cd-refine-btn cd-export-btn" id="cd-export-spec-btn">⬇ Export Design Spec</button>
       </div>
 
     </main><!-- /cd-uni-main -->

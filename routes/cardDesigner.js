@@ -285,6 +285,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
       copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
       sculptureRefPart ? `\n3D SCULPTURE REFERENCE: A photo of an existing 3D paper sculpture is provided as a visual reference. Use it to inform the engineering style, layering approach, and dimensional quality — adapt creatively, do not replicate exactly.` : '',
+      parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference sketches provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
@@ -306,39 +307,52 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
-  // Build Gemini image parts: [sculpture ref, ...labeled sketch images from last 2 rounds, ...sample sketches]
+  // Build Gemini image parts
   const sketchRefParts = (() => {
     const parts = [];
     // 1. Per-design sculpture reference photo
     if (sculptureRefPart) parts.push(sculptureRefPart);
-    // 2. Labeled sketches from last 2 rounds (combination reference, max 6 images)
-    const allRounds = design.sketch_rounds || [];
-    const recentRounds = allRounds.slice(-2);
-    for (const round of recentRounds) {
-      for (const card of (round.cards || [])) {
-        if (!card.url) continue;
-        const filename = path.basename(card.url);
-        const fullPath = path.join(UPLOADS_DIR, filename);
-        if (!fs.existsSync(fullPath)) continue;
-        try {
-          const buf = fs.readFileSync(fullPath);
-          const ext = path.extname(fullPath).slice(1).toLowerCase();
-          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-        } catch (e) { console.warn('[sketch] prev round image load error:', e.message); }
-      }
-    }
-    // 3. Global sketch style samples (max 2, to stay within Gemini limits)
-    for (const imgPath of sampleImages.slice(0, 2)) {
-      const filename = path.basename(imgPath);
-      const fullPath = path.join(UPLOADS_DIR, 'sketch-samples', filename);
-      if (!fs.existsSync(fullPath)) continue;
+
+    const loadImg = (fullPath) => {
+      if (!fs.existsSync(fullPath)) return null;
       try {
         const buf = fs.readFileSync(fullPath);
         const ext = path.extname(fullPath).slice(1).toLowerCase();
         const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-        parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-      } catch (e) { console.warn('[sketch] sample image load error:', e.message); }
+        return { inlineData: { mimeType, data: buf.toString('base64') } };
+      } catch { return null; }
+    };
+
+    if (parent_card_id) {
+      // 2a. Iterate mode: use ONLY the specific parent card's image as seed
+      const allRounds = design.sketch_rounds || [];
+      let parentCard = null;
+      for (const r of allRounds) {
+        parentCard = (r.cards || []).find(c => c.id === parent_card_id);
+        if (parentCard) break;
+      }
+      if (parentCard?.url) {
+        const part = loadImg(path.join(UPLOADS_DIR, path.basename(parentCard.url)));
+        if (part) parts.push(part);
+      }
+    } else {
+      // 2b. Fresh round: use last 2 rounds' images as combination reference (max 6)
+      const allRounds = design.sketch_rounds || [];
+      const recentRounds = allRounds.slice(-2);
+      for (const round of recentRounds) {
+        for (const card of (round.cards || [])) {
+          if (!card.url) continue;
+          const part = loadImg(path.join(UPLOADS_DIR, path.basename(card.url)));
+          if (part) parts.push(part);
+        }
+      }
+    }
+
+    // 3. Global sketch style samples (max 2)
+    for (const imgPath of sampleImages.slice(0, 2)) {
+      const filename = path.basename(imgPath);
+      const part = loadImg(path.join(UPLOADS_DIR, 'sketch-samples', filename));
+      if (part) parts.push(part);
     }
     return parts;
   })();
@@ -415,7 +429,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
 
   const settings = db.getAllSettings();
   const model    = settings.gemini_model || db.DEFAULTS.gemini_model;
-  const { refine_note = '', fidelity = 'standard', count = 3 } = req.body;
+  const { refine_note = '', fidelity = 'standard', count = 3, parent_card_id = null } = req.body;
 
   const product       = design.product_data || {};
   const copy          = design.selected_copy || {};
@@ -449,6 +463,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
+      parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
@@ -468,35 +483,49 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
-  // Build ref parts: [cover ref, ...recent round images, ...sample images]
+  // Build ref parts: [cover ref, ...parent card or recent round images, ...sample images]
   const refParts = (() => {
     const parts = [];
     if (coverRefPart) parts.push(coverRefPart);
-    const recentRounds = (design.cover_sketch_rounds || []).slice(-2);
-    for (const round of recentRounds) {
-      for (const card of (round.cards || [])) {
-        if (!card.url) continue;
-        const filename = path.basename(card.url);
-        const fullPath = path.join(UPLOADS_DIR, filename);
-        if (!fs.existsSync(fullPath)) continue;
-        try {
-          const buf = fs.readFileSync(fullPath);
-          const ext = path.extname(fullPath).slice(1).toLowerCase();
-          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-        } catch (e) { console.warn('[cover-sketch] prev round image load error:', e.message); }
-      }
-    }
-    for (const imgPath of sampleImages.slice(0, 2)) {
-      const filename = path.basename(imgPath);
-      const fullPath = path.join(UPLOADS_DIR, 'cover-sketch-samples', filename);
-      if (!fs.existsSync(fullPath)) continue;
+
+    const loadImg = (fullPath) => {
+      if (!fs.existsSync(fullPath)) return null;
       try {
         const buf = fs.readFileSync(fullPath);
         const ext = path.extname(fullPath).slice(1).toLowerCase();
         const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-        parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-      } catch (e) { console.warn('[cover-sketch] sample image load error:', e.message); }
+        return { inlineData: { mimeType, data: buf.toString('base64') } };
+      } catch { return null; }
+    };
+
+    if (parent_card_id) {
+      // Iterate mode: use ONLY the specific parent card's image as seed
+      const allRounds = design.cover_sketch_rounds || [];
+      let parentCard = null;
+      for (const r of allRounds) {
+        parentCard = (r.cards || []).find(c => c.id === parent_card_id);
+        if (parentCard) break;
+      }
+      if (parentCard?.url) {
+        const part = loadImg(path.join(UPLOADS_DIR, path.basename(parentCard.url)));
+        if (part) parts.push(part);
+      }
+    } else {
+      // Fresh round: use last 2 rounds' images as combination reference
+      const recentRounds = (design.cover_sketch_rounds || []).slice(-2);
+      for (const round of recentRounds) {
+        for (const card of (round.cards || [])) {
+          if (!card.url) continue;
+          const part = loadImg(path.join(UPLOADS_DIR, path.basename(card.url)));
+          if (part) parts.push(part);
+        }
+      }
+    }
+
+    for (const imgPath of sampleImages.slice(0, 2)) {
+      const filename = path.basename(imgPath);
+      const part = loadImg(path.join(UPLOADS_DIR, 'cover-sketch-samples', filename));
+      if (part) parts.push(part);
     }
     return parts;
   })();

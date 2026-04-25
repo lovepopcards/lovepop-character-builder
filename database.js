@@ -218,6 +218,8 @@ if (!existingCardDesignCols.includes('cover_sketch_rounds'))       db.exec(`ALTE
 if (!existingCardDesignCols.includes('selected_cover_sketch_url')) db.exec(`ALTER TABLE card_designs ADD COLUMN selected_cover_sketch_url TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('product_format'))            db.exec(`ALTER TABLE card_designs ADD COLUMN product_format TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('is_blank_card')) db.exec(`ALTER TABLE card_designs ADD COLUMN is_blank_card INTEGER DEFAULT 0`);
+if (!existingCardDesignCols.includes('finalize_notes')) db.exec(`ALTER TABLE card_designs ADD COLUMN finalize_notes TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('finalize_comments')) db.exec(`ALTER TABLE card_designs ADD COLUMN finalize_comments TEXT DEFAULT ''`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -326,6 +328,7 @@ DO NOT include any greeting card images or greeting card shapes. It should only 
   cd_cover_sketch_system_prompt: `You are a graphic designer at Lovepop, a premium 3D pop-up greeting card company. Create a cover design sketch for a Lovepop greeting card. The cover is a flat 2D illustration on the card exterior. Show the full card cover composition with decorative illustration elements, typography placement guides, and overall layout. Use a clean editorial illustration style with thoughtful visual hierarchy. Black and white line art with light tonal shading — no color. Focus on compositional balance and decorative elements that evoke the occasion and sentiment.`,
   cd_cover_sketch_system_prompt_base: `You are a graphic designer at Lovepop, a premium 3D pop-up greeting card company. Create a cover design sketch for a Lovepop greeting card. The cover is a flat 2D illustration on the card exterior. Show the full card cover composition with decorative illustration elements, typography placement guides, and overall layout. Use a clean editorial illustration style with thoughtful visual hierarchy. Black and white line art with light tonal shading — no color. Focus on compositional balance and decorative elements that evoke the occasion and sentiment.`,
   cd_cover_sketch_samples: '[]',
+  cd_product_formats: 'Pop-Up Card\nLuxe Pop-Up Card\nMini Pop-Up Card\nOversize Pop-Up Card\nSliceform Card\nFlat Card\nLetterpress Card\nPostcard\nBoxed Set\nPop-Up Ornament\nPop-Up Gift Tag\nPop-Up Notebook',
   cd_sketch_fidelity_loose: `Render as a quick, gestural thumbnail sketch — minimal detail, rough pencil strokes, focus on silhouette and composition only. Don't show fine mechanics.`,
   cd_sketch_fidelity_standard: `Render as a clean architectural concept sketch with clear fold lines, layer indications, and readable pop-up mechanics. Medium detail.`,
   cd_sketch_fidelity_tight: `Render as a highly detailed production-ready concept sketch with precise fold lines, layer counts, dimension callouts, and fully resolved pop-up mechanics. Include corner registration marks.`,
@@ -713,7 +716,7 @@ module.exports = {
   },
   updateCardDesign(id, data) {
     const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'cover_sketch_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format', 'is_blank_card'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format', 'is_blank_card', 'finalize_notes', 'finalize_comments'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {

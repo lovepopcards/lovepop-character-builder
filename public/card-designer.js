@@ -30,6 +30,8 @@
   let copyVotes   = [{}, {}, {}];
   let sketchVotes = [{}, {}, {}];
   let conceptVotes = [{}, {}, {}];
+  let iteratingSketchCardId   = null;  // card being iterated in Inside Sketch
+  let iteratingCoverSketchCardId = null; // card being iterated in Cover Sketch
 
   // ── Boot ───────────────────────────────────────────────────────
   function init() {
@@ -154,6 +156,16 @@
       renderSelectedCopyBrief();
     });
 
+    // Next step button
+    qs('#cd-next-step-btn')?.addEventListener('click', nextStep);
+
+    // Export design spec
+    qs('#cd-export-spec-btn')?.addEventListener('click', exportDesignSpec);
+
+    // Auto-save finalize notes/comments
+    qs('#cd-finalize-notes')?.addEventListener('blur', saveFinalizeNotes);
+    qs('#cd-finalize-comments')?.addEventListener('blur', saveFinalizeNotes);
+
     // Copy editor confirm
     qs('#cd-copy-confirm-btn')?.addEventListener('click', confirmCopy);
 
@@ -172,7 +184,6 @@
   function bindDashboardUI() {
     // New design buttons
     qs('#cd-new-btn')?.addEventListener('click', newDesign);
-    qs('#cd-new-btn-ws')?.addEventListener('click', newDesign);
     qs('#cd-empty-new-btn')?.addEventListener('click', newDesign);
 
     // Back to dashboard (footer button + top breadcrumb)
@@ -264,6 +275,9 @@
     qs('#cd-count-in-development') && (qs('#cd-count-in-development').textContent = counts['in-development']);
     qs('#cd-count-ready-for-review') && (qs('#cd-count-ready-for-review').textContent = counts['ready-for-review']);
     qs('#cd-count-complete') && (qs('#cd-count-complete').textContent = counts.complete);
+
+    const countBadgeEl = qs('#cd-dash-count');
+    if (countBadgeEl) countBadgeEl.textContent = `${designs.length} design${designs.length !== 1 ? 's' : ''}`;
 
     // Filter + search + sort
     let filtered = designs.filter(d => cdFilter === 'all' || d.status === cdFilter);
@@ -546,6 +560,8 @@
     conceptUrls  = [];
     sketchVotes  = [{}, {}, {}];
     conceptVotes = [{}, {}, {}];
+    iteratingSketchCardId      = null;
+    iteratingCoverSketchCardId = null;
 
     // Product format
     const productFormatEl = qs('#cd-product-format');
@@ -656,7 +672,7 @@
     );
 
     // Show/hide module content panels
-    for (const mod of ['copy', 'sketch', 'cover-sketch', 'concept']) {
+    for (const mod of ['copy', 'sketch', 'cover-sketch', 'concept', 'finalize']) {
       qs(`#cd-module-${mod}`)?.classList.toggle('hidden', mod !== name);
       qs(`#cd-module-${mod}`)?.classList.toggle('active', mod === name);
     }
@@ -664,18 +680,20 @@
     const isInsideSketch = name === 'sketch';
     const isCoverSketch  = name === 'cover-sketch';
     const isConcept      = name === 'concept';
+    const isFinalize     = name === 'finalize';
 
     // Sidebar section visibility
     qs('#cd-brief-fidelity')?.classList.toggle('hidden', !isInsideSketch && !isCoverSketch);
     qs('#cd-brief-art-style')?.classList.toggle('hidden', !isConcept);
     qs('#cd-brief-selected-copy')?.classList.toggle('hidden', !isInsideSketch && !isCoverSketch && !isConcept);
-    qs('#cd-brief-selected-sketch')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-brief-selected-sketch')?.classList.toggle('hidden', !isConcept && !isCoverSketch);
     qs('#cd-brief-selected-cover-sketch')?.classList.toggle('hidden', !isConcept);
     qs('#cd-brief-cover-ref')?.classList.toggle('hidden', !isCoverSketch);
     qs('#cd-brief-sculpture-ref')?.classList.toggle('hidden', !isInsideSketch);
     qs('#cd-refine-bar')?.classList.toggle('hidden', !isInsideSketch);
     qs('#cd-cover-sketch-refine-bar')?.classList.toggle('hidden', !isCoverSketch);
     qs('#cd-concept-refine-bar')?.classList.toggle('hidden', !isConcept);
+    qs('#cd-finalize-bar')?.classList.toggle('hidden', !isFinalize);
     qs('#cd-brief-blank-card')?.classList.toggle('hidden', name !== 'copy');
 
     // Show copy editor panel only on copy tab
@@ -717,6 +735,8 @@
 
     // Update regen button label + hint based on active module and existing rounds
     updateRegenBtn(name);
+    updateNextStepBtn(name);
+    if (isFinalize) renderFinalizePanel();
   }
 
   function updateRegenBtn(moduleName) {
@@ -757,6 +777,35 @@
         ? 'Generate a new round of detailed concepts.'
         : 'Generate the first detailed concepts.';
     }
+  }
+
+  function nextStep() {
+    if (!activeDesign) return;
+    const current = lsGet(activeDesign.id, 'active_module', 'copy');
+    const order = ['copy', 'sketch', 'cover-sketch', 'concept', 'finalize'];
+    const idx = order.indexOf(current);
+    if (idx >= 0 && idx < order.length - 1) switchModule(order[idx + 1]);
+  }
+
+  function updateNextStepBtn(moduleName) {
+    const btn = qs('#cd-next-step-btn');
+    if (!btn) return;
+    const labels = {
+      copy: 'Next: Inside Sketch →',
+      sketch: 'Next: Cover Sketch →',
+      'cover-sketch': 'Next: Detailed Concepts →',
+      concept: 'Next: Finalize →',
+      finalize: '✓ Design Complete',
+    };
+    btn.textContent = labels[moduleName] || 'Next Step →';
+    const isReady =
+      (moduleName === 'copy'         && !!(activeDesign?.is_blank_card || activeDesign?.selected_copy?.cover || activeDesign?.selected_copy?.inside_left)) ||
+      (moduleName === 'sketch'       && !!activeDesign?.selected_sketch_url) ||
+      (moduleName === 'cover-sketch' && !!activeDesign?.selected_cover_sketch_url) ||
+      (moduleName === 'concept'      && !!activeDesign?.selected_concept_url) ||
+      (moduleName === 'finalize');
+    btn.classList.toggle('cd-next-step-btn--ready', !!isReady);
+    btn.disabled = moduleName === 'finalize';
   }
 
   function renderSelectedCopyBrief() {
@@ -806,6 +855,22 @@
       return;
     }
     el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected cover sketch" title="Click to enlarge" />`;
+  }
+
+  function renderFinalizePanel() {
+    const wrap = qs('#cd-finalize-concept-img-wrap');
+    if (!wrap || !activeDesign) return;
+    const url = activeDesign.selected_concept_url;
+    if (url) {
+      wrap.innerHTML = `<img src="${escAttr(url)}" class="cd-finalize-concept-img zoomable" alt="Selected concept" title="Click to enlarge" />`;
+    } else {
+      wrap.innerHTML = `<div class="cd-finalize-no-concept">No concept selected yet — select a concept in the Detailed Concepts tab first.</div>`;
+    }
+    // Restore saved notes/comments
+    const notesEl = qs('#cd-finalize-notes');
+    if (notesEl && !notesEl.value) notesEl.value = activeDesign.finalize_notes || '';
+    const commentsEl = qs('#cd-finalize-comments');
+    if (commentsEl && !commentsEl.value) commentsEl.value = activeDesign.finalize_comments || '';
   }
 
   function updateConceptGenerateBtn() {
@@ -1547,9 +1612,10 @@
     listEl.querySelectorAll('.cd-sk-card').forEach(cardEl => {
       const cardId  = cardEl.dataset.cardId;
 
-      // Note input
-      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
-        patchSketchCard(cardId, { note: e.target.value });
+      // Iterate button
+      cardEl.querySelector('.cd-sk-iterate-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        setIteratingSketchCard(cardId);
       });
 
       // Select button
@@ -1557,31 +1623,60 @@
         e.stopPropagation();
         selectSketchCard(cardId);
       });
-
-      // Card body click (not on image or footer)
-      cardEl.addEventListener('click', e => {
-        if (e.target.closest('img.zoomable')) return;
-        if (e.target.closest('.cd-sk-card-footer')) return;
-      });
     });
   }
 
   function sketchCardHtml(card, roundIdx, cardIdx) {
-    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`; // "1A", "2B" etc
-    const isSelected = activeDesign?.selected_sketch_url === card.url;
-    const classes = ['cd-sk-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
+    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
+    const isSelected  = activeDesign?.selected_sketch_url === card.url;
+    const isIterating = iteratingSketchCardId === card.id;
+    const classes = ['cd-sk-card', isSelected ? 'selected' : '', isIterating ? 'iterating' : ''].filter(Boolean).join(' ');
     return `
       <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
         <div class="cd-sk-card-label">${escHtml(label)}</div>
         <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Sketch ${label}" title="Click to enlarge" />
         <div class="cd-sk-card-footer">
-          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
+          <button class="cd-sk-iterate-btn${isIterating ? ' active' : ''}">
+            ${isIterating ? '↻ Iterating…' : '↻ Iterate'}
+          </button>
           <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
             ${isSelected ? '✓ Selected' : 'Select'}
           </button>
         </div>
       </div>
     `;
+  }
+
+  function setIteratingSketchCard(cardId) {
+    // Toggle: clicking same card again clears iterating state
+    if (iteratingSketchCardId === cardId) {
+      iteratingSketchCardId = null;
+    } else {
+      iteratingSketchCardId = cardId;
+    }
+    renderSketchRounds();
+    // Bold/activate the refine bar
+    const refineBar = qs('#cd-refine-bar');
+    if (refineBar) refineBar.classList.toggle('iterate-active', !!iteratingSketchCardId);
+    if (iteratingSketchCardId) {
+      const input = qs('#cd-refine-input');
+      if (input) input.focus();
+    }
+  }
+
+  function setIteratingCoverSketchCard(cardId) {
+    if (iteratingCoverSketchCardId === cardId) {
+      iteratingCoverSketchCardId = null;
+    } else {
+      iteratingCoverSketchCardId = cardId;
+    }
+    renderCoverSketchRounds();
+    const refineBar = qs('#cd-cover-sketch-refine-bar');
+    if (refineBar) refineBar.classList.toggle('iterate-active', !!iteratingCoverSketchCardId);
+    if (iteratingCoverSketchCardId) {
+      const input = qs('#cd-cover-sketch-refine-input');
+      if (input) input.focus();
+    }
   }
 
   async function toggleSketchVote(cardId, voteType) {
@@ -1693,8 +1788,7 @@
     const allRounds   = activeDesign.sketch_rounds || [];
     const roundNum    = allRounds.length + 1;
 
-    // Pin a parent card if one is focused and pinned
-    const parent_card_id = focusedSketchCard?.vote === 'pin' ? focusedSketchCard.id : null;
+    const parent_card_id = iteratingSketchCardId || null;
 
     if (btn) { btn.disabled = true; btn.textContent = `⏳ Generating Round ${roundNum}…`; }
 
@@ -1727,12 +1821,15 @@
       activeDesign = data.design;
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       if (refineInput) refineInput.value = '';
+      iteratingSketchCardId = null; // clear iterating state after generating
     } catch (e) {
       alert(`Sketch generation failed: ${e.message}`);
       if (emptyEl && !(activeDesign.sketch_rounds || []).length) emptyEl.classList.remove('hidden');
     } finally {
       renderSketchRounds();
       updateRefineBar();
+      const refineBar = qs('#cd-refine-bar');
+      if (refineBar) refineBar.classList.remove('iterate-active');
       if (btn) btn.disabled = false;
     }
   }
@@ -1807,19 +1904,22 @@
       const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}/cover-sketch/round`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refine_note, fidelity, count: 3 }),
+        body: JSON.stringify({ refine_note, fidelity, count: 3, parent_card_id: iteratingCoverSketchCardId || null }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Generation failed');
       activeDesign = data.design;
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       if (refineInput) refineInput.value = '';
+      iteratingCoverSketchCardId = null;
     } catch (e) {
       alert(`Cover sketch generation failed: ${e.message}`);
       if (emptyEl && !(activeDesign.cover_sketch_rounds || []).length) emptyEl.classList.remove('hidden');
     } finally {
       renderCoverSketchRounds();
       updateCoverSketchRefineBar();
+      const refineBar = qs('#cd-cover-sketch-refine-bar');
+      if (refineBar) refineBar.classList.remove('iterate-active');
       if (btn) btn.disabled = false;
     }
   }
@@ -1855,11 +1955,12 @@
     }).join('');
 
     // Bind card interactions
-    listEl.querySelectorAll('.cd-cover-sk-card').forEach(cardEl => {
+    listEl.querySelectorAll('.cd-sk-card').forEach(cardEl => {
       const cardId = cardEl.dataset.cardId;
 
-      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
-        patchCoverSketchCard(cardId, { note: e.target.value });
+      cardEl.querySelector('.cd-sk-iterate-btn')?.addEventListener('click', e => {
+        e.stopPropagation();
+        setIteratingCoverSketchCard(cardId);
       });
 
       cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
@@ -1873,14 +1974,17 @@
 
   function coverSketchCardHtml(card, roundIdx, cardIdx) {
     const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
-    const isSelected = activeDesign?.selected_cover_sketch_url === card.url;
-    const classes = ['cd-sk-card cd-cover-sk-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
+    const isSelected  = activeDesign?.selected_cover_sketch_url === card.url;
+    const isIterating = iteratingCoverSketchCardId === card.id;
+    const classes = ['cd-sk-card cd-cover-sk-card', isSelected ? 'selected' : '', isIterating ? 'iterating' : ''].filter(Boolean).join(' ');
     return `
       <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
         <div class="cd-sk-card-label">${escHtml(label)}</div>
         <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Cover Sketch ${label}" title="Click to enlarge" />
         <div class="cd-sk-card-footer">
-          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
+          <button class="cd-sk-iterate-btn${isIterating ? ' active' : ''}">
+            ${isIterating ? '↻ Iterating…' : '↻ Iterate'}
+          </button>
           <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
             ${isSelected ? '✓ Selected' : 'Select'}
           </button>
@@ -1925,6 +2029,58 @@
     } catch (e) {
       alert(`Could not select cover sketch: ${e.message}`);
     }
+  }
+
+  async function saveFinalizeNotes() {
+    if (!activeDesign) return;
+    const notes    = qs('#cd-finalize-notes')?.value    || '';
+    const comments = qs('#cd-finalize-comments')?.value || '';
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finalize_notes: notes, finalize_comments: comments }),
+      });
+      if (resp.ok) activeDesign = await resp.json();
+    } catch (e) { console.warn('[finalize] save notes error:', e.message); }
+  }
+
+  function exportDesignSpec() {
+    if (!activeDesign) return;
+    const d = activeDesign;
+    const copy = d.selected_copy || {};
+    const lines = [
+      `LOVEPOP CARD DESIGN SPECIFICATION`,
+      `Generated: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+      ``,
+      `DESIGN: ${d.name || 'Untitled Design'}`,
+      `PRODUCT TITLE: ${d.product_title || '—'}`,
+      `PRODUCT FORMAT: ${d.product_format || '—'}`,
+      `STATUS: ${d.status || '—'}`,
+      ``,
+      `COPY`,
+      `Cover: ${copy.cover || '—'}`,
+      `Inside Left: ${copy.inside_left || '—'}`,
+      `Inside Right: ${copy.inside_right || '—'}`,
+      `Sculpture: ${copy.sculpture || '—'}`,
+      `Back: ${copy.back || '—'}`,
+      ``,
+      `CREATIVE DIRECTION`,
+      d.notes || '—',
+      ``,
+      `DESIGN NOTES`,
+      qs('#cd-finalize-notes')?.value || d.finalize_notes || '—',
+      ``,
+      `COMMENTS`,
+      qs('#cd-finalize-comments')?.value || d.finalize_comments || '—',
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `${(d.name || 'design').replace(/[^a-z0-9]/gi, '-').toLowerCase()}-spec.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // ── Detailed Concept ───────────────────────────────────────────
@@ -2014,9 +2170,6 @@
     // Bind events
     listEl.querySelectorAll('.cd-concept-card').forEach(cardEl => {
       const cardId = cardEl.dataset.cardId;
-      cardEl.querySelector('.cd-sk-note-input')?.addEventListener('input', e => {
-        patchConceptCard(cardId, { note: e.target.value });
-      });
       cardEl.querySelector('.cd-sk-select-btn')?.addEventListener('click', e => {
         e.stopPropagation();
         selectConceptCard(cardId);
@@ -2026,14 +2179,13 @@
 
   function conceptCardHtml(card, roundIdx, cardIdx) {
     const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
-    const isSelected = activeDesign?.selected_concept_url === card.url;
+    const isSelected  = activeDesign?.selected_concept_url === card.url;
     const classes = ['cd-sk-card cd-concept-card', isSelected ? 'selected' : ''].join(' ').trim();
     return `
       <div class="${classes}" data-card-id="${escAttr(card.id)}" data-label="${escAttr(label)}">
         <div class="cd-sk-card-label">${escHtml(label)}</div>
         <img src="${escAttr(card.url)}" class="cd-sk-card-img zoomable" loading="lazy" alt="Concept ${label}" title="Click to enlarge" />
         <div class="cd-sk-card-footer">
-          <input type="text" class="cd-sk-note-input" placeholder="Notes on ${label}…" value="${escAttr(card.note || '')}" />
           <button class="cd-sk-select-btn${isSelected ? ' selected' : ''}">
             ${isSelected ? '✓ Selected' : 'Select'}
           </button>

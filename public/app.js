@@ -1498,6 +1498,27 @@ function bindSettings() {
     e.target.value = '';
   });
 
+  // Pull from Taxonomy button
+  document.getElementById('cd-pull-formats-btn')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('cd-pull-formats-status');
+    if (statusEl) statusEl.textContent = 'Fetching…';
+    try {
+      const resp = await fetch('/api/products?limit=2000');
+      const products = await resp.json();
+      const formats = [...new Set((Array.isArray(products) ? products : (products.products || []))
+        .map(p => p.format || p.product_format || '').filter(Boolean))].sort();
+      if (formats.length) {
+        const ta = document.getElementById('cd-s-product-formats');
+        if (ta) ta.value = formats.join('\n');
+        if (statusEl) statusEl.textContent = `✓ Loaded ${formats.length} formats`;
+      } else {
+        if (statusEl) statusEl.textContent = 'No formats found in product data';
+      }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+    }
+  });
+
   // Collapsible section toggles
   document.querySelectorAll('.settings-section-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1815,6 +1836,7 @@ async function loadSettings() {
     setVal('cd-s-copy-back', s.cd_copy_instruction_back);
     setVal('cd-s-sketch-prompt', s.cd_sketch_system_prompt);
     setVal('cd-s-cover-sketch-prompt', s.cd_cover_sketch_system_prompt);
+    setVal('cd-s-product-formats', s.cd_product_formats);
 
     // Asset Library / Box settings (null-safe)
     setVal('sf-box-client-id', s.box_client_id);
@@ -1871,6 +1893,7 @@ async function handleSettingsSave() {
       cd_sketch_system_prompt_base: getVal('cd-s-sketch-prompt'),
       cd_cover_sketch_system_prompt: getVal('cd-s-cover-sketch-prompt'),
       cd_cover_sketch_system_prompt_base: getVal('cd-s-cover-sketch-prompt'),
+      cd_product_formats: getVal('cd-s-product-formats'),
       // Data tools
       snowflake_account:   getVal('s-sf-account'),
       snowflake_username:  getVal('s-sf-username'),
