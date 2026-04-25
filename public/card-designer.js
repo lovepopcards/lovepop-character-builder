@@ -236,7 +236,8 @@
   async function loadDesigns() {
     try {
       const resp = await fetch('/api/card-designer/designs');
-      designs = await resp.json();
+      const data = await resp.json();
+      designs = Array.isArray(data) ? data : [];
     } catch (e) {
       designs = [];
     }
