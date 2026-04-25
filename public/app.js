@@ -1486,6 +1486,20 @@ function bindSettings() {
     e.target.value = '';
   });
 
+  // Sketch template upload (single file)
+  document.getElementById('cd-sketch-template-upload')?.addEventListener('change', (e) => {
+    if (e.target.files[0]) uploadSketchTemplate(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('cd-sketch-template-delete')?.addEventListener('click', deleteSketchTemplate);
+
+  // Cover sketch template upload (single file)
+  document.getElementById('cd-cover-sketch-template-upload')?.addEventListener('change', (e) => {
+    if (e.target.files[0]) uploadCoverSketchTemplate(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('cd-cover-sketch-template-delete')?.addEventListener('click', deleteCoverSketchTemplate);
+
   // Sketch sample upload
   document.getElementById('cd-sketch-samples-upload')?.addEventListener('change', (e) => {
     if (e.target.files.length) uploadSketchSamples(Array.from(e.target.files));
@@ -1822,6 +1836,8 @@ async function loadSettings() {
     loadArtStyleSamples();
     loadSketchSamples();
     loadCoverSketchSamples();
+    loadSketchTemplate();
+    loadCoverSketchTemplate();
     // Art Style Generator
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
@@ -3869,6 +3885,110 @@ async function uploadArtStyleSamples(files) {
   renderArtStyleSamples(lastSamples);
   status.textContent = 'Uploaded!';
   setTimeout(() => status.classList.add('hidden'), 2000);
+}
+
+// ── Sketch Template (single file) ────────────────────────────
+async function loadSketchTemplate() {
+  try {
+    const res = await fetch('/api/settings/sketch-template');
+    const { template } = await res.json();
+    renderSketchTemplate(template);
+  } catch (e) { console.error('Could not load sketch template:', e); }
+}
+
+function renderSketchTemplate(templatePath) {
+  const preview  = document.getElementById('cd-sketch-template-preview');
+  const empty    = document.getElementById('cd-sketch-template-empty');
+  const delBtn   = document.getElementById('cd-sketch-template-delete');
+  if (!preview || !empty) return;
+  if (templatePath) {
+    const filename = templatePath.split('/').pop();
+    preview.innerHTML = `
+      <img src="${esc(templatePath)}" alt="Sketch template" />
+      <div class="img-template-filename">${esc(filename)}</div>`;
+    preview.classList.remove('hidden');
+    empty.classList.add('hidden');
+    if (delBtn) delBtn.classList.remove('hidden');
+  } else {
+    preview.innerHTML = '';
+    preview.classList.add('hidden');
+    empty.classList.remove('hidden');
+    if (delBtn) delBtn.classList.add('hidden');
+  }
+}
+
+async function uploadSketchTemplate(file) {
+  const status = document.getElementById('cd-sketch-template-status');
+  if (status) { status.textContent = 'Uploading…'; status.classList.remove('hidden'); }
+  const fd = new FormData(); fd.append('image', file);
+  try {
+    const res = await fetch('/api/settings/sketch-template', { method: 'POST', body: fd });
+    const { template } = await res.json();
+    renderSketchTemplate(template);
+    if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
+  } catch (e) {
+    if (status) { status.textContent = 'Upload failed: ' + e.message; }
+  }
+}
+
+async function deleteSketchTemplate() {
+  if (!confirm('Remove the inside sketch template?')) return;
+  try {
+    await fetch('/api/settings/sketch-template', { method: 'DELETE' });
+    renderSketchTemplate(null);
+  } catch (e) { alert('Could not remove template: ' + e.message); }
+}
+
+// ── Cover Sketch Template (single file) ──────────────────────
+async function loadCoverSketchTemplate() {
+  try {
+    const res = await fetch('/api/settings/cover-sketch-template');
+    const { template } = await res.json();
+    renderCoverSketchTemplate(template);
+  } catch (e) { console.error('Could not load cover sketch template:', e); }
+}
+
+function renderCoverSketchTemplate(templatePath) {
+  const preview  = document.getElementById('cd-cover-sketch-template-preview');
+  const empty    = document.getElementById('cd-cover-sketch-template-empty');
+  const delBtn   = document.getElementById('cd-cover-sketch-template-delete');
+  if (!preview || !empty) return;
+  if (templatePath) {
+    const filename = templatePath.split('/').pop();
+    preview.innerHTML = `
+      <img src="${esc(templatePath)}" alt="Cover sketch template" />
+      <div class="img-template-filename">${esc(filename)}</div>`;
+    preview.classList.remove('hidden');
+    empty.classList.add('hidden');
+    if (delBtn) delBtn.classList.remove('hidden');
+  } else {
+    preview.innerHTML = '';
+    preview.classList.add('hidden');
+    empty.classList.remove('hidden');
+    if (delBtn) delBtn.classList.add('hidden');
+  }
+}
+
+async function uploadCoverSketchTemplate(file) {
+  const status = document.getElementById('cd-cover-sketch-template-status');
+  if (status) { status.textContent = 'Uploading…'; status.classList.remove('hidden'); }
+  const fd = new FormData(); fd.append('image', file);
+  try {
+    const res = await fetch('/api/settings/cover-sketch-template', { method: 'POST', body: fd });
+    const { template } = await res.json();
+    renderCoverSketchTemplate(template);
+    if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
+  } catch (e) {
+    if (status) { status.textContent = 'Upload failed: ' + e.message; }
+  }
+}
+
+async function deleteCoverSketchTemplate() {
+  if (!confirm('Remove the cover sketch template?')) return;
+  try {
+    await fetch('/api/settings/cover-sketch-template', { method: 'DELETE' });
+    renderCoverSketchTemplate(null);
+  } catch (e) { alert('Could not remove template: ' + e.message); }
 }
 
 // ── Sketch Sample images ──────────────────────────────────────

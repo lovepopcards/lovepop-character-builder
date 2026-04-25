@@ -154,6 +154,7 @@
       renderCopyRounds();
       updateRegenBtn('copy');
       renderSelectedCopyBrief();
+      updateNextStepBtn('copy');
     });
 
     // Next step button
@@ -1850,6 +1851,7 @@
       renderSketchRounds();
       renderSelectedSketch();
       updateSidebarMeta();
+      updateNextStepBtn('sketch');
     } catch (e) {
       alert(`Could not select sketch: ${e.message}`);
     }
@@ -2027,6 +2029,7 @@
       renderCoverSketchRounds();
       renderSelectedCoverSketchBrief();
       updateSidebarMeta();
+      updateNextStepBtn('cover-sketch');
     } catch (e) {
       alert(`Could not select cover sketch: ${e.message}`);
     }
@@ -2229,6 +2232,7 @@
       designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
       renderConceptRounds();
       updateSidebarMeta();
+      updateNextStepBtn('concept');
     } catch (e) {
       alert(`Could not select concept: ${e.message}`);
     }

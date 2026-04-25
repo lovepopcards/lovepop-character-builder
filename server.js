@@ -37,6 +37,12 @@ if (!fs.existsSync(SKETCH_SAMPLES_DIR)) fs.mkdirSync(SKETCH_SAMPLES_DIR, { recur
 const COVER_SKETCH_SAMPLES_DIR = path.join(UPLOADS_DIR, 'cover-sketch-samples');
 if (!fs.existsSync(COVER_SKETCH_SAMPLES_DIR)) fs.mkdirSync(COVER_SKETCH_SAMPLES_DIR, { recursive: true });
 
+// Sketch template dirs (single-file template AI draws onto)
+const SKETCH_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'sketch-template');
+if (!fs.existsSync(SKETCH_TEMPLATE_DIR)) fs.mkdirSync(SKETCH_TEMPLATE_DIR, { recursive: true });
+const COVER_SKETCH_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'cover-sketch-template');
+if (!fs.existsSync(COVER_SKETCH_TEMPLATE_DIR)) fs.mkdirSync(COVER_SKETCH_TEMPLATE_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -77,6 +83,27 @@ const uploadCoverSketchSample = multer({
       const ext = path.extname(file.originalname) || '.jpg';
       const crypto = require('crypto');
       cb(null, `cover-sketch-sample-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
+const uploadSketchTemplate = multer({
+  storage: multer.diskStorage({
+    destination: SKETCH_TEMPLATE_DIR,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `sketch-template${ext}`);  // single file — always same name
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+const uploadCoverSketchTemplate = multer({
+  storage: multer.diskStorage({
+    destination: COVER_SKETCH_TEMPLATE_DIR,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `cover-sketch-template${ext}`);
     },
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -799,6 +826,63 @@ app.delete('/api/settings/cover-sketch-samples/:filename', (req, res) => {
   const updated = JSON.parse(raw || '[]').filter(p => !p.endsWith(filename));
   db.setSetting('cd_cover_sketch_samples', JSON.stringify(updated));
   res.json({ samples: updated });
+});
+
+// ── Inside Sketch Template (global single-file template AI draws onto) ──
+app.get('/api/settings/sketch-template', (req, res) => {
+  const template = db.getSetting('cd_sketch_template') || null;
+  res.json({ template });
+});
+app.post('/api/settings/sketch-template', uploadSketchTemplate.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  // Remove old template file if it was a different name
+  const oldTemplate = db.getSetting('cd_sketch_template');
+  if (oldTemplate) {
+    const oldPath = path.join(SKETCH_TEMPLATE_DIR, path.basename(oldTemplate));
+    if (fs.existsSync(oldPath) && oldPath !== path.join(SKETCH_TEMPLATE_DIR, req.file.filename)) {
+      try { fs.unlinkSync(oldPath); } catch {}
+    }
+  }
+  const imgPath = `/uploads/sketch-template/${req.file.filename}`;
+  db.setSetting('cd_sketch_template', imgPath);
+  res.json({ template: imgPath });
+});
+app.delete('/api/settings/sketch-template', (req, res) => {
+  const template = db.getSetting('cd_sketch_template');
+  if (template) {
+    const fp = path.join(SKETCH_TEMPLATE_DIR, path.basename(template));
+    if (fs.existsSync(fp)) { try { fs.unlinkSync(fp); } catch {} }
+  }
+  db.setSetting('cd_sketch_template', null);
+  res.json({ success: true });
+});
+
+// ── Cover Sketch Template ─────────────────────────────────────
+app.get('/api/settings/cover-sketch-template', (req, res) => {
+  const template = db.getSetting('cd_cover_sketch_template') || null;
+  res.json({ template });
+});
+app.post('/api/settings/cover-sketch-template', uploadCoverSketchTemplate.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const oldTemplate = db.getSetting('cd_cover_sketch_template');
+  if (oldTemplate) {
+    const oldPath = path.join(COVER_SKETCH_TEMPLATE_DIR, path.basename(oldTemplate));
+    if (fs.existsSync(oldPath) && oldPath !== path.join(COVER_SKETCH_TEMPLATE_DIR, req.file.filename)) {
+      try { fs.unlinkSync(oldPath); } catch {}
+    }
+  }
+  const imgPath = `/uploads/cover-sketch-template/${req.file.filename}`;
+  db.setSetting('cd_cover_sketch_template', imgPath);
+  res.json({ template: imgPath });
+});
+app.delete('/api/settings/cover-sketch-template', (req, res) => {
+  const template = db.getSetting('cd_cover_sketch_template');
+  if (template) {
+    const fp = path.join(COVER_SKETCH_TEMPLATE_DIR, path.basename(template));
+    if (fs.existsSync(fp)) { try { fs.unlinkSync(fp); } catch {} }
+  }
+  db.setSetting('cd_cover_sketch_template', null);
+  res.json({ success: true });
 });
 
 // ── Sketch Reference Image (per-design 3D sculpture photo) ───

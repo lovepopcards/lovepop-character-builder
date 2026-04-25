@@ -1122,8 +1122,23 @@
               </div>
 
               <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Inside Sketch — Template File</label>
+                <div class="form-hint" style="margin-bottom:8px">A single blank template (e.g. fold-line grid or engineering sheet) that Gemini will draw onto. Replaces any existing template when you upload a new one.</div>
+                <div id="cd-sketch-template-wrap" class="img-template-wrap">
+                  <div id="cd-sketch-template-preview" class="img-template-preview hidden"></div>
+                  <div id="cd-sketch-template-empty" class="img-samples-empty">No template uploaded yet.</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                  <label class="btn-add-image img-samples-upload-btn" for="cd-sketch-template-upload">↑ Upload Template</label>
+                  <input type="file" id="cd-sketch-template-upload" accept="image/*" style="display:none" />
+                  <button type="button" class="btn-danger-sm hidden" id="cd-sketch-template-delete">Remove</button>
+                </div>
+                <div id="cd-sketch-template-status" class="img-samples-status hidden"></div>
+              </div>
+
+              <div class="form-group" style="margin-top:20px">
                 <label class="form-label">Inside Sample Sketches</label>
-                <div class="form-hint" style="margin-bottom:8px">Upload reference sketch images to guide Gemini's style when generating inside concept sketches. These are passed as visual references to the model.</div>
+                <div class="form-hint" style="margin-bottom:8px">Example sketches showing successful inside designs. Passed as style references to Gemini.</div>
                 <div id="cd-sketch-samples-grid" class="img-samples-grid"></div>
                 <label class="btn-add-image img-samples-upload-btn" for="cd-sketch-samples-upload">+ Upload Sample Sketch</label>
                 <input type="file" id="cd-sketch-samples-upload" accept="image/*" multiple style="display:none" />
@@ -1137,8 +1152,23 @@
               </div>
 
               <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Cover Sketch — Template File</label>
+                <div class="form-hint" style="margin-bottom:8px">A single blank cover template (card outline, die-cut shape, etc.) that Gemini will draw onto. Replaces any existing template when you upload a new one.</div>
+                <div id="cd-cover-sketch-template-wrap" class="img-template-wrap">
+                  <div id="cd-cover-sketch-template-preview" class="img-template-preview hidden"></div>
+                  <div id="cd-cover-sketch-template-empty" class="img-samples-empty">No template uploaded yet.</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                  <label class="btn-add-image img-samples-upload-btn" for="cd-cover-sketch-template-upload">↑ Upload Template</label>
+                  <input type="file" id="cd-cover-sketch-template-upload" accept="image/*" style="display:none" />
+                  <button type="button" class="btn-danger-sm hidden" id="cd-cover-sketch-template-delete">Remove</button>
+                </div>
+                <div id="cd-cover-sketch-template-status" class="img-samples-status hidden"></div>
+              </div>
+
+              <div class="form-group" style="margin-top:20px">
                 <label class="form-label">Cover Sample Sketches</label>
-                <div class="form-hint" style="margin-bottom:8px">Upload reference cover sketch images to guide Gemini's style. These are passed as visual references to the model.</div>
+                <div class="form-hint" style="margin-bottom:8px">Example sketches showing successful cover designs. Passed as style references to Gemini.</div>
                 <div id="cd-cover-sketch-samples-grid" class="img-samples-grid"></div>
                 <label class="btn-add-image img-samples-upload-btn" for="cd-cover-sketch-samples-upload">+ Upload Cover Sample</label>
                 <input type="file" id="cd-cover-sketch-samples-upload" accept="image/*" multiple style="display:none" />

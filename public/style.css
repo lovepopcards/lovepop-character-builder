@@ -1561,6 +1561,20 @@ html, body {
 .img-samples-status {
   font-size: 12px; color: var(--green); margin-top: 6px; font-weight: 500;
 }
+.img-template-wrap {
+  border: 1.5px dashed var(--sand-mid); border-radius: var(--radius-sm);
+  background: var(--sand); padding: 8px; min-height: 60px;
+}
+.img-template-preview {
+  position: relative; border-radius: var(--radius-sm); overflow: hidden;
+  max-height: 200px; display: flex; align-items: center; justify-content: center;
+}
+.img-template-preview img {
+  max-width: 100%; max-height: 200px; object-fit: contain; border-radius: var(--radius-sm);
+}
+.img-template-preview .img-template-filename {
+  font-size: 11px; color: var(--text-muted); margin-top: 4px; text-align: center;
+}
 
 /* ── Snowflake Settings ──────────────────────────────────────── */
 .sf-query-textarea {

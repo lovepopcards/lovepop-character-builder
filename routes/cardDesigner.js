@@ -60,6 +60,8 @@ function loadRefParts(imagePaths) {
       path.join(UPLOADS_DIR, 'image-samples', filename),
       path.join(UPLOADS_DIR, 'artstyle-samples', filename),
       path.join(UPLOADS_DIR, 'cover-sketch-samples', filename),
+      path.join(UPLOADS_DIR, 'sketch-template', filename),
+      path.join(UPLOADS_DIR, 'cover-sketch-template', filename),
     ];
     const fullPath = candidates.find(p => fs.existsSync(p));
     if (!fullPath) continue;
@@ -262,6 +264,9 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
   const productTitle  = design.product_title || product.name || '';
   const basePrompt    = settings.cd_sketch_system_prompt_base || settings.cd_sketch_system_prompt || db.DEFAULTS.cd_sketch_system_prompt_base || db.DEFAULTS.cd_sketch_system_prompt || '';
   const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
+  // Sketch template — the form/page AI draws onto (single global image)
+  const sketchTemplatePath = settings.cd_sketch_template || null;
+
   // Sketch sample images — from uploaded files (stored as JSON array in cd_sketch_samples)
   const sampleImages = (() => {
     try { return JSON.parse(settings.cd_sketch_samples || '[]'); } catch { return []; }
@@ -291,6 +296,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
       copy.inside_left ? `INSIDE COPY: "${copy.inside_left}"` : '',
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
       sculptureRefPart ? `\n3D SCULPTURE REFERENCE: A photo of an existing 3D paper sculpture is provided as a visual reference. Use it to inform the engineering style, layering approach, and dimensional quality — adapt creatively, do not replicate exactly.` : '',
+      sketchTemplatePath ? `\nTEMPLATE FILE: A blank architectural/engineering template file is provided as the first image. Draw your sketch directly onto this template — use its grid, fold lines, and layout as the structural foundation for your design.` : '',
       parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference sketches provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
@@ -316,6 +322,20 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
   // Build Gemini image parts
   const sketchRefParts = (() => {
     const parts = [];
+
+    // 0. Template file — always first so AI draws onto it
+    if (sketchTemplatePath) {
+      const templateFullPath = path.join(UPLOADS_DIR, 'sketch-template', path.basename(sketchTemplatePath));
+      if (fs.existsSync(templateFullPath)) {
+        try {
+          const buf = fs.readFileSync(templateFullPath);
+          const ext = path.extname(templateFullPath).slice(1).toLowerCase();
+          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
+        } catch (e) { console.warn('[sketch] template load error:', e.message); }
+      }
+    }
+
     // 1. Per-design sculpture reference photo
     if (sculptureRefPart) parts.push(sculptureRefPart);
 
@@ -444,6 +464,9 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
   const basePrompt    = settings.cd_cover_sketch_system_prompt_base || settings.cd_cover_sketch_system_prompt || db.DEFAULTS.cd_cover_sketch_system_prompt_base || db.DEFAULTS.cd_cover_sketch_system_prompt || '';
   const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
 
+  // Cover sketch template — the form/page AI draws onto
+  const coverSketchTemplatePath = settings.cd_cover_sketch_template || null;
+
   const sampleImages = (() => {
     try { return JSON.parse(settings.cd_cover_sketch_samples || '[]'); } catch { return []; }
   })();
@@ -470,6 +493,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
+      coverSketchTemplatePath ? `\nTEMPLATE FILE: A blank cover template file is provided as the first image. Draw your cover sketch directly onto this template — use its shape, margins, and layout as the structural foundation.` : '',
       parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
@@ -490,9 +514,23 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
-  // Build ref parts: [cover ref, ...parent card or recent round images, ...sample images]
+  // Build ref parts: [template, cover ref, ...parent card or recent round images, ...sample images]
   const refParts = (() => {
     const parts = [];
+
+    // 0. Cover template — always first so AI draws onto it
+    if (coverSketchTemplatePath) {
+      const templateFullPath = path.join(UPLOADS_DIR, 'cover-sketch-template', path.basename(coverSketchTemplatePath));
+      if (fs.existsSync(templateFullPath)) {
+        try {
+          const buf = fs.readFileSync(templateFullPath);
+          const ext = path.extname(templateFullPath).slice(1).toLowerCase();
+          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
+        } catch (e) { console.warn('[cover-sketch] template load error:', e.message); }
+      }
+    }
+
     if (coverRefPart) parts.push(coverRefPart);
 
     const loadImg = (fullPath) => {
