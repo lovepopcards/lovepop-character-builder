@@ -26,13 +26,19 @@ async function geminiGenerateImage(apiKey, model, prompt, refParts = []) {
     }
   );
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error?.message || `Gemini API error ${resp.status}`);
+    const errBody = await resp.text().catch(() => '');
+    let errMsg = `Gemini API error ${resp.status}`;
+    try { const j = JSON.parse(errBody); errMsg = j.error?.message || errMsg; } catch {}
+    console.error('[gemini] API error', resp.status, errMsg, errBody.slice(0, 300));
+    throw new Error(errMsg);
   }
   const data = await resp.json();
   const responseParts = data.candidates?.[0]?.content?.parts || [];
   const imgPart = responseParts.find(p => p.inlineData);
-  if (!imgPart) throw new Error('Gemini returned no image. Check your API key and model access.');
+  if (!imgPart) {
+    const finishReason = data.candidates?.[0]?.finishReason || 'UNKNOWN';
+    throw new Error(`Gemini returned no image (finishReason: ${finishReason}). Check API key, model access, and content filters.`);
+  }
   return imgPart.inlineData.data; // base64 PNG
 }
 
@@ -378,8 +384,9 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
     const updated = db.updateCardDesign(req.params.id, { sketch_rounds: updatedRounds });
     res.json({ round: newRound, design: updated });
   } catch (e) {
-    console.error('[sketch/round] error:', e.message);
-    res.status(500).json({ error: e.message });
+    const msg = (e instanceof Error ? e.message : String(e)) || 'Unknown error in sketch generation';
+    console.error('[sketch/round] error:', msg, e?.stack || '');
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -550,8 +557,9 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
     const updated = db.updateCardDesign(req.params.id, { cover_sketch_rounds: updatedRounds });
     res.json({ round: newRound, design: updated });
   } catch (e) {
-    console.error('[cover-sketch/round] error:', e.message);
-    res.status(500).json({ error: e.message });
+    const msg = (e instanceof Error ? e.message : String(e)) || 'Unknown error in cover sketch generation';
+    console.error('[cover-sketch/round] error:', msg, e?.stack || '');
+    res.status(500).json({ error: msg });
   }
 });
 
