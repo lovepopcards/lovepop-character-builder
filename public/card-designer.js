@@ -245,6 +245,12 @@
     } catch (e) {
       designs = [];
     }
+    // Silently scrub any broken image references (files deleted after volume reset etc.)
+    // Runs fire-and-forget; a second loadDesigns call refreshes tiles after scrub completes
+    fetch('/api/card-designer/scrub-broken-images', { method: 'POST' })
+      .then(r => r.json())
+      .then(({ scrubbed }) => { if (scrubbed > 0) loadDesigns(); })
+      .catch(() => {});
     renderDashboard();
     renderDesignList();
   }
@@ -403,17 +409,20 @@
   function tilePreviewImg(d) {
     // Prefer the most advanced selected image — concept → inside sketch → cover sketch — then fall back to SVG placeholder
     const imgUrl = d.selected_concept_url || d.selected_sketch_url || d.selected_cover_sketch_url || null;
-    if (imgUrl) {
-      return `<img src="${escAttr(imgUrl)}" class="cd-tile-preview-img" alt="Selected design" loading="lazy" />`;
-    }
-    // SVG fallback based on progress state
     const progress   = d.progress || ['empty', 'empty', 'empty', 'empty'];
     const copyDone   = progress[0] === 'done';
     const sketchDone = progress[1] === 'done';
     const coverDone  = progress[2] === 'done';
     const conceptDone= progress[3] === 'done';
     const isDone     = d.status === 'complete';
-    return tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone);
+    const svgFallback = tilePreviewSvg(d.id, copyDone, sketchDone, conceptDone, isDone);
+    if (imgUrl) {
+      // onerror: replace the broken img with the SVG fallback so missing files don't show as broken alt text
+      const escapedSvg = svgFallback.replace(/`/g, '\\`').replace(/"/g, '&quot;');
+      return `<img src="${escAttr(imgUrl)}" class="cd-tile-preview-img" alt="Design preview" loading="lazy"
+        onerror="this.outerHTML=decodeURIComponent(this.dataset.fallback)" data-fallback="${encodeURIComponent(svgFallback)}" />`;
+    }
+    return svgFallback;
   }
 
   function tilePreviewSvg(id, copyDone, sketchDone, conceptDone, isDone) {
