@@ -457,6 +457,18 @@ app.delete('/api/cover-styles/:id/images/:index', (req, res) => {
 });
 
 // ── Card design image scrub — clears selected_*_url fields whose files no longer exist on disk ──
+function imageFileExists(url) {
+  if (!url) return false;
+  const filename = path.basename(url);
+  const candidates = [
+    path.join(UPLOADS_DIR, filename),
+    path.join(UPLOADS_DIR, 'sketch-rounds',       filename),
+    path.join(UPLOADS_DIR, 'cover-sketch-rounds', filename),
+    path.join(UPLOADS_DIR, 'concept-rounds',      filename),
+  ];
+  return candidates.some(p => fs.existsSync(p));
+}
+
 app.post('/api/card-designer/scrub-broken-images', (req, res) => {
   try {
     const designs = db.getAllCardDesigns();
@@ -465,11 +477,7 @@ app.post('/api/card-designer/scrub-broken-images', (req, res) => {
     for (const d of designs) {
       const updates = {};
       for (const field of urlFields) {
-        const url = d[field];
-        if (!url) continue;
-        const filename = path.basename(url);
-        const fullPath = path.join(UPLOADS_DIR, filename);
-        if (!fs.existsSync(fullPath)) {
+        if (d[field] && !imageFileExists(d[field])) {
           updates[field] = '';
           scrubbed++;
         }
@@ -1421,7 +1429,7 @@ app.post('/api/ai/generate-land-image', async (req, res) => {
 });
 
 // ── AI Generate Cover Style ───────────────────────────────────
-app.post('/api/ai/generate-cover-style', uploadMem.array('ref_images', 4), async (req, res) => {
+app.post('/api/ai/generate-cover-style', uploadMem.array('ref_images', 20), async (req, res) => {
   const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
   if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured' });
 

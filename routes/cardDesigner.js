@@ -77,6 +77,21 @@ function loadRefParts(imagePaths) {
   return parts;
 }
 
+// ── Helper: check whether a URL's file actually exists on disk ──
+const IMAGE_URL_FIELDS = ['selected_sketch_url', 'selected_cover_sketch_url', 'selected_concept_url'];
+function fileExistsForUrl(url) {
+  if (!url) return false;
+  const filename = path.basename(url);
+  // Generated images may live in sub-dirs — walk the common ones
+  const candidates = [
+    path.join(UPLOADS_DIR, filename),
+    path.join(UPLOADS_DIR, 'sketch-rounds',       filename),
+    path.join(UPLOADS_DIR, 'cover-sketch-rounds', filename),
+    path.join(UPLOADS_DIR, 'concept-rounds',      filename),
+  ];
+  return candidates.some(p => fs.existsSync(p));
+}
+
 // ── CRUD ──────────────────────────────────────────────────────
 router.get('/designs', (req, res) => {
   try {
@@ -90,6 +105,19 @@ router.get('/designs', (req, res) => {
         (d.sku  || '').toLowerCase().includes(lq)
       );
     }
+
+    // Inline scrub: strip selected_*_url fields whose files no longer exist on disk.
+    // Writes cleanup to DB so subsequent loads are already clean.
+    list = list.map(d => {
+      const staleFields = IMAGE_URL_FIELDS.filter(f => d[f] && !fileExistsForUrl(d[f]));
+      if (staleFields.length) {
+        const patch = Object.fromEntries(staleFields.map(f => [f, '']));
+        try { db.updateCardDesign(d.id, patch); } catch {}
+        return { ...d, ...patch };
+      }
+      return d;
+    });
+
     const charMap  = db.getCharacterNamesMap();
     const styleMap = db.getArtStyleNamesMap();
     const enriched = list.map(d => {
