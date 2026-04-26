@@ -295,6 +295,10 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
   // Sketch template — the form/page AI draws onto (single global image)
   const sketchTemplatePath = settings.cd_sketch_template || null;
 
+  // When no explicit parent card is targeted, anchor to the previously-selected sketch so
+  // subsequent rounds refine that choice rather than blending all recent round images.
+  const useSelectedSketch = !parent_card_id && !!design.selected_sketch_url && fileExistsForUrl(design.selected_sketch_url);
+
   // Sketch sample images — from uploaded files (stored as JSON array in cd_sketch_samples)
   const sampleImages = (() => {
     try { return JSON.parse(settings.cd_sketch_samples || '[]'); } catch { return []; }
@@ -325,7 +329,7 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
       copy.sculpture   ? `SCULPTURE COPY: "${copy.sculpture}"` : '',
       sculptureRefPart ? `\n3D SCULPTURE REFERENCE: A photo of an existing 3D paper sculpture is provided as a visual reference. Use it to inform the engineering style, layering approach, and dimensional quality — adapt creatively, do not replicate exactly.` : '',
       sketchTemplatePath ? `\nTEMPLATE FILE: A blank architectural/engineering template file is provided as the first image. Draw your sketch directly onto this template — use its grid, fold lines, and layout as the structural foundation for your design.` : '',
-      parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
+      (parent_card_id || useSelectedSketch) ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference sketches provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
@@ -389,8 +393,13 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
         const part = loadImg(path.join(UPLOADS_DIR, path.basename(parentCard.url)));
         if (part) parts.push(part);
       }
+    } else if (useSelectedSketch) {
+      // 2b. A sketch was previously selected — anchor all new rounds to that choice only.
+      // This ensures Round N+1 refines the selected Round N card, not a blend of all cards.
+      const part = loadImg(path.join(UPLOADS_DIR, path.basename(design.selected_sketch_url)));
+      if (part) parts.push(part);
     } else {
-      // 2b. Fresh round: use last 2 rounds' images as combination reference (max 6)
+      // 2c. No selection yet — blend recent rounds as inspiration (first round or exploring)
       const allRounds = design.sketch_rounds || [];
       const recentRounds = allRounds.slice(-2);
       for (const round of recentRounds) {
@@ -496,6 +505,9 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
     try { return JSON.parse(settings.cd_cover_sketch_samples || '[]'); } catch { return []; }
   })();
 
+  // Anchor new rounds to the previously-selected cover sketch, same as inside sketch module.
+  const useSelectedCoverSketch = !parent_card_id && !!design.selected_cover_sketch_url && fileExistsForUrl(design.selected_cover_sketch_url);
+
   // Cover style reference
   const coverStyleId = design.selected_cover_style_id || null;
   const coverStyleData = coverStyleId ? db.getCoverStyle(coverStyleId) : null;
@@ -530,7 +542,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       coverStyleData?.graphic_elements ? `Graphic elements: ${coverStyleData.graphic_elements}` : '',
       coverStyleData?.composition_notes ? `Composition: ${coverStyleData.composition_notes}` : '',
       coverStyleData?.typography_treatment ? `Typography treatment: ${coverStyleData.typography_treatment}` : '',
-      parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
+      (parent_card_id || useSelectedCoverSketch) ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];
@@ -578,8 +590,12 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
         const part = loadImg(path.join(UPLOADS_DIR, path.basename(parentCard.url)));
         if (part) parts.push(part);
       }
+    } else if (useSelectedCoverSketch) {
+      // A cover sketch was previously selected — anchor all new rounds to that choice only.
+      const part = loadImg(path.join(UPLOADS_DIR, path.basename(design.selected_cover_sketch_url)));
+      if (part) parts.push(part);
     } else {
-      // Fresh round: use last 2 rounds' images as combination reference
+      // No selection yet — blend recent rounds as inspiration
       const recentRounds = (design.cover_sketch_rounds || []).slice(-2);
       for (const round of recentRounds) {
         for (const card of (round.cards || [])) {
@@ -774,6 +790,20 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
     } catch { return null; }
   })();
 
+  // Load previously-selected concept as reference for subsequent rounds
+  const selectedConceptPart = (() => {
+    if (!design.selected_concept_url) return null;
+    const filename = path.basename(design.selected_concept_url);
+    const fullPath = path.join(UPLOADS_DIR, filename);
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch { return null; }
+  })();
+
   const buildPrompt = () => {
     const lines = [
       `Create a detailed full-color product illustration for a Lovepop pop-up greeting card.`,
@@ -802,11 +832,12 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
     if (sketchRefPart) lines.push(`\nSELECTED INSIDE SKETCH: An inside sketch has been provided as the structural/compositional reference. Translate it into a polished full-color illustration — preserve the layout and pop-up structure while applying the art style.`);
     if (selectedCoverSketchPart) lines.push(`\nSELECTED COVER SKETCH: A cover sketch has been provided as compositional reference for the card cover. Use it to guide the cover design and layout.`);
     if (coverRefPart)  lines.push(`\nCOVER REFERENCE: A cover reference image is provided. Use it to guide the cover composition and layout style.`);
+    if (selectedConceptPart) lines.push(`\nSELECTED CONCEPT: A previously approved concept illustration is provided. This is the base to refine — preserve its color palette, composition, character design, and overall art direction. Apply only the requested changes.`);
     if (direction)     lines.push(`\nDirection / notes: ${direction}`);
     if (refine_note)   lines.push(`\nRefinement: ${refine_note}`);
 
     const prevRounds = design.concept_rounds || [];
-    if (prevRounds.length > 0) {
+    if (prevRounds.length > 0 && !selectedConceptPart) {
       lines.push(`\nThis is round ${prevRounds.length + 1}. Vary the composition and interpretation while keeping the core brief.`);
     }
 
@@ -825,6 +856,8 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
     if (sketchRefPart)           parts.push(sketchRefPart);
     if (selectedCoverSketchPart) parts.push(selectedCoverSketchPart);
     if (coverRefPart)            parts.push(coverRefPart);
+    // Previously approved concept anchors subsequent rounds to that choice
+    if (selectedConceptPart)     parts.push(selectedConceptPart);
     if (character?.images?.length) parts.push(...loadRefParts(character.images.slice(0, 2)));
     if (artStyle?.images?.length)  parts.push(...loadRefParts(artStyle.images.slice(0, 2)));
     return parts;
