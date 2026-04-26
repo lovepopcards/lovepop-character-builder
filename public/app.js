@@ -2213,7 +2213,11 @@ function renderProductGrid() {
     return;
   }
 
+  // Build a set of SKUs already confirmed in the current land for the badge
+  const _landBadgeSkus = new Set(landSelectedProducts.map(p => p.sku));
+
   shown.forEach(product => {
+    const inLand = _landBadgeSkus.has(product.sku);
     const tile = document.createElement('div');
     tile.className = 'product-tile' + (selectedProductSkus.has(product.sku) ? ' product-selected' : '');
     tile.dataset.sku = product.sku;
@@ -2222,9 +2226,14 @@ function renderProductGrid() {
       ? `$${(product.revenue.t12m / 1000).toFixed(0)}K T12M`
       : '';
 
+    const landBadge = inLand
+      ? `<span class="in-land-badge">In Land</span>`
+      : `<span class="not-in-land-badge">Not in Land</span>`;
+
     tile.innerHTML = `
-      <div class="product-tile-image">
+      <div class="product-tile-image" style="position:relative">
         <img src="${esc(product.image_url)}" alt="${esc(product.name)}" />
+        ${landBadge}
       </div>
       <div class="product-tile-body">
         <div class="product-tile-name">${esc(product.name)}</div>
