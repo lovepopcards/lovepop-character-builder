@@ -862,7 +862,12 @@
       el.innerHTML = '<em class="cd-brief-no-selection">No inside sketch selected yet — go to Inside Sketch tab first.</em>';
       return;
     }
-    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected inside sketch" title="Click to enlarge" />`;
+    el.innerHTML = `
+      <div style="position:relative">
+        <img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected inside sketch" title="Click to enlarge"
+          onerror="this.parentElement.innerHTML='<em class=\\'cd-brief-no-selection\\'>Selected sketch file missing.</em><button class=\\'cd-brief-clear-btn\\' onclick=\\'clearSelectedSketch()\\'>Clear</button>'" />
+        <button class="cd-brief-clear-btn" onclick="clearSelectedSketch()" title="Clear selected sketch">× Clear</button>
+      </div>`;
   }
 
   function renderSelectedCoverSketchBrief() {
@@ -873,7 +878,42 @@
       el.innerHTML = '<em class="cd-brief-no-selection">No cover sketch selected yet.</em>';
       return;
     }
-    el.innerHTML = `<img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected cover sketch" title="Click to enlarge" />`;
+    el.innerHTML = `
+      <div style="position:relative">
+        <img src="${escAttr(url)}" class="cd-brief-sketch-thumb zoomable" alt="Selected cover sketch" title="Click to enlarge"
+          onerror="this.parentElement.innerHTML='<em class=\\'cd-brief-no-selection\\'>Selected sketch file missing.</em><button class=\\'cd-brief-clear-btn\\' onclick=\\'clearSelectedCoverSketch()\\'>Clear</button>'" />
+        <button class="cd-brief-clear-btn" onclick="clearSelectedCoverSketch()" title="Clear selected cover sketch">× Clear</button>
+      </div>`;
+  }
+
+  async function clearSelectedSketch() {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_sketch_url: '' }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderSelectedSketchBrief();
+      renderSketchRounds();
+      updateNextStepBtn('sketch');
+    } catch (e) { console.warn('clearSelectedSketch error:', e.message); }
+  }
+
+  async function clearSelectedCoverSketch() {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_cover_sketch_url: '' }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      renderSelectedCoverSketchBrief();
+      renderCoverSketchRounds();
+      updateNextStepBtn('cover-sketch');
+    } catch (e) { console.warn('clearSelectedCoverSketch error:', e.message); }
   }
 
   function renderFinalizePanel() {

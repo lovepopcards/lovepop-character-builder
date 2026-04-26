@@ -12,7 +12,7 @@ const UPLOADS_DIR = DATA_DIR
   : path.join(__dirname, '..', 'public', 'uploads');
 
 // ── Gemini helper ─────────────────────────────────────────────
-async function geminiGenerateImage(apiKey, model, prompt, refParts = [], aspectRatio = null) {
+async function geminiGenerateImage(apiKey, model, prompt, refParts = []) {
   const parts = [...refParts, { text: prompt }];
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -21,7 +21,7 @@ async function geminiGenerateImage(apiKey, model, prompt, refParts = [], aspectR
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { responseModalities: ['IMAGE', 'TEXT'], ...(aspectRatio ? { aspectRatio } : {}) },
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
       }),
     }
   );
@@ -494,6 +494,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
+      `\nFORMAT: 5:7 portrait ratio (5 wide × 7 tall). Fill the full card face — do not add margins or borders outside the card boundary.`,
       coverStyleData ? `\nCOVER STYLE REFERENCE — "${coverStyleData.name}": ${coverStyleData.description || ''}` : '',
       coverStyleData ? `IMPORTANT: The cover style reference images provided are for LAYOUT REFERENCE ONLY. Study the graphic composition, element arrangement, visual hierarchy, border/frame usage, typography placement, and white-space strategy. Do NOT reproduce the illustration subject matter, themes, color palette, or specific graphical content from these references. Apply only the structural and compositional logic.` : '',
       coverStyleData?.layout_approach ? `Layout approach: ${coverStyleData.layout_approach}` : '',
@@ -579,7 +580,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
   })();
 
   const generateOne = async () => {
-    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), refParts, '5:7');
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), refParts);
     return saveBase64Image(base64, 'cd-cover-sketch');
   };
 
