@@ -163,6 +163,24 @@ db.exec(`
 try { db.exec(`ALTER TABLE art_styles ADD COLUMN theme_agnostic_name TEXT DEFAULT ''`); } catch {}
 try { db.exec(`ALTER TABLE art_styles ADD COLUMN reference_product_skus TEXT DEFAULT '[]'`); } catch {}
 
+// ── Cover Styles table ────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cover_styles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    layout_approach TEXT DEFAULT '',
+    color_scheme TEXT DEFAULT '',
+    typography_treatment TEXT DEFAULT '',
+    graphic_elements TEXT DEFAULT '',
+    composition_notes TEXT DEFAULT '',
+    status TEXT DEFAULT 'active',
+    images TEXT DEFAULT '[]',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 
 // ── Character Stories/Quotes table ───────────────────────────
 db.exec(`
@@ -220,6 +238,7 @@ if (!existingCardDesignCols.includes('product_format'))            db.exec(`ALTE
 if (!existingCardDesignCols.includes('is_blank_card')) db.exec(`ALTER TABLE card_designs ADD COLUMN is_blank_card INTEGER DEFAULT 0`);
 if (!existingCardDesignCols.includes('finalize_notes')) db.exec(`ALTER TABLE card_designs ADD COLUMN finalize_notes TEXT DEFAULT ''`);
 if (!existingCardDesignCols.includes('finalize_comments')) db.exec(`ALTER TABLE card_designs ADD COLUMN finalize_comments TEXT DEFAULT ''`);
+if (!existingCardDesignCols.includes('selected_cover_style_id')) db.exec(`ALTER TABLE card_designs ADD COLUMN selected_cover_style_id TEXT DEFAULT ''`);
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
@@ -376,6 +395,11 @@ const serializeArtStyle = (row) => ({
   reference_product_skus: parseJSON(row.reference_product_skus),
 });
 
+const serializeCoverStyle = (row) => ({
+  ...row,
+  images: parseJSON(row.images),
+});
+
 const CHAR_TEXT   = ['name','species','role','backstory','personality','key_passions','what_they_care_about','tone_and_voice','hook_and_audience','first_appeared','status'];
 const CHAR_JSON   = ['images','products','quotes','art_styles','product_skus'];
 const CHAR_ALL    = [...CHAR_TEXT, ...CHAR_JSON];
@@ -387,6 +411,10 @@ const LAND_ALL    = [...LAND_TEXT, ...LAND_JSON];
 const ARTSTYLE_TEXT = ['name','theme_agnostic_name','description','visual_technique','color_palette','mood_and_feel','characteristic_elements','status'];
 const ARTSTYLE_JSON = ['images','product_skus','reference_product_skus'];
 const ARTSTYLE_ALL  = [...ARTSTYLE_TEXT, ...ARTSTYLE_JSON];
+
+const COVERSTYLE_TEXT = ['name','description','layout_approach','color_scheme','typography_treatment','graphic_elements','composition_notes','status'];
+const COVERSTYLE_JSON = ['images'];
+const COVERSTYLE_ALL  = [...COVERSTYLE_TEXT, ...COVERSTYLE_JSON];
 
 // ── Asset JSON field helpers ──────────────────────────────────
 const parseAssetJob = (row) => row ? ({
@@ -716,7 +744,7 @@ module.exports = {
   },
   updateCardDesign(id, data) {
     const jsonFields = ['product_data', 'selected_copy', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'cover_sketch_rounds'];
-    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format', 'is_blank_card', 'finalize_notes', 'finalize_comments'];
+    const allowed = ['name', 'sku', 'status', 'product_data', 'product_title', 'selected_copy', 'selected_sketch_url', 'selected_concept_url', 'character_id', 'art_style_id', 'notes', 'sketch_rounds', 'copy_rounds', 'concept_rounds', 'active_module', 'sketch_ref_image', 'cover_ref_image', 'cover_sketch_rounds', 'selected_cover_sketch_url', 'product_format', 'is_blank_card', 'finalize_notes', 'finalize_comments', 'selected_cover_style_id'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
@@ -738,5 +766,41 @@ module.exports = {
   },
   getArtStyleNamesMap() {
     return Object.fromEntries(db.prepare('SELECT id, name FROM art_styles').all().map(r => [String(r.id), r.name || '']));
+  },
+
+  // ── Cover Styles ──────────────────────────────────────────────
+  getAllCoverStyles() {
+    return db.prepare('SELECT * FROM cover_styles ORDER BY created_at DESC').all().map(serializeCoverStyle);
+  },
+  getCoverStyle(id) {
+    const row = db.prepare('SELECT * FROM cover_styles WHERE id = ?').get(id);
+    return row ? serializeCoverStyle(row) : null;
+  },
+  createCoverStyle(data) {
+    const result = db.prepare(
+      `INSERT INTO cover_styles (${COVERSTYLE_ALL.join(', ')}) VALUES (${COVERSTYLE_ALL.map(() => '?').join(', ')})`
+    ).run(...COVERSTYLE_ALL.map(f => COVERSTYLE_JSON.includes(f) ? JSON.stringify(data[f] || []) : (data[f] || '')));
+    return this.getCoverStyle(result.lastInsertRowid);
+  },
+  updateCoverStyle(id, data) {
+    const fields = [], values = [];
+    for (const key of COVERSTYLE_ALL) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(COVERSTYLE_JSON.includes(key) ? JSON.stringify(data[key]) : data[key]);
+      }
+    }
+    if (!fields.length) return this.getCoverStyle(id);
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE cover_styles SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    return this.getCoverStyle(id);
+  },
+  deleteCoverStyle(id) {
+    return db.prepare('DELETE FROM cover_styles WHERE id = ?').run(id);
+  },
+  updateCoverStyleImages(id, images) {
+    db.prepare(`UPDATE cover_styles SET images = ?, updated_at = datetime('now') WHERE id = ?`).run(JSON.stringify(images), id);
+    return this.getCoverStyle(id);
   },
 };

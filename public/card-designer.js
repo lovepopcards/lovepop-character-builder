@@ -135,6 +135,9 @@
     // Cover ref zone
     initCoverRefZone();
 
+    // Cover style picker
+    qs('#cd-cover-style-select')?.addEventListener('change', e => onCoverStyleChange(e.target.value));
+
     // Exit button (top-right of track bar)
     qs('#cd-exit-btn')?.addEventListener('click', showDashboard);
 
@@ -599,6 +602,9 @@
     // Explicitly enforce blank-card visibility (belt-and-suspenders after async re-renders)
     qs('#cd-brief-blank-card')?.classList.toggle('hidden', activeModule !== 'copy');
     updateRegenBtn(activeModule);
+
+    // Load cover styles for picker
+    loadCoverStylesForPicker();
   }
 
   function renderSelectedOutputs() {
@@ -723,6 +729,8 @@
       renderSelectedCopyBrief();
       renderSculptureRef();
     }
+    qs('#cd-brief-cover-style')?.classList.toggle('hidden', !isCoverSketch);
+
     if (isCoverSketch) {
       updateCoverSketchRefineBar();
       renderSelectedCopyBrief();
@@ -2624,6 +2632,60 @@
         showDashboard();
       }
     });
+  }
+
+  // ── Cover Style Picker ─────────────────────────────────────────
+  async function loadCoverStylesForPicker() {
+    try {
+      const res = await fetch('/api/cover-styles');
+      const styles = await res.json();
+      const sel = qs('#cd-cover-style-select');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— None —</option>';
+      styles.filter(s => s.status === 'active').forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+      });
+      // Restore saved selection
+      if (activeDesign?.selected_cover_style_id) {
+        sel.value = activeDesign.selected_cover_style_id;
+        updateCoverStylePickerPreview(styles.find(s => String(s.id) === String(activeDesign.selected_cover_style_id)));
+      } else {
+        updateCoverStylePickerPreview(null);
+      }
+      // Store for preview lookup
+      window._coverStylesCache = styles;
+    } catch (e) { console.warn('Could not load cover styles:', e); }
+  }
+
+  async function onCoverStyleChange(id) {
+    if (!activeDesign) return;
+    try {
+      const resp = await fetch(`/api/card-designer/designs/${activeDesign.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_cover_style_id: id || '' }),
+      });
+      activeDesign = await resp.json();
+      designs = designs.map(d => d.id === activeDesign.id ? activeDesign : d);
+      const style = id ? (window._coverStylesCache || []).find(s => String(s.id) === String(id)) : null;
+      updateCoverStylePickerPreview(style);
+    } catch (e) { console.warn('Cover style save error:', e); }
+  }
+
+  function updateCoverStylePickerPreview(style) {
+    const preview = qs('#cd-cover-style-preview');
+    const img = qs('#cd-cover-style-preview-img');
+    if (!preview || !img) return;
+    if (style && style.images && style.images.length) {
+      img.src = style.images[0];
+      preview.classList.remove('hidden');
+    } else {
+      preview.classList.add('hidden');
+      img.src = '';
+    }
   }
 
   // ── Init ───────────────────────────────────────────────────────

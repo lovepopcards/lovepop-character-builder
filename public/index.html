@@ -643,41 +643,90 @@
 
     <!-- ─── ART STYLES VIEW ─────────────────────────────────────── -->
     <div id="view-art-styles" class="view">
-      <div class="view-toolbar">
-        <div class="toolbar-left">
-          <h1 class="view-title">Lovepop Art Styles</h1>
-          <span id="art-styles-count" class="count-badge">0 art styles</span>
-          <div class="status-filter-pills" id="art-styles-status-filter">
-            <button class="status-pill active" data-status="active">Active</button>
-            <button class="status-pill" data-status="all">All</button>
+      <!-- Subtab bar -->
+      <div class="editor-tabs" style="margin-bottom:0;border-bottom:1px solid var(--border)">
+        <button class="editor-tab as-subtab-btn active" data-subtab="art-styles">Art Styles</button>
+        <button class="editor-tab as-subtab-btn" data-subtab="cover-styles">Cover Styles</button>
+      </div>
+
+      <!-- ── Art Styles subtab ── -->
+      <div id="as-subtab-content-art-styles">
+        <div class="view-toolbar">
+          <div class="toolbar-left">
+            <h1 class="view-title">Lovepop Art Styles</h1>
+            <span id="art-styles-count" class="count-badge">0 art styles</span>
+            <div class="status-filter-pills" id="art-styles-status-filter">
+              <button class="status-pill active" data-status="active">Active</button>
+              <button class="status-pill" data-status="all">All</button>
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <div class="view-toggle">
+              <button class="toggle-btn active" id="btn-art-styles-tile-view" title="Tile view">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+              </button>
+              <button class="toggle-btn" id="btn-art-styles-list-view" title="List view">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1.25" fill="currentColor"/></svg>
+              </button>
+            </div>
+            <button class="btn-export" id="art-styles-export-btn">⬇ Export to Excel</button>
+            <button class="btn-primary" id="art-styles-new-btn">+ New Art Style</button>
           </div>
         </div>
-        <div class="toolbar-right">
-          <div class="view-toggle">
-            <button class="toggle-btn active" id="btn-art-styles-tile-view" title="Tile view">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
-            </button>
-            <button class="toggle-btn" id="btn-art-styles-list-view" title="List view">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1.25" fill="currentColor"/></svg>
-            </button>
+        <div id="art-styles-tile-view" class="character-grid">
+          <div class="empty-state" id="art-styles-empty">
+            <div class="empty-icon">🎨</div>
+            <div class="empty-title">No art styles yet</div>
+            <div class="empty-sub">Create your first Lovepop Art Style to get started.</div>
+            <button class="btn-primary" id="art-styles-empty-new-btn">+ Create New Art Style</button>
           </div>
-          <button class="btn-export" id="art-styles-export-btn">⬇ Export to Excel</button>
-          <button class="btn-primary" id="art-styles-new-btn">+ New Art Style</button>
+        </div>
+        <div id="art-styles-list-view" class="character-list hidden">
+          <table class="list-table">
+            <thead><tr><th>Name</th><th>Visual Technique</th><th>Status</th><th>Created</th><th></th></tr></thead>
+            <tbody id="art-styles-list-body"></tbody>
+          </table>
         </div>
       </div>
-      <div id="art-styles-tile-view" class="character-grid">
-        <div class="empty-state" id="art-styles-empty">
-          <div class="empty-icon">🎨</div>
-          <div class="empty-title">No art styles yet</div>
-          <div class="empty-sub">Create your first Lovepop Art Style to get started.</div>
-          <button class="btn-primary" id="art-styles-empty-new-btn">+ Create New Art Style</button>
+
+      <!-- ── Cover Styles subtab ── -->
+      <div id="as-subtab-content-cover-styles" class="hidden">
+        <div class="view-toolbar">
+          <div class="toolbar-left">
+            <h1 class="view-title">Cover Styles</h1>
+            <span id="cover-styles-count" class="count-badge">0 cover styles</span>
+            <div class="status-filter-pills" id="cover-styles-status-filter">
+              <button class="status-pill active" data-status="active">Active</button>
+              <button class="status-pill" data-status="all">All</button>
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <div class="view-toggle">
+              <button class="toggle-btn active" id="btn-cover-styles-tile-view" title="Tile view">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+              </button>
+              <button class="toggle-btn" id="btn-cover-styles-list-view" title="List view">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="6.75" width="14" height="2.5" rx="1.25" fill="currentColor"/><rect x="1" y="11.5" width="14" height="2.5" rx="1.25" fill="currentColor"/></svg>
+              </button>
+            </div>
+            <button class="btn-export" id="cover-styles-export-btn">⬇ Export to Excel</button>
+            <button class="btn-primary" id="cover-styles-new-btn">+ New Cover Style</button>
+          </div>
         </div>
-      </div>
-      <div id="art-styles-list-view" class="character-list hidden">
-        <table class="list-table">
-          <thead><tr><th>Name</th><th>Visual Technique</th><th>Status</th><th>Created</th><th></th></tr></thead>
-          <tbody id="art-styles-list-body"></tbody>
-        </table>
+        <div id="cover-styles-tile-view" class="character-grid">
+          <div class="empty-state" id="cover-styles-empty">
+            <div class="empty-icon">🖼</div>
+            <div class="empty-title">No cover styles yet</div>
+            <div class="empty-sub">Create your first Cover Style to get started.</div>
+            <button class="btn-primary" id="cover-styles-empty-new-btn">+ Create New Cover Style</button>
+          </div>
+        </div>
+        <div id="cover-styles-list-view" class="character-list hidden">
+          <table class="list-table">
+            <thead><tr><th>Name</th><th>Layout Approach</th><th>Status</th><th>Created</th><th></th></tr></thead>
+            <tbody id="cover-styles-list-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -902,6 +951,142 @@
               <button class="btn-sku-add" id="art-style-browse-products-btn">+ Browse Product Library</button>
               <span id="art-style-editor-pf-count" class="land-editor-pf-count hidden"></span>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── COVER STYLE EDITOR ──────────────────────────────────── -->
+    <div id="view-cover-style-editor" class="view">
+      <div class="editor-header">
+        <div class="editor-header-left">
+          <button class="btn-back" id="cover-style-editor-back-btn">← Back</button>
+          <h1 class="view-title" id="cover-style-editor-title">New Cover Style</h1>
+        </div>
+        <div class="editor-header-right">
+          <span id="cover-style-editor-save-status" class="save-status"></span>
+          <button class="btn-secondary" id="cover-style-editor-cancel-btn">Cancel</button>
+          <button class="btn-primary" id="cover-style-editor-save-btn">Save Cover Style</button>
+        </div>
+      </div>
+
+      <div class="editor-tabs">
+        <button class="editor-tab active" data-tab="cover-style-profile" id="cover-style-editor-tab-profile-btn">Cover Style Profile</button>
+        <button class="editor-tab" data-tab="cover-style-artwork" id="cover-style-editor-tab-artwork-btn">Reference Images</button>
+      </div>
+
+      <!-- Profile tab -->
+      <div id="cover-style-editor-tab-profile" class="editor-tab-panel editor-layout">
+        <aside class="ai-panel">
+          <div class="ai-panel-header">
+            <span class="ai-panel-title">🖼 Cover Style Generator</span>
+            <span class="ai-panel-sub">Upload cover examples and describe the graphic design layout</span>
+          </div>
+
+          <div class="product-browse-divider" style="margin-top:4px"><span>add reference images (up to 4)</span></div>
+          <div class="char-art-upload-zone" id="cover-style-ai-ref-zone">
+            <input type="file" id="cover-style-ai-ref-input" accept="image/*" multiple style="display:none" />
+            <div class="char-art-upload-placeholder" id="cover-style-ai-ref-placeholder">
+              <div class="char-art-upload-icon">🖼</div>
+              <div class="char-art-upload-text">Drop images or <span class="link" id="cover-style-ai-ref-link">click to upload</span></div>
+              <div class="char-art-upload-hint">Cover design examples — up to 4 images</div>
+            </div>
+            <div id="cover-style-ai-ref-strip" class="char-art-preview-strip hidden"></div>
+          </div>
+
+          <div class="product-browse-divider"><span>add your notes</span></div>
+          <div class="ai-desc-section">
+            <label class="form-label">Description / notes</label>
+            <textarea id="cover-style-ai-prompt" class="form-textarea" rows="4"
+              placeholder="Describe the layout approach, color strategy, graphic treatment…"></textarea>
+          </div>
+
+          <button class="btn-ai-generate" id="cover-style-ai-generate-btn">
+            <span class="btn-ai-icon">🖼</span> Describe Cover Style
+          </button>
+
+          <!-- Draft panel -->
+          <div id="cover-style-draft-panel" class="hidden" style="margin-top:16px;">
+            <div class="ai-results" style="margin:0">
+              <div class="ai-results-header">
+                <span class="ai-results-title">✨ Generated Draft</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <button class="btn-apply-all" id="cover-style-draft-use-btn">Apply All →</button>
+                  <button class="btn-ghost btn-sm" id="cover-style-draft-discard-btn">Discard</button>
+                </div>
+              </div>
+              <div id="cover-style-draft-fields"></div>
+            </div>
+          </div>
+        </aside>
+
+        <div class="editor-form">
+          <div class="form-section">
+            <div class="form-section-title">Identity</div>
+            <div class="form-group">
+              <label class="form-label">Cover Style Name <span class="required">*</span></label>
+              <input type="text" id="fcs-name" class="form-input" placeholder="e.g. Minimal Centered with Ornamental Border" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea id="fcs-description" class="form-textarea" rows="3" placeholder="Overall description of this cover design approach…"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Graphic Design Layout</div>
+            <div class="form-group">
+              <label class="form-label">Layout Approach</label>
+              <textarea id="fcs-layout-approach" class="form-textarea" rows="3" placeholder="How elements are arranged — centered, asymmetric, full-bleed, grid-based, layered…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Color Scheme</label>
+              <textarea id="fcs-color-scheme" class="form-textarea" rows="3" placeholder="Color palette strategy — high contrast, monochromatic, soft pastels, bold accent on neutral…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Typography Treatment</label>
+              <textarea id="fcs-typography-treatment" class="form-textarea" rows="3" placeholder="How text is handled — hierarchy, weight, placement, size relationship to graphics…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Graphic Elements</label>
+              <textarea id="fcs-graphic-elements" class="form-textarea" rows="3" placeholder="Decorative elements — frames, borders, botanical motifs, geometric shapes, pattern fills…"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Composition Notes</label>
+              <textarea id="fcs-composition-notes" class="form-textarea" rows="3" placeholder="Visual weight distribution, focal point, density vs. white space, bleed usage…"></textarea>
+            </div>
+          </div>
+          <div class="form-section">
+            <div class="form-section-title">Details</div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select id="fcs-status" class="form-select">
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="retired">Retired</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Artwork tab -->
+      <div id="cover-style-editor-tab-artwork" class="editor-tab-panel editor-layout hidden">
+        <aside class="ai-panel">
+          <div class="ai-panel-header char-art-panel-header">
+            <span class="ai-panel-title">🖼 Cover Style Images</span>
+            <span class="ai-panel-sub">Upload cover design examples for this style</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:8px">
+            Upload images showing this cover style — example cards, mockups, or design references. The first image is used as the tile thumbnail. These are also sent to Gemini when generating cover sketches.
+          </p>
+        </aside>
+        <div class="editor-form">
+          <div class="form-section">
+            <div class="form-section-title">Images</div>
+            <div class="form-hint" style="margin-bottom:12px">The first image is used as the tile thumbnail and passed to the cover sketch AI.</div>
+            <div id="cover-style-editor-images-gallery" class="editor-images-gallery"></div>
+            <label class="btn-add-image" for="cover-style-editor-image-upload" style="margin-top:10px">+ Add Image</label>
+            <input type="file" id="cover-style-editor-image-upload" accept="image/*" multiple style="display:none" />
           </div>
         </div>
       </div>
@@ -1502,6 +1687,17 @@
           </div>
         </div>
 
+        <!-- Cover style picker (cover-sketch tab only) -->
+        <div class="cd-brief-section hidden" id="cd-brief-cover-style">
+          <label class="cd-brief-label">Cover Style</label>
+          <select id="cd-cover-style-select" class="form-select" style="font-size:13px;width:100%">
+            <option value="">— None —</option>
+          </select>
+          <div id="cd-cover-style-preview" class="cd-cover-style-preview hidden" style="margin-top:8px">
+            <img id="cd-cover-style-preview-img" style="width:100%;border-radius:6px;object-fit:cover;max-height:120px" alt="" />
+          </div>
+        </div>
+
         <!-- 3D sculpture reference image (sketch tab only) -->
         <div class="cd-brief-section hidden" id="cd-brief-sculpture-ref">
           <label class="cd-brief-label">3D Sculpture Reference</label>
@@ -1892,6 +2088,38 @@
         <button class="btn-danger" id="art-style-detail-delete-btn">Delete</button>
         <button class="btn-secondary" id="art-style-detail-edit-btn">Edit Art Style</button>
         <button class="btn-secondary" id="art-style-detail-close-btn2">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ COVER STYLE DETAIL MODAL ════════════════════════════ -->
+  <div id="modal-cover-style-detail" class="modal-overlay hidden">
+    <div class="modal modal-land-detail">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="cover-style-detail-name"></h2>
+          <div class="modal-subtitle" id="cover-style-detail-meta"></div>
+        </div>
+        <button class="modal-close" id="cover-style-detail-close-btn">✕</button>
+      </div>
+      <div class="modal-body modal-land-detail-body">
+        <div class="land-detail-images" id="cover-style-detail-images"></div>
+        <div class="land-detail-info">
+          <div id="cover-style-detail-status" style="margin-bottom:12px"></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Description</div><div class="land-detail-field-value" id="cover-style-detail-description"></div></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Layout Approach</div><div class="land-detail-field-value" id="cover-style-detail-layout-approach"></div></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Color Scheme</div><div class="land-detail-field-value" id="cover-style-detail-color-scheme"></div></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Typography Treatment</div><div class="land-detail-field-value" id="cover-style-detail-typography-treatment"></div></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Graphic Elements</div><div class="land-detail-field-value" id="cover-style-detail-graphic-elements"></div></div>
+          <div class="land-detail-field"><div class="land-detail-field-label">Composition Notes</div><div class="land-detail-field-value" id="cover-style-detail-composition-notes"></div></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <label class="btn-secondary" for="cover-style-detail-image-upload" style="cursor:pointer">+ Add Image</label>
+        <input type="file" id="cover-style-detail-image-upload" accept="image/*" multiple style="display:none" />
+        <button class="btn-danger" id="cover-style-detail-delete-btn">Delete</button>
+        <button class="btn-secondary" id="cover-style-detail-close-btn2">Close</button>
+        <button class="btn-primary" id="cover-style-detail-edit-btn">Edit →</button>
       </div>
     </div>
   </div>

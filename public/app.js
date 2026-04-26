@@ -96,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindCharStories, bindBulkEdit,
     bindArtStyles, bindArtStyleEditor, bindArtStyleAIPanel,
     bindArtStyleDetailModal,
+    bindCoverStyles, bindCoverStyleEditor, bindCoverStyleDetailModal,
   ];
   for (const fn of bindFns) {
     try { fn(); }
@@ -5252,6 +5253,573 @@ function injectRefineButtons() {
       btn.classList.remove('active');
     });
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  COVER STYLES
+// ══════════════════════════════════════════════════════════════
+
+const COVER_STYLES_API = '/api/cover-styles';
+let coverStyles = [];
+let coverStylesDisplayMode = 'tile';
+let coverStyleStatusFilter = 'active';
+let activeCoverStyleDetailId = null;
+let coverStyleEditorMode = 'create';
+let coverStyleEditorId = null;
+let coverStyleAiRefFiles = [];
+let coverStyleAiGenData = {};
+let pendingCoverStyleImages = [];
+let pendingCoverStyleGenUrls = [];
+
+const COVERSTYLE_FIELD_META = [
+  { key: 'name',                 label: 'Name',                  inputId: 'fcs-name' },
+  { key: 'description',          label: 'Description',           inputId: 'fcs-description' },
+  { key: 'layout_approach',      label: 'Layout Approach',       inputId: 'fcs-layout-approach' },
+  { key: 'color_scheme',         label: 'Color Scheme',          inputId: 'fcs-color-scheme' },
+  { key: 'typography_treatment', label: 'Typography Treatment',  inputId: 'fcs-typography-treatment' },
+  { key: 'graphic_elements',     label: 'Graphic Elements',      inputId: 'fcs-graphic-elements' },
+  { key: 'composition_notes',    label: 'Composition Notes',     inputId: 'fcs-composition-notes' },
+];
+
+// ── Subtab switching ─────────────────────────────────────────
+function switchArtStylesSubtab(tab) {
+  document.getElementById('as-subtab-content-art-styles').classList.toggle('hidden', tab !== 'art-styles');
+  document.getElementById('as-subtab-content-cover-styles').classList.toggle('hidden', tab !== 'cover-styles');
+  document.querySelectorAll('.as-subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === tab));
+  if (tab === 'cover-styles') loadCoverStyles();
+}
+
+// ── Cover Styles Catalog ──────────────────────────────────────
+async function loadCoverStyles() {
+  try {
+    const res = await fetch(COVER_STYLES_API);
+    coverStyles = await res.json();
+    renderCoverStyles();
+  } catch (err) { console.error('Load cover styles error:', err); }
+}
+
+function bindCoverStyles() {
+  // Subtab wiring
+  document.querySelectorAll('.as-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchArtStylesSubtab(btn.dataset.subtab));
+  });
+
+  document.getElementById('btn-cover-styles-tile-view').addEventListener('click', () => setCoverStylesDisplayMode('tile'));
+  document.getElementById('btn-cover-styles-list-view').addEventListener('click', () => setCoverStylesDisplayMode('list'));
+  document.getElementById('cover-styles-new-btn').addEventListener('click', () => openCoverStyleEditorView('create'));
+  document.getElementById('cover-styles-empty-new-btn').addEventListener('click', () => openCoverStyleEditorView('create'));
+  document.getElementById('cover-styles-export-btn').addEventListener('click', exportCoverStylesToExcel);
+
+  const filterEl = document.getElementById('cover-styles-status-filter');
+  function applyCoverStyleStatusFilter(status) {
+    coverStyleStatusFilter = status;
+    filterEl.querySelectorAll('.status-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.status === status);
+    });
+    renderCoverStyles();
+  }
+  applyCoverStyleStatusFilter('active');
+
+  filterEl.addEventListener('click', e => {
+    const pill = e.target.closest('.status-pill');
+    if (!pill) return;
+    applyCoverStyleStatusFilter(pill.dataset.status);
+  });
+}
+
+function setCoverStylesDisplayMode(mode) {
+  coverStylesDisplayMode = mode;
+  document.getElementById('btn-cover-styles-tile-view').classList.toggle('active', mode === 'tile');
+  document.getElementById('btn-cover-styles-list-view').classList.toggle('active', mode === 'list');
+  document.getElementById('cover-styles-tile-view').classList.toggle('hidden', mode !== 'tile');
+  document.getElementById('cover-styles-list-view').classList.toggle('hidden', mode !== 'list');
+}
+
+function getFilteredCoverStyles() {
+  if (coverStyleStatusFilter === 'all') return coverStyles;
+  return coverStyles.filter(cs => cs.status === coverStyleStatusFilter);
+}
+
+function renderCoverStyles() {
+  const filtered = getFilteredCoverStyles();
+  const total = coverStyles.length;
+  const n = filtered.length;
+  document.getElementById('cover-styles-count').textContent =
+    coverStyleStatusFilter === 'all'
+      ? `${total} cover style${total !== 1 ? 's' : ''}`
+      : `${n} of ${total} cover style${total !== 1 ? 's' : ''}`;
+  renderCoverStylesTileView();
+  renderCoverStylesListView();
+}
+
+function renderCoverStylesTileView() {
+  const filtered = getFilteredCoverStyles();
+  const grid = document.getElementById('cover-styles-tile-view');
+  const empty = document.getElementById('cover-styles-empty');
+  Array.from(grid.children).forEach(el => { if (el.id !== 'cover-styles-empty') el.remove(); });
+  if (!filtered.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  filtered.forEach(cs => grid.appendChild(buildCoverStyleTile(cs)));
+}
+
+function renderCoverStylesListView() {
+  const filtered = getFilteredCoverStyles();
+  const tbody = document.getElementById('cover-styles-list-body');
+  tbody.innerHTML = '';
+  filtered.forEach(cs => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="list-char-name">${esc(cs.name)}</div></td>
+      <td><span class="list-meta">${esc(cs.layout_approach ? cs.layout_approach.substring(0, 60) + (cs.layout_approach.length > 60 ? '…' : '') : '—')}</span></td>
+      <td><span class="status-badge status-${cs.status}">${cap(cs.status)}</span></td>
+      <td><span class="list-meta">${fmtDate(cs.created_at)}</span></td>
+      <td style="text-align:right"><button class="btn-secondary" style="font-size:11px;padding:4px 10px">View →</button></td>
+    `;
+    tr.addEventListener('click', () => openCoverStyleDetailModal(cs.id));
+    tbody.appendChild(tr);
+  });
+}
+
+function buildCoverStyleTile(cs) {
+  const tile = document.createElement('div');
+  tile.className = 'character-tile land-tile';
+
+  const imgHtml = (cs.images && cs.images.length)
+    ? `<img src="${esc(cs.images[0])}" alt="${esc(cs.name)}" loading="lazy" />`
+    : `<div class="tile-image-placeholder">🖼</div>`;
+
+  const descHtml = cs.description
+    ? `<div class="land-tile-desc">${esc(cs.description.substring(0, 160))}${cs.description.length > 160 ? '…' : ''}</div>`
+    : '';
+
+  const metaHtml = cs.layout_approach
+    ? `<div class="land-tile-desc" style="font-size:11px;color:var(--text-muted);margin-top:4px">${esc(cs.layout_approach.substring(0, 80))}${cs.layout_approach.length > 80 ? '…' : ''}</div>`
+    : '';
+
+  tile.innerHTML = `
+    <div class="land-tile-image">${imgHtml}<span class="tile-status-badge status-badge status-${cs.status}">${cap(cs.status)}</span></div>
+    <div class="land-tile-body">
+      <div class="tile-name">${esc(cs.name)}</div>
+      ${descHtml}
+      ${metaHtml}
+    </div>`;
+  tile.addEventListener('click', () => openCoverStyleDetailModal(cs.id));
+  return tile;
+}
+
+// ── Cover Style Editor ────────────────────────────────────────
+function openCoverStyleEditorView(mode, id = null) {
+  try {
+    coverStyleEditorMode = mode;
+    coverStyleEditorId = id;
+    coverStyleAiGenData = {};
+    coverStyleAiRefFiles = [];
+    pendingCoverStyleImages = [];
+    pendingCoverStyleGenUrls = [];
+
+    document.getElementById('cover-style-draft-panel')?.classList.add('hidden');
+    renderCoverStyleAiRefStrip();
+
+    // Clear form fields
+    COVERSTYLE_FIELD_META.forEach(({ inputId }) => {
+      const el = document.getElementById(inputId);
+      if (el) el.value = '';
+    });
+    const statusEl = document.getElementById('fcs-status');
+    if (statusEl) statusEl.value = 'active';
+
+    if (mode === 'edit' && id) {
+      const cs = coverStyles.find(c => String(c.id) === String(id));
+      if (!cs) {
+        console.warn('[openCoverStyleEditorView] cover style not found for id=', id);
+        return;
+      }
+      document.getElementById('cover-style-editor-title').textContent = cs.name || 'Edit Cover Style';
+      COVERSTYLE_FIELD_META.forEach(({ key, inputId }) => {
+        const el = document.getElementById(inputId);
+        if (el && cs[key] !== undefined) el.value = cs[key];
+      });
+      if (statusEl && cs.status) statusEl.value = cs.status;
+      renderCoverStyleEditorImages(cs.images || []);
+    } else {
+      document.getElementById('cover-style-editor-title').textContent = 'New Cover Style';
+      renderCoverStyleEditorImages([]);
+    }
+
+    // Switch to profile tab
+    switchCoverStyleEditorTab('cover-style-profile');
+    document.getElementById('cover-style-editor-save-status').textContent = '';
+
+    switchView('cover-style-editor');
+  } catch (err) { console.error('[openCoverStyleEditorView] error:', err); }
+}
+
+function switchCoverStyleEditorTab(tab) {
+  document.querySelectorAll('#view-cover-style-editor .editor-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.getElementById('cover-style-editor-tab-profile').classList.toggle('hidden', tab !== 'cover-style-profile');
+  document.getElementById('cover-style-editor-tab-artwork').classList.toggle('hidden', tab !== 'cover-style-artwork');
+}
+
+function bindCoverStyleEditor() {
+  // Tab switching
+  document.querySelectorAll('#view-cover-style-editor .editor-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchCoverStyleEditorTab(btn.dataset.tab));
+  });
+
+  document.getElementById('cover-style-editor-save-btn').addEventListener('click', handleCoverStyleEditorSave);
+  document.getElementById('cover-style-editor-cancel-btn').addEventListener('click', () => { switchView('art-styles'); switchArtStylesSubtab('cover-styles'); });
+  document.getElementById('cover-style-editor-back-btn').addEventListener('click', () => { switchView('art-styles'); switchArtStylesSubtab('cover-styles'); });
+
+  // Image upload in artwork tab
+  const imgUpload = document.getElementById('cover-style-editor-image-upload');
+  if (imgUpload) {
+    imgUpload.addEventListener('change', async e => {
+      const files = [...(e.target.files || [])];
+      if (!files.length) return;
+      if (coverStyleEditorMode === 'edit' && coverStyleEditorId) {
+        for (const file of files) {
+          const fd = new FormData(); fd.append('image', file);
+          try {
+            const res = await fetch(`${COVER_STYLES_API}/${coverStyleEditorId}/images`, { method: 'POST', body: fd });
+            const updated = await res.json();
+            coverStyles = coverStyles.map(c => c.id === updated.id ? updated : c);
+            renderCoverStyleEditorImages(updated.images || []);
+          } catch (err) { alert('Image upload failed: ' + err.message); }
+        }
+      } else {
+        pendingCoverStyleImages.push(...files);
+        const urls = files.map(f => URL.createObjectURL(f));
+        pendingCoverStyleGenUrls.push(...urls);
+        renderCoverStyleEditorImages([...pendingCoverStyleGenUrls]);
+      }
+      imgUpload.value = '';
+    });
+  }
+
+  // AI generate
+  document.getElementById('cover-style-ai-generate-btn')?.addEventListener('click', handleCoverStyleAIGenerate);
+
+  // Draft panel buttons
+  document.getElementById('cover-style-draft-use-btn')?.addEventListener('click', () => {
+    COVERSTYLE_FIELD_META.forEach(({ key, inputId }) => {
+      const el = document.getElementById(inputId);
+      if (el && coverStyleAiGenData[key]) el.value = coverStyleAiGenData[key];
+    });
+    document.getElementById('cover-style-draft-panel')?.classList.add('hidden');
+  });
+  document.getElementById('cover-style-draft-discard-btn')?.addEventListener('click', () => {
+    coverStyleAiGenData = {};
+    document.getElementById('cover-style-draft-panel')?.classList.add('hidden');
+  });
+
+  // AI ref zone
+  const refZone = document.getElementById('cover-style-ai-ref-zone');
+  const refInput = document.getElementById('cover-style-ai-ref-input');
+  const refLink = document.getElementById('cover-style-ai-ref-link');
+  if (refLink) refLink.addEventListener('click', () => refInput?.click());
+  if (refInput) {
+    refInput.addEventListener('change', e => {
+      const files = [...(e.target.files || [])];
+      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files].slice(0, 4);
+      renderCoverStyleAiRefStrip();
+      refInput.value = '';
+    });
+  }
+  if (refZone) {
+    refZone.addEventListener('dragover', e => { e.preventDefault(); refZone.classList.add('dragover'); });
+    refZone.addEventListener('dragleave', () => refZone.classList.remove('dragover'));
+    refZone.addEventListener('drop', e => {
+      e.preventDefault(); refZone.classList.remove('dragover');
+      const files = [...(e.dataTransfer.files || [])].filter(f => f.type.startsWith('image/'));
+      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files].slice(0, 4);
+      renderCoverStyleAiRefStrip();
+    });
+  }
+}
+
+function renderCoverStyleAiRefStrip() {
+  const strip = document.getElementById('cover-style-ai-ref-strip');
+  const placeholder = document.getElementById('cover-style-ai-ref-placeholder');
+  if (!strip) return;
+  strip.innerHTML = '';
+  if (!coverStyleAiRefFiles.length) {
+    strip.classList.add('hidden');
+    placeholder?.classList.remove('hidden');
+    return;
+  }
+  placeholder?.classList.add('hidden');
+  strip.classList.remove('hidden');
+  coverStyleAiRefFiles.forEach((file, i) => {
+    const url = URL.createObjectURL(file);
+    const wrap = document.createElement('div');
+    wrap.className = 'char-art-preview-item';
+    wrap.innerHTML = `<img src="${url}" class="char-art-preview-img" /><button class="char-art-preview-remove" data-idx="${i}">✕</button>`;
+    wrap.querySelector('.char-art-preview-remove').addEventListener('click', () => {
+      coverStyleAiRefFiles.splice(i, 1);
+      renderCoverStyleAiRefStrip();
+    });
+    strip.appendChild(wrap);
+  });
+}
+
+async function handleCoverStyleAIGenerate() {
+  const btn = document.getElementById('cover-style-ai-generate-btn');
+  const prompt = document.getElementById('cover-style-ai-prompt')?.value?.trim() || '';
+  if (!coverStyleAiRefFiles.length && !prompt) {
+    alert('Add reference images or describe the cover style.');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing…'; }
+  try {
+    const fd = new FormData();
+    coverStyleAiRefFiles.forEach(f => fd.append('ref_images', f));
+    if (prompt) fd.append('prompt', prompt);
+    const res = await fetch('/api/ai/generate-cover-style', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error((await res.json()).error || 'Generation failed');
+    coverStyleAiGenData = await res.json();
+    renderCoverStyleDraftPanel(coverStyleAiGenData);
+  } catch (err) {
+    alert('AI generation failed: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="btn-ai-icon">🖼</span> Describe Cover Style'; }
+  }
+}
+
+function renderCoverStyleDraftPanel(data) {
+  const panel = document.getElementById('cover-style-draft-panel');
+  const fieldsEl = document.getElementById('cover-style-draft-fields');
+  if (!panel || !fieldsEl) return;
+  fieldsEl.innerHTML = '';
+  COVERSTYLE_FIELD_META.forEach(({ key, label }) => {
+    if (!data[key]) return;
+    const card = document.createElement('div');
+    card.className = 'ai-result-card';
+    card.innerHTML = `
+      <div class="ai-result-card-header">
+        <span class="ai-result-card-label">${esc(label)}</span>
+        <button class="btn-apply-field" data-key="${key}">Apply →</button>
+      </div>
+      <div class="ai-result-card-value">${esc(data[key])}</div>`;
+    card.querySelector('.btn-apply-field').addEventListener('click', () => {
+      const meta = COVERSTYLE_FIELD_META.find(m => m.key === key);
+      if (meta) {
+        const el = document.getElementById(meta.inputId);
+        if (el) el.value = data[key];
+      }
+    });
+    fieldsEl.appendChild(card);
+  });
+  panel.classList.remove('hidden');
+}
+
+function renderCoverStyleEditorImages(urls) {
+  const gallery = document.getElementById('cover-style-editor-images-gallery');
+  if (!gallery) return;
+  gallery.innerHTML = '';
+  urls.forEach((url, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'editor-image-item';
+    wrap.innerHTML = `
+      <img src="${esc(url)}" class="editor-image-thumb zoomable" loading="lazy" alt="Cover style image ${idx + 1}" />
+      <button class="editor-image-remove" data-idx="${idx}" title="Remove">✕</button>
+      ${idx === 0 ? '<div class="editor-image-badge">Thumbnail</div>' : ''}`;
+    wrap.querySelector('.editor-image-remove').addEventListener('click', () => handleCoverStyleImageRemove(idx));
+    gallery.appendChild(wrap);
+  });
+}
+
+async function handleCoverStyleImageRemove(idx) {
+  if (!confirm('Remove this image?')) return;
+  if (coverStyleEditorMode === 'edit' && coverStyleEditorId) {
+    try {
+      const res = await fetch(`${COVER_STYLES_API}/${coverStyleEditorId}/images/${idx}`, { method: 'DELETE' });
+      const updated = await res.json();
+      coverStyles = coverStyles.map(c => c.id === updated.id ? updated : c);
+      renderCoverStyleEditorImages(updated.images || []);
+    } catch (err) { alert('Remove failed: ' + err.message); }
+  } else {
+    pendingCoverStyleImages.splice(idx, 1);
+    pendingCoverStyleGenUrls.splice(idx, 1);
+    renderCoverStyleEditorImages([...pendingCoverStyleGenUrls]);
+  }
+}
+
+async function handleCoverStyleEditorSave() {
+  const saveBtn = document.getElementById('cover-style-editor-save-btn');
+  const saveStatus = document.getElementById('cover-style-editor-save-status');
+  const nameVal = document.getElementById('fcs-name')?.value?.trim();
+  if (!nameVal) { alert('Cover Style Name is required.'); return; }
+
+  const data = {};
+  COVERSTYLE_FIELD_META.forEach(({ key, inputId }) => {
+    const el = document.getElementById(inputId);
+    if (el) data[key] = el.value.trim();
+  });
+  data.status = document.getElementById('fcs-status')?.value || 'active';
+
+  if (saveBtn) saveBtn.disabled = true;
+  if (saveStatus) saveStatus.textContent = 'Saving…';
+
+  try {
+    let saved;
+    if (coverStyleEditorMode === 'edit' && coverStyleEditorId) {
+      const res = await fetch(`${COVER_STYLES_API}/${coverStyleEditorId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      saved = await res.json();
+      coverStyles = coverStyles.map(c => c.id === saved.id ? saved : c);
+    } else {
+      const res = await fetch(COVER_STYLES_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      saved = await res.json();
+      coverStyles.unshift(saved);
+
+      // Upload pending images
+      for (const file of pendingCoverStyleImages) {
+        const fd = new FormData(); fd.append('image', file);
+        try {
+          const ir = await fetch(`${COVER_STYLES_API}/${saved.id}/images`, { method: 'POST', body: fd });
+          saved = await ir.json();
+          coverStyles = coverStyles.map(c => c.id === saved.id ? saved : c);
+        } catch {}
+      }
+    }
+    if (saveStatus) saveStatus.textContent = 'Saved!';
+    setTimeout(() => { switchView('art-styles'); switchArtStylesSubtab('cover-styles'); }, 600);
+  } catch (err) {
+    alert('Save failed: ' + err.message);
+    if (saveStatus) saveStatus.textContent = '';
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+// ── Cover Style Detail Modal ──────────────────────────────────
+function bindCoverStyleDetailModal() {
+  document.getElementById('cover-style-detail-close-btn')?.addEventListener('click', closeCoverStyleDetailModal);
+  document.getElementById('cover-style-detail-close-btn2')?.addEventListener('click', closeCoverStyleDetailModal);
+  document.getElementById('modal-cover-style-detail')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('modal-cover-style-detail')) closeCoverStyleDetailModal();
+  });
+  document.getElementById('cover-style-detail-delete-btn')?.addEventListener('click', handleDeleteCoverStyle);
+  document.getElementById('cover-style-detail-edit-btn')?.addEventListener('click', () => {
+    closeCoverStyleDetailModal();
+    openCoverStyleEditorView('edit', activeCoverStyleDetailId);
+  });
+  const imgUpload = document.getElementById('cover-style-detail-image-upload');
+  if (imgUpload) {
+    imgUpload.addEventListener('change', async e => {
+      const files = [...(e.target.files || [])];
+      if (!files.length || !activeCoverStyleDetailId) return;
+      for (const file of files) {
+        const fd = new FormData(); fd.append('image', file);
+        try {
+          const res = await fetch(`${COVER_STYLES_API}/${activeCoverStyleDetailId}/images`, { method: 'POST', body: fd });
+          const updated = await res.json();
+          coverStyles = coverStyles.map(c => c.id === updated.id ? updated : c);
+          renderCoverStyleDetailImages(updated);
+        } catch (err) { alert('Upload failed: ' + err.message); }
+      }
+      imgUpload.value = '';
+    });
+  }
+}
+
+function openCoverStyleDetailModal(id) {
+  activeCoverStyleDetailId = id;
+  const cs = coverStyles.find(c => String(c.id) === String(id));
+  if (!cs) return;
+
+  document.getElementById('cover-style-detail-name').textContent = cs.name || '';
+  document.getElementById('cover-style-detail-meta').textContent = `Created ${fmtDate(cs.created_at)}`;
+
+  const statusEl = document.getElementById('cover-style-detail-status');
+  if (statusEl) statusEl.innerHTML = `<span class="status-badge status-${cs.status}">${cap(cs.status)}</span>`;
+
+  const setField = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val || '—';
+  };
+  setField('cover-style-detail-description', cs.description);
+  setField('cover-style-detail-layout-approach', cs.layout_approach);
+  setField('cover-style-detail-color-scheme', cs.color_scheme);
+  setField('cover-style-detail-typography-treatment', cs.typography_treatment);
+  setField('cover-style-detail-graphic-elements', cs.graphic_elements);
+  setField('cover-style-detail-composition-notes', cs.composition_notes);
+
+  renderCoverStyleDetailImages(cs);
+  document.getElementById('modal-cover-style-detail').classList.remove('hidden');
+}
+
+function closeCoverStyleDetailModal() {
+  document.getElementById('modal-cover-style-detail')?.classList.add('hidden');
+  activeCoverStyleDetailId = null;
+}
+
+async function handleDeleteCoverStyle() {
+  if (!activeCoverStyleDetailId) return;
+  const cs = coverStyles.find(c => String(c.id) === String(activeCoverStyleDetailId));
+  if (!confirm(`Delete "${cs?.name || 'this cover style'}"? This cannot be undone.`)) return;
+  try {
+    await fetch(`${COVER_STYLES_API}/${activeCoverStyleDetailId}`, { method: 'DELETE' });
+    coverStyles = coverStyles.filter(c => String(c.id) !== String(activeCoverStyleDetailId));
+    closeCoverStyleDetailModal();
+    renderCoverStyles();
+  } catch (err) { alert('Delete failed: ' + err.message); }
+}
+
+function renderCoverStyleDetailImages(cs) {
+  const container = document.getElementById('cover-style-detail-images');
+  if (!container) return;
+  container.innerHTML = '';
+  (cs.images || []).forEach((url, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'land-detail-image-wrap';
+    wrap.innerHTML = `
+      <img src="${esc(url)}" class="land-detail-image zoomable" loading="lazy" alt="Cover style image" />
+      <button class="land-detail-image-remove" data-idx="${idx}" title="Remove">✕</button>`;
+    wrap.querySelector('.land-detail-image-remove').addEventListener('click', async () => {
+      if (!confirm('Remove this image?')) return;
+      try {
+        const res = await fetch(`${COVER_STYLES_API}/${cs.id}/images/${idx}`, { method: 'DELETE' });
+        const updated = await res.json();
+        coverStyles = coverStyles.map(c => c.id === updated.id ? updated : c);
+        renderCoverStyleDetailImages(updated);
+      } catch (err) { alert('Remove failed: ' + err.message); }
+    });
+    container.appendChild(wrap);
+  });
+}
+
+async function exportCoverStylesToExcel() {
+  const btn = document.getElementById('cover-styles-export-btn');
+  try {
+    btn.disabled = true; btn.innerHTML = '⏳ Exporting…';
+    const rows = coverStyles.map(cs => ({
+      'Name': cs.name || '',
+      'Description': cs.description || '',
+      'Layout Approach': cs.layout_approach || '',
+      'Color Scheme': cs.color_scheme || '',
+      'Typography Treatment': cs.typography_treatment || '',
+      'Graphic Elements': cs.graphic_elements || '',
+      'Composition Notes': cs.composition_notes || '',
+      'Status': cs.status || '',
+      'Created': fmtDate(cs.created_at),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 30 }, { wch: 60 }, { wch: 50 }, { wch: 50 },
+      { wch: 50 }, { wch: 50 }, { wch: 60 }, { wch: 10 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Cover Styles');
+    xlsxDownload(wb, `lovepop-cover-styles-${datestamp()}.xlsx`);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '⬇ Export to Excel';
+  }
 }
 
 // ── Image Lightbox ────────────────────────────────────────────

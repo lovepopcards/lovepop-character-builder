@@ -421,6 +421,41 @@ app.delete('/api/art-styles/:id/images/:index', (req, res) => {
   res.json(db.updateArtStyle(req.params.id, { images: newImages }));
 });
 
+// ── Cover Styles API ──────────────────────────────────────────
+app.get('/api/cover-styles', (req, res) => res.json(db.getAllCoverStyles()));
+app.get('/api/cover-styles/:id', (req, res) => {
+  const row = db.getCoverStyle(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
+});
+app.post('/api/cover-styles', (req, res) => {
+  try { res.status(201).json(db.createCoverStyle(req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.put('/api/cover-styles/:id', (req, res) => {
+  try { res.json(db.updateCoverStyle(req.params.id, req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/cover-styles/:id', (req, res) => {
+  db.deleteCoverStyle(req.params.id);
+  res.json({ success: true });
+});
+app.post('/api/cover-styles/:id/images', uploadDisk.single('image'), (req, res) => {
+  const cs = db.getCoverStyle(req.params.id);
+  if (!cs) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const updated = db.updateCoverStyleImages(req.params.id, [...cs.images, `/uploads/${req.file.filename}`]);
+  res.json(updated);
+});
+app.delete('/api/cover-styles/:id/images/:index', (req, res) => {
+  const cs = db.getCoverStyle(req.params.id);
+  if (!cs) return res.status(404).json({ error: 'Not found' });
+  const idx = parseInt(req.params.index, 10);
+  if (isNaN(idx) || idx < 0 || idx >= cs.images.length) return res.status(400).json({ error: 'Invalid index' });
+  const newImages = cs.images.filter((_, i) => i !== idx);
+  res.json(db.updateCoverStyleImages(req.params.id, newImages));
+});
+
 // ── Settings API ──────────────────────────────────────────────
 app.get('/api/settings', (req, res) => {
   const settings = db.getAllSettings();
@@ -1358,6 +1393,43 @@ app.post('/api/ai/generate-land-image', async (req, res) => {
   } catch (err) {
     console.error('Image generation error:', err);
     res.status(500).json({ error: err.message || 'Image generation failed' });
+  }
+});
+
+// ── AI Generate Cover Style ───────────────────────────────────
+app.post('/api/ai/generate-cover-style', uploadMem.array('ref_images', 4), async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured' });
+
+  const prompt = req.body.prompt || '';
+  const images = (req.files || []).map(f => ({
+    type: 'image', source: { type: 'base64', media_type: f.mimetype, data: f.buffer.toString('base64') }
+  }));
+
+  const systemPrompt = `You are a graphic design expert specializing in greeting card cover layouts.
+Analyze the provided cover design images and describe the graphic design layout approach — NOT the illustration content or specific text.
+Focus entirely on: composition/layout structure, color scheme strategy, typography treatment (hierarchy/weight/placement), decorative graphic elements (frames/borders/shapes/patterns), and visual composition notes (focal point, white space, density).
+Return valid JSON with exactly these fields: name, description, layout_approach, color_scheme, typography_treatment, graphic_elements, composition_notes.`;
+
+  const userContent = [
+    ...images,
+    { type: 'text', text: prompt ? `Additional context: ${prompt}\n\nAnalyze the graphic design layout and return JSON.` : 'Analyze the graphic design layout of these cover designs and return JSON.' }
+  ];
+
+  try {
+    const data = await anthropicMessages({
+      apiKey,
+      model: db.getSetting('ai_model') || db.DEFAULTS.ai_model,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }],
+    });
+    const text = data.content?.[0]?.text || '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    res.json(parsed);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

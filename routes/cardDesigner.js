@@ -12,7 +12,7 @@ const UPLOADS_DIR = DATA_DIR
   : path.join(__dirname, '..', 'public', 'uploads');
 
 // ── Gemini helper ─────────────────────────────────────────────
-async function geminiGenerateImage(apiKey, model, prompt, refParts = []) {
+async function geminiGenerateImage(apiKey, model, prompt, refParts = [], aspectRatio = null) {
   const parts = [...refParts, { text: prompt }];
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -21,7 +21,7 @@ async function geminiGenerateImage(apiKey, model, prompt, refParts = []) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'], ...(aspectRatio ? { aspectRatio } : {}) },
       }),
     }
   );
@@ -464,12 +464,13 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
   const basePrompt    = settings.cd_cover_sketch_system_prompt_base || settings.cd_cover_sketch_system_prompt || db.DEFAULTS.cd_cover_sketch_system_prompt_base || db.DEFAULTS.cd_cover_sketch_system_prompt || '';
   const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
 
-  // Cover sketch template — the form/page AI draws onto
-  const coverSketchTemplatePath = settings.cd_cover_sketch_template || null;
-
   const sampleImages = (() => {
     try { return JSON.parse(settings.cd_cover_sketch_samples || '[]'); } catch { return []; }
   })();
+
+  // Cover style reference
+  const coverStyleId = design.selected_cover_style_id || null;
+  const coverStyleData = coverStyleId ? db.getCoverStyle(coverStyleId) : null;
 
   // Per-design cover reference photo
   const coverRefPart = (() => {
@@ -493,7 +494,11 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
-      coverSketchTemplatePath ? `\nTEMPLATE FILE: A blank cover template file is provided as the first image. Draw your cover sketch directly onto this template — use its shape, margins, and layout as the structural foundation.` : '',
+      coverStyleData ? `\nCOVER STYLE: "${coverStyleData.name}" — ${coverStyleData.description || ''}` : '',
+      coverStyleData?.layout_approach ? `LAYOUT APPROACH: ${coverStyleData.layout_approach}` : '',
+      coverStyleData?.color_scheme ? `COLOR SCHEME: ${coverStyleData.color_scheme}` : '',
+      coverStyleData?.graphic_elements ? `GRAPHIC ELEMENTS: ${coverStyleData.graphic_elements}` : '',
+      coverStyleData?.composition_notes ? `COMPOSITION: ${coverStyleData.composition_notes}` : '',
       parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
@@ -514,22 +519,9 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
     return lines.filter(Boolean).join('\n');
   };
 
-  // Build ref parts: [template, cover ref, ...parent card or recent round images, ...sample images]
+  // Build ref parts: [cover ref, ...parent card or recent round images, ...sample images, ...cover style images]
   const refParts = (() => {
     const parts = [];
-
-    // 0. Cover template — always first so AI draws onto it
-    if (coverSketchTemplatePath) {
-      const templateFullPath = path.join(UPLOADS_DIR, 'cover-sketch-template', path.basename(coverSketchTemplatePath));
-      if (fs.existsSync(templateFullPath)) {
-        try {
-          const buf = fs.readFileSync(templateFullPath);
-          const ext = path.extname(templateFullPath).slice(1).toLowerCase();
-          const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-          parts.push({ inlineData: { mimeType, data: buf.toString('base64') } });
-        } catch (e) { console.warn('[cover-sketch] template load error:', e.message); }
-      }
-    }
 
     if (coverRefPart) parts.push(coverRefPart);
 
@@ -572,11 +564,20 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       const part = loadImg(path.join(UPLOADS_DIR, 'cover-sketch-samples', filename));
       if (part) parts.push(part);
     }
+
+    // Cover style reference images (up to 2)
+    if (coverStyleData?.images?.length) {
+      for (const imgPath of coverStyleData.images.slice(0, 2)) {
+        const part = loadImg(path.join(UPLOADS_DIR, path.basename(imgPath)));
+        if (part) parts.push(part);
+      }
+    }
+
     return parts;
   })();
 
   const generateOne = async () => {
-    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), refParts);
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), refParts, '5:7');
     return saveBase64Image(base64, 'cd-cover-sketch');
   };
 
