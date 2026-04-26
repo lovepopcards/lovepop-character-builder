@@ -494,11 +494,13 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
-      coverStyleData ? `\nCOVER STYLE: "${coverStyleData.name}" — ${coverStyleData.description || ''}` : '',
-      coverStyleData?.layout_approach ? `LAYOUT APPROACH: ${coverStyleData.layout_approach}` : '',
-      coverStyleData?.color_scheme ? `COLOR SCHEME: ${coverStyleData.color_scheme}` : '',
-      coverStyleData?.graphic_elements ? `GRAPHIC ELEMENTS: ${coverStyleData.graphic_elements}` : '',
-      coverStyleData?.composition_notes ? `COMPOSITION: ${coverStyleData.composition_notes}` : '',
+      coverStyleData ? `\nCOVER STYLE REFERENCE — "${coverStyleData.name}": ${coverStyleData.description || ''}` : '',
+      coverStyleData ? `IMPORTANT: The cover style reference images provided are for LAYOUT REFERENCE ONLY. Study the graphic composition, element arrangement, visual hierarchy, border/frame usage, typography placement, and white-space strategy. Do NOT reproduce the illustration subject matter, themes, color palette, or specific graphical content from these references. Apply only the structural and compositional logic.` : '',
+      coverStyleData?.layout_approach ? `Layout approach: ${coverStyleData.layout_approach}` : '',
+      coverStyleData?.color_scheme ? `Color scheme strategy: ${coverStyleData.color_scheme}` : '',
+      coverStyleData?.graphic_elements ? `Graphic elements: ${coverStyleData.graphic_elements}` : '',
+      coverStyleData?.composition_notes ? `Composition: ${coverStyleData.composition_notes}` : '',
+      coverStyleData?.typography_treatment ? `Typography treatment: ${coverStyleData.typography_treatment}` : '',
       parent_card_id ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
@@ -565,9 +567,9 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       if (part) parts.push(part);
     }
 
-    // Cover style reference images (up to 2)
+    // Cover style reference images — all available (layout reference only, instruction in prompt)
     if (coverStyleData?.images?.length) {
-      for (const imgPath of coverStyleData.images.slice(0, 2)) {
+      for (const imgPath of coverStyleData.images) {
         const part = loadImg(path.join(UPLOADS_DIR, path.basename(imgPath)));
         if (part) parts.push(part);
       }
