@@ -5531,7 +5531,7 @@ function bindCoverStyleEditor() {
   if (refInput) {
     refInput.addEventListener('change', e => {
       const files = [...(e.target.files || [])];
-      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files].slice(0, 4);
+      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files];
       renderCoverStyleAiRefStrip();
       refInput.value = '';
     });
@@ -5542,10 +5542,26 @@ function bindCoverStyleEditor() {
     refZone.addEventListener('drop', e => {
       e.preventDefault(); refZone.classList.remove('dragover');
       const files = [...(e.dataTransfer.files || [])].filter(f => f.type.startsWith('image/'));
-      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files].slice(0, 4);
+      coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...files];
       renderCoverStyleAiRefStrip();
     });
   }
+
+  // Paste support — works when the zone is focused or anywhere on this editor view
+  document.addEventListener('paste', e => {
+    // Only active when the cover-style editor is open
+    const editorView = document.getElementById('cover-style-editor-tab-profile');
+    if (!editorView || editorView.classList.contains('hidden')) return;
+    const items = [...(e.clipboardData?.items || [])];
+    const images = items
+      .filter(item => item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+    if (!images.length) return;
+    e.preventDefault();
+    coverStyleAiRefFiles = [...coverStyleAiRefFiles, ...images];
+    renderCoverStyleAiRefStrip();
+  });
 }
 
 function renderCoverStyleAiRefStrip() {
