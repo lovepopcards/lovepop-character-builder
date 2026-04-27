@@ -5153,7 +5153,7 @@ function buildDescCopyFields() {
       <div class="db-copy-field-header">
         <label class="db-copy-label" for="${inputId}">${esc(label)}</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="db-context-toggle btn-ghost btn-sm" type="button" data-field="${key}">Similar ▾</button>
+          <button class="db-context-toggle btn-sm" type="button" data-field="${key}">Similar ▾</button>
           <button class="db-gen-btn refine-btn" type="button" data-field="${key}">✨ Generate</button>
         </div>
       </div>
@@ -5306,9 +5306,9 @@ function acceptDescDraft(field) {
 async function loadDescPackages() {
   try {
     const res = await fetch(DESC_PACKAGES_API);
-    descPackages = await res.json();
-    renderDescCatalog();
+    if (res.ok) descPackages = await res.json();
   } catch (err) { console.error('loadDescPackages error:', err); }
+  renderDescCatalog();
 }
 
 function getFilteredDescPackages() {
