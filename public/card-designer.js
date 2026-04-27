@@ -764,37 +764,25 @@
     const regenHint = qs('#cd-regen-hint');
     if (!regenBtn) return;
 
-    if (mod === 'copy') {
-      if (activeDesign?.is_blank_card) {
-        regenBtn.textContent = 'Blank card selected';
-        regenBtn.classList.add('cd-regen-btn--disabled');
-        if (regenHint) regenHint.textContent = 'Uncheck "Blank card" to generate copy options.';
-      } else {
-        regenBtn.classList.remove('cd-regen-btn--disabled');
-        const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
-        regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
-        if (regenHint) regenHint.textContent = hasRounds
-          ? 'Generate a new round of copy options.'
-          : 'Generate the first round of copy options.';
-      }
-    } else if (mod === 'sketch') {
-      const hasRounds = (activeDesign?.sketch_rounds?.length || 0) > 0;
-      regenBtn.textContent = hasRounds ? '✨ Regenerate sketches' : '✨ Generate sketches';
-      if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new round of inside sketches.'
-        : 'Generate the first round of inside sketches.';
-    } else if (mod === 'cover-sketch') {
-      const hasRounds = (activeDesign?.cover_sketch_rounds?.length || 0) > 0;
-      regenBtn.textContent = hasRounds ? '✨ Regenerate cover sketches' : '✨ Generate cover sketches';
-      if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new round of cover sketches.'
-        : 'Generate the first round of cover sketches.';
+    // Sketch / cover-sketch / concept all use the bottom bar as the sole generate action.
+    // Hide the sidebar button entirely for those modules so there is only one CTA.
+    const usesBottomBar = mod === 'sketch' || mod === 'cover-sketch' || mod === 'concept';
+    regenBtn.classList.toggle('hidden', usesBottomBar);
+    if (regenHint) regenHint.classList.toggle('hidden', usesBottomBar);
+    if (usesBottomBar) return;
+
+    // Copy module — left sidebar button is the only CTA (no bottom bar for copy)
+    if (activeDesign?.is_blank_card) {
+      regenBtn.textContent = 'Blank card selected';
+      regenBtn.classList.add('cd-regen-btn--disabled');
+      if (regenHint) regenHint.textContent = 'Uncheck "Blank card" to generate copy options.';
     } else {
-      const hasRounds = (activeDesign?.concept_rounds?.length || 0) > 0;
-      regenBtn.textContent = hasRounds ? '✨ Regenerate concepts' : '✨ Generate concepts';
+      regenBtn.classList.remove('cd-regen-btn--disabled');
+      const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
+      regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
       if (regenHint) regenHint.textContent = hasRounds
-        ? 'Generate a new round of detailed concepts.'
-        : 'Generate the first detailed concepts.';
+        ? 'Generate a new round of copy options.'
+        : 'Generate the first round of copy options.';
     }
   }
 
