@@ -61,7 +61,7 @@ function loadRefParts(imagePaths) {
       path.join(UPLOADS_DIR, 'artstyle-samples', filename),
       path.join(UPLOADS_DIR, 'cover-sketch-samples', filename),
       path.join(UPLOADS_DIR, 'sketch-template', filename),
-      path.join(UPLOADS_DIR, 'cover-sketch-template', filename),
+      path.join(UPLOADS_DIR, 'concept-template', filename),
     ];
     const fullPath = candidates.find(p => fs.existsSync(p));
     if (!fullPath) continue;
@@ -746,6 +746,21 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
   const character = character_id ? db.getCharacter(character_id) : null;
   const artStyle  = art_style_id  ? db.getArtStyle(art_style_id)  : null;
 
+  // Load concept template — blank canvas passed as first ref so Gemini renders onto it
+  const conceptTemplatePath = settings.cd_concept_template || null;
+  const conceptTemplatePart = (() => {
+    if (!conceptTemplatePath) return null;
+    const filename = path.basename(conceptTemplatePath);
+    const fullPath = path.join(UPLOADS_DIR, 'concept-template', filename);
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch (e) { console.warn('[concept] template load error:', e.message); return null; }
+  })();
+
   // Load cover reference image
   const coverRefPart = (() => {
     if (!design.cover_ref_image) return null;
@@ -827,6 +842,7 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
       if (artStyle.characteristic_elements) lines.push(`Elements: ${artStyle.characteristic_elements}`);
     }
 
+    if (conceptTemplatePart) lines.push(`\nTEMPLATE CANVAS: A blank brand template canvas is provided as the first image. Render the full-color product illustration onto this canvas — use it as the art board and compositional guide. Stay within its boundaries and respect its layout structure.`);
     if (sketchRefPart) lines.push(`\nSELECTED INSIDE SKETCH: An inside sketch has been provided as the structural/compositional reference. Translate it into a polished full-color illustration — preserve the layout and pop-up structure while applying the art style.`);
     if (selectedCoverSketchPart) lines.push(`\nSELECTED COVER SKETCH: A cover sketch has been provided as compositional reference for the card cover. Use it to guide the cover design and layout.`);
     if (coverRefPart)  lines.push(`\nCOVER REFERENCE: A cover reference image is provided. Use it to guide the cover composition and layout style.`);
@@ -851,6 +867,8 @@ router.post('/designs/:id/generate-concept', async (req, res) => {
 
   const buildRefParts = () => {
     const parts = [];
+    // Template canvas is always first so Gemini renders onto it as the art board
+    if (conceptTemplatePart)     parts.push(conceptTemplatePart);
     if (sketchRefPart)           parts.push(sketchRefPart);
     if (selectedCoverSketchPart) parts.push(selectedCoverSketchPart);
     if (coverRefPart)            parts.push(coverRefPart);

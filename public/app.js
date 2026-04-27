@@ -1495,12 +1495,12 @@ function bindSettings() {
   });
   document.getElementById('cd-sketch-template-delete')?.addEventListener('click', deleteSketchTemplate);
 
-  // Cover sketch template upload (single file)
-  document.getElementById('cd-cover-sketch-template-upload')?.addEventListener('change', (e) => {
-    if (e.target.files[0]) uploadCoverSketchTemplate(e.target.files[0]);
+  // Concept template upload (single file)
+  document.getElementById('cd-concept-template-upload')?.addEventListener('change', (e) => {
+    if (e.target.files[0]) uploadConceptTemplate(e.target.files[0]);
     e.target.value = '';
   });
-  document.getElementById('cd-cover-sketch-template-delete')?.addEventListener('click', deleteCoverSketchTemplate);
+  document.getElementById('cd-concept-template-delete')?.addEventListener('click', deleteConceptTemplate);
 
   // Sketch sample upload
   document.getElementById('cd-sketch-samples-upload')?.addEventListener('change', (e) => {
@@ -1858,7 +1858,7 @@ async function loadSettings() {
     loadSketchSamples();
     loadCoverSketchSamples();
     loadSketchTemplate();
-    loadCoverSketchTemplate();
+    loadConceptTemplate();
     // Art Style Generator
     setVal('s-artstyle-instructions', s.ai_artstyle_instructions);
     setVal('s-artstyle-image-instructions', s.ai_artstyle_image_instructions);
@@ -3975,24 +3975,24 @@ async function deleteSketchTemplate() {
   } catch (e) { alert('Could not remove template: ' + e.message); }
 }
 
-// ── Cover Sketch Template (single file) ──────────────────────
-async function loadCoverSketchTemplate() {
+// ── Concept Template (single file) ───────────────────────────
+async function loadConceptTemplate() {
   try {
-    const res = await fetch('/api/settings/cover-sketch-template');
+    const res = await fetch('/api/settings/concept-template');
     const { template } = await res.json();
-    renderCoverSketchTemplate(template);
-  } catch (e) { console.error('Could not load cover sketch template:', e); }
+    renderConceptTemplate(template);
+  } catch (e) { console.error('Could not load concept template:', e); }
 }
 
-function renderCoverSketchTemplate(templatePath) {
-  const preview  = document.getElementById('cd-cover-sketch-template-preview');
-  const empty    = document.getElementById('cd-cover-sketch-template-empty');
-  const delBtn   = document.getElementById('cd-cover-sketch-template-delete');
+function renderConceptTemplate(templatePath) {
+  const preview  = document.getElementById('cd-concept-template-preview');
+  const empty    = document.getElementById('cd-concept-template-empty');
+  const delBtn   = document.getElementById('cd-concept-template-delete');
   if (!preview || !empty) return;
   if (templatePath) {
     const filename = templatePath.split('/').pop();
     preview.innerHTML = `
-      <img src="${esc(templatePath)}" alt="Cover sketch template" />
+      <img src="${esc(templatePath)}" alt="Concept template" />
       <div class="img-template-filename">${esc(filename)}</div>`;
     preview.classList.remove('hidden');
     empty.classList.add('hidden');
@@ -4005,25 +4005,25 @@ function renderCoverSketchTemplate(templatePath) {
   }
 }
 
-async function uploadCoverSketchTemplate(file) {
-  const status = document.getElementById('cd-cover-sketch-template-status');
+async function uploadConceptTemplate(file) {
+  const status = document.getElementById('cd-concept-template-status');
   if (status) { status.textContent = 'Uploading…'; status.classList.remove('hidden'); }
   const fd = new FormData(); fd.append('image', file);
   try {
-    const res = await fetch('/api/settings/cover-sketch-template', { method: 'POST', body: fd });
+    const res = await fetch('/api/settings/concept-template', { method: 'POST', body: fd });
     const { template } = await res.json();
-    renderCoverSketchTemplate(template);
+    renderConceptTemplate(template);
     if (status) { status.textContent = 'Uploaded!'; setTimeout(() => status.classList.add('hidden'), 2000); }
   } catch (e) {
     if (status) { status.textContent = 'Upload failed: ' + e.message; }
   }
 }
 
-async function deleteCoverSketchTemplate() {
-  if (!confirm('Remove the cover sketch template?')) return;
+async function deleteConceptTemplate() {
+  if (!confirm('Remove the concept template?')) return;
   try {
-    await fetch('/api/settings/cover-sketch-template', { method: 'DELETE' });
-    renderCoverSketchTemplate(null);
+    await fetch('/api/settings/concept-template', { method: 'DELETE' });
+    renderConceptTemplate(null);
   } catch (e) { alert('Could not remove template: ' + e.message); }
 }
 

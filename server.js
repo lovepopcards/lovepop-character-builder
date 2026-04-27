@@ -40,8 +40,8 @@ if (!fs.existsSync(COVER_SKETCH_SAMPLES_DIR)) fs.mkdirSync(COVER_SKETCH_SAMPLES_
 // Sketch template dirs (single-file template AI draws onto)
 const SKETCH_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'sketch-template');
 if (!fs.existsSync(SKETCH_TEMPLATE_DIR)) fs.mkdirSync(SKETCH_TEMPLATE_DIR, { recursive: true });
-const COVER_SKETCH_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'cover-sketch-template');
-if (!fs.existsSync(COVER_SKETCH_TEMPLATE_DIR)) fs.mkdirSync(COVER_SKETCH_TEMPLATE_DIR, { recursive: true });
+const CONCEPT_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'concept-template');
+if (!fs.existsSync(CONCEPT_TEMPLATE_DIR)) fs.mkdirSync(CONCEPT_TEMPLATE_DIR, { recursive: true });
 
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
@@ -98,12 +98,12 @@ const uploadSketchTemplate = multer({
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
 });
-const uploadCoverSketchTemplate = multer({
+const uploadConceptTemplate = multer({
   storage: multer.diskStorage({
-    destination: COVER_SKETCH_TEMPLATE_DIR,
+    destination: CONCEPT_TEMPLATE_DIR,
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname) || '.jpg';
-      cb(null, `cover-sketch-template${ext}`);
+      cb(null, `concept-template${ext}`);
     },
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -1043,31 +1043,31 @@ app.delete('/api/settings/sketch-template', (req, res) => {
   res.json({ success: true });
 });
 
-// ── Cover Sketch Template ─────────────────────────────────────
-app.get('/api/settings/cover-sketch-template', (req, res) => {
-  const template = db.getSetting('cd_cover_sketch_template') || null;
+// ── Concept Template ──────────────────────────────────────────
+app.get('/api/settings/concept-template', (req, res) => {
+  const template = db.getSetting('cd_concept_template') || null;
   res.json({ template });
 });
-app.post('/api/settings/cover-sketch-template', uploadCoverSketchTemplate.single('image'), (req, res) => {
+app.post('/api/settings/concept-template', uploadConceptTemplate.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const oldTemplate = db.getSetting('cd_cover_sketch_template');
+  const oldTemplate = db.getSetting('cd_concept_template');
   if (oldTemplate) {
-    const oldPath = path.join(COVER_SKETCH_TEMPLATE_DIR, path.basename(oldTemplate));
-    if (fs.existsSync(oldPath) && oldPath !== path.join(COVER_SKETCH_TEMPLATE_DIR, req.file.filename)) {
+    const oldPath = path.join(CONCEPT_TEMPLATE_DIR, path.basename(oldTemplate));
+    if (fs.existsSync(oldPath) && oldPath !== path.join(CONCEPT_TEMPLATE_DIR, req.file.filename)) {
       try { fs.unlinkSync(oldPath); } catch {}
     }
   }
-  const imgPath = `/uploads/cover-sketch-template/${req.file.filename}`;
-  db.setSetting('cd_cover_sketch_template', imgPath);
+  const imgPath = `/uploads/concept-template/${req.file.filename}`;
+  db.setSetting('cd_concept_template', imgPath);
   res.json({ template: imgPath });
 });
-app.delete('/api/settings/cover-sketch-template', (req, res) => {
-  const template = db.getSetting('cd_cover_sketch_template');
+app.delete('/api/settings/concept-template', (req, res) => {
+  const template = db.getSetting('cd_concept_template');
   if (template) {
-    const fp = path.join(COVER_SKETCH_TEMPLATE_DIR, path.basename(template));
+    const fp = path.join(CONCEPT_TEMPLATE_DIR, path.basename(template));
     if (fs.existsSync(fp)) { try { fs.unlinkSync(fp); } catch {} }
   }
-  db.setSetting('cd_cover_sketch_template', null);
+  db.setSetting('cd_concept_template', null);
   res.json({ success: true });
 });
 

@@ -1350,27 +1350,32 @@
               </div>
 
               <div class="form-group" style="margin-top:20px">
-                <label class="form-label">Cover Sketch — Template File</label>
-                <div class="form-hint" style="margin-bottom:8px">A single blank cover template (card outline, die-cut shape, etc.) that Gemini will draw onto. Replaces any existing template when you upload a new one.</div>
-                <div id="cd-cover-sketch-template-wrap" class="img-template-wrap">
-                  <div id="cd-cover-sketch-template-preview" class="img-template-preview hidden"></div>
-                  <div id="cd-cover-sketch-template-empty" class="img-samples-empty">No template uploaded yet.</div>
-                </div>
-                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-                  <label class="btn-add-image img-samples-upload-btn" for="cd-cover-sketch-template-upload">↑ Upload Template</label>
-                  <input type="file" id="cd-cover-sketch-template-upload" accept="image/*" style="display:none" />
-                  <button type="button" class="btn-danger-sm hidden" id="cd-cover-sketch-template-delete">Remove</button>
-                </div>
-                <div id="cd-cover-sketch-template-status" class="img-samples-status hidden"></div>
-              </div>
-
-              <div class="form-group" style="margin-top:20px">
                 <label class="form-label">Cover Sample Sketches</label>
                 <div class="form-hint" style="margin-bottom:8px">Example sketches showing successful cover designs. Passed as style references to Gemini.</div>
                 <div id="cd-cover-sketch-samples-grid" class="img-samples-grid"></div>
                 <label class="btn-add-image img-samples-upload-btn" for="cd-cover-sketch-samples-upload">+ Upload Cover Sample</label>
                 <input type="file" id="cd-cover-sketch-samples-upload" accept="image/*" multiple style="display:none" />
                 <div id="cd-cover-sketch-samples-status" class="img-samples-status hidden"></div>
+              </div>
+
+              <div class="form-group" style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+                <label class="form-label" style="font-size:15px;font-weight:700;color:var(--text)">Detailed Concepts</label>
+                <p class="form-hint" style="margin-bottom:16px">Settings for the Detailed Concepts step — full-color product illustration renders.</p>
+
+                <div class="form-group">
+                  <label class="form-label">Concept Template File</label>
+                  <div class="form-hint" style="margin-bottom:8px">A blank canvas or brand template (card mockup, art board, etc.) that Gemini renders the final illustration onto. Passed as the first image reference. Replaces any existing template when you upload a new one.</div>
+                  <div id="cd-concept-template-wrap" class="img-template-wrap">
+                    <div id="cd-concept-template-preview" class="img-template-preview hidden"></div>
+                    <div id="cd-concept-template-empty" class="img-samples-empty">No template uploaded yet.</div>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                    <label class="btn-add-image img-samples-upload-btn" for="cd-concept-template-upload">↑ Upload Template</label>
+                    <input type="file" id="cd-concept-template-upload" accept="image/*" style="display:none" />
+                    <button type="button" class="btn-danger-sm hidden" id="cd-concept-template-delete">Remove</button>
+                  </div>
+                  <div id="cd-concept-template-status" class="img-samples-status hidden"></div>
+                </div>
               </div>
 
               <div class="form-group" style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
