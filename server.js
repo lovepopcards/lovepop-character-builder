@@ -456,6 +456,125 @@ app.delete('/api/cover-styles/:id/images/:index', (req, res) => {
   res.json(db.updateCoverStyleImages(req.params.id, newImages));
 });
 
+// ── Description Packages API ──────────────────────────────────
+app.get('/api/description-packages', (req, res) => res.json(db.getAllDescriptionPackages()));
+app.get('/api/description-packages/:id', (req, res) => {
+  const row = db.getDescriptionPackage(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json(row);
+});
+app.post('/api/description-packages', (req, res) => {
+  try { res.status(201).json(db.createDescriptionPackage(req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.put('/api/description-packages/:id', (req, res) => {
+  try { res.json(db.updateDescriptionPackage(req.params.id, req.body)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/description-packages/:id', (req, res) => {
+  db.deleteDescriptionPackage(req.params.id);
+  res.json({ success: true });
+});
+app.post('/api/description-packages/:id/images', uploadDisk.single('image'), (req, res) => {
+  const pkg = db.getDescriptionPackage(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const updated = db.updateDescriptionPackageImages(req.params.id, [...pkg.images, `/uploads/${req.file.filename}`].slice(0, 5));
+  res.json(updated);
+});
+app.delete('/api/description-packages/:id/images/:index', (req, res) => {
+  const pkg = db.getDescriptionPackage(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'Not found' });
+  const idx = parseInt(req.params.index, 10);
+  if (isNaN(idx) || idx < 0 || idx >= pkg.images.length) return res.status(400).json({ error: 'Invalid index' });
+  res.json(db.updateDescriptionPackageImages(req.params.id, pkg.images.filter((_, i) => i !== idx)));
+});
+
+// AI: generate copy for a single description field
+app.post('/api/description-packages/:id/generate-field', async (req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY || db.getSetting('anthropic_api_key');
+  if (!apiKey) return res.status(400).json({ error: 'Anthropic API key not configured.' });
+
+  const pkg = db.getDescriptionPackage(req.params.id);
+  if (!pkg) return res.status(404).json({ error: 'Not found' });
+
+  const { field, direction = '' } = req.body;
+  if (!field) return res.status(400).json({ error: 'field is required.' });
+
+  const taxLines = [
+    pkg.occasion        && `Occasion: ${pkg.occasion}`,
+    pkg.occasion_group  && `Occasion Group: ${pkg.occasion_group}`,
+    pkg.format          && `Format: ${pkg.format}`,
+    pkg.theme           && `Theme: ${pkg.theme}`,
+    pkg.sub_theme       && `Sub-Theme: ${pkg.sub_theme}`,
+    pkg.sub_brand       && `Sub-Brand: ${pkg.sub_brand}`,
+    pkg.category        && `Category: ${pkg.category}`,
+    pkg.sub_category    && `Sub-Category: ${pkg.sub_category}`,
+    pkg.recipient       && `Recipient: ${pkg.recipient}`,
+    pkg.license && pkg.license !== 'Not Applicable' && `License: ${pkg.license}`,
+    pkg.product_configuration && `Configuration: ${pkg.product_configuration}`,
+    pkg.milestone       && `Milestone: ${pkg.milestone}`,
+    pkg.sku             && `SKU: ${pkg.sku}`,
+    pkg.working_name    && `Working Name: ${pkg.working_name}`,
+  ].filter(Boolean).join('\n');
+
+  const existingCopy = [
+    pkg.product_title       && field !== 'product_title'       && `Product Title: ${pkg.product_title}`,
+    pkg.summary_description && field !== 'summary_description' && `Summary: ${pkg.summary_description}`,
+    pkg.sentiment           && field !== 'sentiment'           && `Sentiment: ${pkg.sentiment}`,
+    pkg.occasions_text      && field !== 'occasions_text'      && `Occasions: ${pkg.occasions_text}`,
+    pkg.included            && field !== 'included'            && `Included: ${pkg.included}`,
+  ].filter(Boolean).join('\n');
+
+  // Load product images from disk as base64
+  const imageBlocks = [];
+  for (const imgPath of (pkg.images || []).slice(0, 5)) {
+    try {
+      const fullPath = imgPath.startsWith('/uploads/')
+        ? path.join(UPLOADS_DIR, path.basename(imgPath))
+        : path.join(__dirname, 'public', imgPath);
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(imgPath).toLowerCase().slice(1);
+      const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: mime, data: buf.toString('base64') } });
+    } catch { /* skip unreadable images */ }
+  }
+
+  const fmt = pkg.format || 'card';
+  const occ = pkg.occasion || 'occasion';
+  const FIELD_PROMPTS = {
+    product_title: `Write a concise, evocative product title (4-7 words) for a Lovepop ${fmt} for the ${occ} occasion. Be specific and memorable — avoid generic titles like "Birthday Card". Match Lovepop's warm, premium brand voice. Good examples: "Birthday Peony Pop-Up Card", "Dreamy Watercolor Bouquet", "Glitter Rainbow Cat Birthday Card". Return ONLY the title text, no quotes.`,
+    summary_description: `Write a 2-3 sentence product description for a Lovepop ${fmt}${occ !== 'occasion' ? ` for ${occ}` : ''}. Describe what the design looks like and what makes it special, the emotional experience of giving/receiving it, and any distinctive features. Write in Lovepop's warm, enthusiastic brand voice. Return ONLY the description text.`,
+    sentiment: `Write the inside sentiment message for a Lovepop ${fmt} for ${occ}. ${pkg.recipient ? `For: ${pkg.recipient}.` : ''} Requirements: heartfelt and genuine (2-4 sentences max), versatile enough for many different senders, emotionally resonant, and feel personal yet universal. Return ONLY the sentiment text.`,
+    occasions_text: `List 3-5 occasions when this Lovepop ${fmt} would be perfect. ${occ !== 'occasion' ? `Primary occasion: ${occ}.` : ''} Write each as a brief evocative phrase (not just one word). Example: "When you want to make their birthday truly unforgettable" or "For the friend who appreciates beautiful things". Return as a newline-separated list, no bullets or numbers.`,
+    included: `Write the "What's Included" product copy for a Lovepop ${fmt}. ${pkg.product_configuration ? `Configuration: ${pkg.product_configuration}.` : ''} List what comes in the box in a warm, specific tone. Typically includes the card, envelope, and possibly a sentiment card. Return as a clean, newline-separated list (e.g. "1 pop-up card\\n1 white envelope\\n1 sentiment card insert").`,
+  };
+
+  const promptText = FIELD_PROMPTS[field] || `Write the "${field.replace(/_/g, ' ')}" copy for this Lovepop product.`;
+  const userContent = [
+    ...imageBlocks,
+    {
+      type: 'text',
+      text: `Product taxonomy:\n${taxLines || '(not yet specified)'}${existingCopy ? `\n\nOther copy already written:\n${existingCopy}` : ''}${direction ? `\n\nAdditional direction: ${direction}` : ''}\n\n${promptText}`,
+    },
+  ];
+
+  try {
+    const response = await anthropicMessages({
+      apiKey,
+      model: db.getSetting('ai_model') || db.DEFAULTS.ai_model,
+      system: 'You are a copywriter for Lovepop, a premium pop-up greeting card company known for beautiful, joyful products. Write compelling, on-brand copy exactly as instructed. Return only the requested copy — no labels, no JSON, no preamble.',
+      messages: [{ role: 'user', content: userContent }],
+      max_tokens: 512,
+    });
+    const text = (response.content?.[0]?.text || '').trim();
+    res.json({ field, text });
+  } catch (e) {
+    console.error('Description field generate error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Card design image scrub — clears selected_*_url fields whose files no longer exist on disk ──
 function imageFileExists(url) {
   if (!url) return false;

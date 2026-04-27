@@ -182,6 +182,37 @@ db.exec(`
 `);
 
 
+// ── Description Packages table ────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS description_packages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sku TEXT DEFAULT '',
+    working_name TEXT DEFAULT '',
+    occasion_group TEXT DEFAULT '',
+    occasion TEXT DEFAULT '',
+    format TEXT DEFAULT '',
+    theme TEXT DEFAULT '',
+    sub_theme TEXT DEFAULT '',
+    sub_brand TEXT DEFAULT '',
+    category TEXT DEFAULT '',
+    sub_category TEXT DEFAULT '',
+    recipient TEXT DEFAULT '',
+    license TEXT DEFAULT '',
+    product_configuration TEXT DEFAULT '',
+    milestone TEXT DEFAULT '',
+    images TEXT DEFAULT '[]',
+    product_title TEXT DEFAULT '',
+    summary_description TEXT DEFAULT '',
+    sentiment TEXT DEFAULT '',
+    occasions_text TEXT DEFAULT '',
+    included TEXT DEFAULT '',
+    status TEXT DEFAULT 'draft',
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ── Character Stories/Quotes table ───────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS character_stories (
@@ -418,6 +449,13 @@ const ARTSTYLE_ALL  = [...ARTSTYLE_TEXT, ...ARTSTYLE_JSON];
 const COVERSTYLE_TEXT = ['name','description','layout_approach','color_scheme','typography_treatment','graphic_elements','composition_notes','status'];
 const COVERSTYLE_JSON = ['images'];
 const COVERSTYLE_ALL  = [...COVERSTYLE_TEXT, ...COVERSTYLE_JSON];
+
+const serializeDescPackage = (row) => row ? ({ ...row, images: parseJSON(row.images, []) }) : null;
+const DESC_TEXT = ['sku','working_name','occasion_group','occasion','format','theme','sub_theme',
+  'sub_brand','category','sub_category','recipient','license','product_configuration','milestone',
+  'product_title','summary_description','sentiment','occasions_text','included','status','notes'];
+const DESC_JSON = ['images'];
+const DESC_ALL  = [...DESC_TEXT, ...DESC_JSON];
 
 // ── Asset JSON field helpers ──────────────────────────────────
 const parseAssetJob = (row) => row ? ({
@@ -805,5 +843,41 @@ module.exports = {
   updateCoverStyleImages(id, images) {
     db.prepare(`UPDATE cover_styles SET images = ?, updated_at = datetime('now') WHERE id = ?`).run(JSON.stringify(images), id);
     return this.getCoverStyle(id);
+  },
+
+  // ── Description Packages ──────────────────────────────────────
+  getAllDescriptionPackages() {
+    return db.prepare('SELECT * FROM description_packages ORDER BY created_at DESC').all().map(serializeDescPackage);
+  },
+  getDescriptionPackage(id) {
+    const row = db.prepare('SELECT * FROM description_packages WHERE id = ?').get(id);
+    return row ? serializeDescPackage(row) : null;
+  },
+  createDescriptionPackage(data) {
+    const result = db.prepare(
+      `INSERT INTO description_packages (${DESC_ALL.join(', ')}) VALUES (${DESC_ALL.map(() => '?').join(', ')})`
+    ).run(...DESC_ALL.map(f => DESC_JSON.includes(f) ? JSON.stringify(data[f] || []) : (data[f] || '')));
+    return this.getDescriptionPackage(result.lastInsertRowid);
+  },
+  updateDescriptionPackage(id, data) {
+    const fields = [], values = [];
+    for (const key of DESC_ALL) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(DESC_JSON.includes(key) ? JSON.stringify(data[key]) : data[key]);
+      }
+    }
+    if (!fields.length) return this.getDescriptionPackage(id);
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE description_packages SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    return this.getDescriptionPackage(id);
+  },
+  deleteDescriptionPackage(id) {
+    return db.prepare('DELETE FROM description_packages WHERE id = ?').run(id);
+  },
+  updateDescriptionPackageImages(id, images) {
+    db.prepare(`UPDATE description_packages SET images = ?, updated_at = datetime('now') WHERE id = ?`).run(JSON.stringify(images), id);
+    return this.getDescriptionPackage(id);
   },
 };

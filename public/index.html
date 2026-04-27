@@ -24,6 +24,7 @@
         <button class="nav-tab" data-view="lands">Lovepop Lands</button>
         <button class="nav-tab" data-view="art-styles">Lovepop Art Styles</button>
         <button class="nav-tab" data-view="card-designer">Card Builder</button>
+        <button class="nav-tab" data-view="desc-builder">Description Builder</button>
         <button class="nav-tab" data-view="settings">Settings</button>
       </nav>
     </div>
@@ -1943,6 +1944,263 @@
 </div><!-- /cd-workspace-view -->
 
     </div><!-- /view-card-designer -->
+
+    <!-- ─── DESCRIPTION BUILDER CATALOG ──────────────────────── -->
+    <div id="view-desc-builder" class="view hidden">
+      <div class="view-toolbar">
+        <div class="toolbar-left">
+          <h1 class="view-title">Description Builder</h1>
+          <span id="db-count-badge" class="count-badge">0 packages</span>
+        </div>
+        <div class="toolbar-right">
+          <div class="status-filter-pills" id="db-status-filter">
+            <button class="status-pill active" data-status="all">All</button>
+            <button class="status-pill" data-status="draft">Draft</button>
+            <button class="status-pill" data-status="ready">Ready</button>
+          </div>
+          <button class="btn-primary" id="db-new-btn">+ New Package</button>
+        </div>
+      </div>
+      <div id="db-empty" class="catalog-empty hidden">
+        <div class="catalog-empty-icon">📝</div>
+        <div class="catalog-empty-title">No description packages yet</div>
+        <div class="catalog-empty-sub">Create a package to start building product copy.</div>
+        <button class="btn-primary" id="db-empty-new-btn">+ New Package</button>
+      </div>
+      <div id="db-list" class="db-catalog-list"></div>
+    </div>
+
+    <!-- ─── DESCRIPTION BUILDER EDITOR ───────────────────────── -->
+    <div id="view-desc-builder-editor" class="view hidden">
+      <div class="page-header">
+        <button class="back-link" id="db-editor-back-btn">← Back</button>
+        <h1 class="page-title" id="db-editor-title">New Description Package</h1>
+        <div class="page-header-actions">
+          <select id="db-editor-status" class="form-select" style="width:auto;font-size:13px">
+            <option value="draft">Draft</option>
+            <option value="ready">Ready</option>
+          </select>
+          <button class="btn-secondary" id="db-editor-cancel-btn">Cancel</button>
+          <button class="btn-primary" id="db-editor-save-btn">Save Package</button>
+        </div>
+      </div>
+
+      <div class="db-editor-layout">
+
+        <!-- ── Left: Images + Taxonomy ──────────────────────── -->
+        <div class="db-editor-left">
+          <!-- Images -->
+          <div class="db-section">
+            <div class="db-section-title">Product Images <span class="db-section-hint">(up to 5)</span></div>
+            <div class="db-image-upload-zone" id="db-image-zone">
+              <input type="file" id="db-image-input" accept="image/*" multiple style="display:none" />
+              <div class="db-image-placeholder" id="db-image-placeholder">
+                <div style="font-size:28px">🖼</div>
+                <div style="font-size:13px;color:var(--text-muted)">Drop or <span class="link" id="db-image-link">click to upload</span></div>
+              </div>
+              <div id="db-image-gallery" class="db-image-gallery"></div>
+            </div>
+          </div>
+
+          <!-- Taxonomy -->
+          <div class="db-section">
+            <div class="db-section-title">SKU &amp; Taxonomy</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">SKU #</label>
+              <input type="text" id="dp-sku" class="form-input form-input-sm" placeholder="e.g. LP10178" autocomplete="off" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Working Name</label>
+              <input type="text" id="dp-working-name" class="form-input form-input-sm" placeholder="Internal working title" autocomplete="off" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Occasion Group</label>
+              <select id="dp-occasion-group" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Celebrations</option>
+                <option>Major card holidays</option>
+                <option>Everyday</option>
+                <option>Religious</option>
+                <option>Season</option>
+                <option>Other holidays</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Occasion</label>
+              <select id="dp-occasion" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Any time</option>
+                <option>Anniversary</option>
+                <option>Baby Shower</option>
+                <option>Birthday</option>
+                <option>Christmas</option>
+                <option>Easter</option>
+                <option>Father's Day</option>
+                <option>Friendship</option>
+                <option>Get Well</option>
+                <option>Graduation</option>
+                <option>Halloween</option>
+                <option>Hanukkah</option>
+                <option>Happy New Year</option>
+                <option>Love</option>
+                <option>Mother's Day</option>
+                <option>New Baby</option>
+                <option>New Home</option>
+                <option>St. Patrick's Day</option>
+                <option>Spring</option>
+                <option>Summer</option>
+                <option>Sympathy</option>
+                <option>Thank You</option>
+                <option>Thinking of You</option>
+                <option>Thanksgiving</option>
+                <option>Valentine's Day</option>
+                <option>Wedding / Engagement</option>
+                <option>Winter</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Format</label>
+              <select id="dp-format" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Lovepop Card</option>
+                <option>Light &amp; Music Card</option>
+                <option>Bouquet</option>
+                <option>Suncatcher Card</option>
+                <option>Suncatcher Bouquet</option>
+                <option>Plushpop Card</option>
+                <option>Lovepop Card Pack</option>
+                <option>Loooooong Card</option>
+                <option>HeartFelt Charm Card</option>
+                <option>Wreaths</option>
+                <option>Light-Up Bouquet</option>
+                <option>Stickerpop</option>
+                <option>Centerpiece</option>
+                <option>Flower Bud Bouquet</option>
+                <option>Mini Bouquet Card</option>
+                <option>Moments Card</option>
+                <option>Playpop Card</option>
+                <option>Paperpop Card Pack</option>
+                <option>Nesting Card</option>
+                <option>Notecard Pack</option>
+                <option>Glitter Bouquet</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Theme</label>
+              <select id="dp-theme" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Garden</option>
+                <option>Hobbies &amp; Interests</option>
+                <option>Cake &amp; Party</option>
+                <option>Seasonal</option>
+                <option>Pop culture</option>
+                <option>Humor</option>
+                <option>Symbols</option>
+                <option>Animals</option>
+                <option>Love</option>
+                <option>Religious</option>
+                <option>Home</option>
+                <option>Occupational</option>
+                <option>Locations &amp; Landmarks</option>
+                <option>Baby</option>
+                <option>Non-English cards</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Sub Theme</label>
+              <input type="text" id="dp-sub-theme" class="form-input form-input-sm" placeholder="e.g. Floral, Birds &amp; butterflies" autocomplete="off" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Sub Brand</label>
+              <select id="dp-sub-brand" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Lovepop</option>
+                <option>Lovepop Flowers</option>
+                <option>Lovepop Plushpop</option>
+                <option>Lovepop Play</option>
+                <option>Stickerpop</option>
+                <option>Lovepop Paperpop</option>
+                <option>Lovepop Moments</option>
+                <option>Lovepop Press</option>
+                <option>Lovepop PopPals</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Category</label>
+              <select id="dp-category" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Cards</option>
+                <option>Bouquets</option>
+                <option>Box Sets &amp; Packs</option>
+                <option>Gift Accessories</option>
+                <option>Advent Calendars</option>
+                <option>Luxe Bouquets</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Sub Category</label>
+              <select id="dp-sub-category" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Lovepop Cards</option>
+                <option>Classic Bouquets</option>
+                <option>Keepsake Cards</option>
+                <option>Wildly Original Cards</option>
+                <option>Premium Bouquets</option>
+                <option>Box Sets &amp; Packs</option>
+                <option>Other Cards</option>
+                <option>Gift Accessories</option>
+                <option>Advent Calendars</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Recipient</label>
+              <input type="text" id="dp-recipient" class="form-input form-input-sm" placeholder="e.g. Mom, Best friend, Anyone" autocomplete="off" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Product Configuration</label>
+              <select id="dp-product-config" class="form-select form-select-sm">
+                <option value="">— Select —</option>
+                <option>Lovepop &amp; Sentiment Card</option>
+                <option>Lovepop Card</option>
+                <option>Light &amp; Music &amp; Sentiment Card</option>
+                <option>Bouquet &amp; Sentiment Card</option>
+                <option>Bouquet &amp; Card Bundle</option>
+                <option>Lovepop Card Pack</option>
+                <option>Suncatcher &amp; Sentiment Card</option>
+                <option>Plushpop &amp; Sentiment Card</option>
+                <option>Stickerpop Set</option>
+                <option>Gift Set</option>
+                <option>Wreath</option>
+                <option>Centerpiece</option>
+                <option>Advent Calendar</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">License</label>
+              <input type="text" id="dp-license" class="form-input form-input-sm" placeholder="e.g. Not Applicable, Disney, Marvel" autocomplete="off" />
+            </div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label" style="font-size:12px">Milestone (optional)</label>
+              <input type="text" id="dp-milestone" class="form-input form-input-sm" placeholder="e.g. 30th, 50th, 1st" autocomplete="off" />
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="db-section">
+            <div class="db-section-title">Notes</div>
+            <textarea id="dp-notes" class="form-textarea" rows="3" placeholder="Internal notes about this product or package…" style="font-size:13px"></textarea>
+          </div>
+        </div>
+
+        <!-- ── Right: Copy Fields ────────────────────────────── -->
+        <div class="db-editor-right">
+          <div class="db-copy-fields" id="db-copy-fields">
+            <!-- Injected by JS: product_title, summary_description, sentiment, occasions_text, included -->
+          </div>
+        </div>
+
+      </div><!-- /db-editor-layout -->
+    </div><!-- /view-desc-builder-editor -->
 
   </main>
 

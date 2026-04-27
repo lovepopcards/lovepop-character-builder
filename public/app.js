@@ -97,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindArtStyles, bindArtStyleEditor, bindArtStyleAIPanel,
     bindArtStyleDetailModal,
     bindCoverStyles, bindCoverStyleEditor, bindCoverStyleDetailModal,
+    bindDescBuilder, bindDescBuilderEditor,
   ];
   for (const fn of bindFns) {
     try { fn(); }
@@ -108,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Load everything ───────────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadCharacters(), loadLands(), loadArtStyles(), loadSalesData()]);
+  await Promise.all([loadCharacters(), loadLands(), loadArtStyles(), loadSalesData(), loadDescPackages()]);
 }
 
 // ── Sales Data ────────────────────────────────────────────────
@@ -5081,6 +5082,426 @@ function bindBulkEdit() {
     else alert(`Done: ${success} character${success === 1 ? '' : 's'} updated.`);
 
     await loadCharacters();
+  });
+}
+
+// ── Description Builder ───────────────────────────────────────
+const DESC_PACKAGES_API = '/api/description-packages';
+let descPackages = [];
+let descEditorMode = 'create';
+let descEditorId = null;
+let descStatusFilter = 'all';
+
+const DESC_COPY_FIELDS = [
+  { key: 'product_title',       label: 'Product Title',       rows: 2,  placeholder: 'e.g. Birthday Peony Pop-Up Card…' },
+  { key: 'summary_description', label: 'Summary Description', rows: 4,  placeholder: '2–3 sentences describing the design and the experience of giving it…' },
+  { key: 'sentiment',           label: 'Sentiment',           rows: 4,  placeholder: 'The inside message — heartfelt and versatile…' },
+  { key: 'occasions_text',      label: 'Occasions',           rows: 3,  placeholder: 'When is this the perfect gift? (one occasion per line)' },
+  { key: 'included',            label: "What's Included",     rows: 3,  placeholder: '1 pop-up card\n1 white envelope\n1 sentiment card insert' },
+];
+
+function bindDescBuilder() {
+  document.getElementById('db-new-btn')?.addEventListener('click', () => openDescEditor('create'));
+  document.getElementById('db-empty-new-btn')?.addEventListener('click', () => openDescEditor('create'));
+  const filterEl = document.getElementById('db-status-filter');
+  filterEl?.addEventListener('click', e => {
+    const pill = e.target.closest('.status-pill');
+    if (!pill) return;
+    descStatusFilter = pill.dataset.status;
+    filterEl.querySelectorAll('.status-pill').forEach(p => p.classList.toggle('active', p.dataset.status === descStatusFilter));
+    renderDescCatalog();
+  });
+}
+
+function bindDescBuilderEditor() {
+  document.getElementById('db-editor-back-btn')?.addEventListener('click', () => goBack('desc-builder'));
+  document.getElementById('db-editor-cancel-btn')?.addEventListener('click', () => goBack('desc-builder'));
+  document.getElementById('db-editor-save-btn')?.addEventListener('click', saveDescPackage);
+  const zone  = document.getElementById('db-image-zone');
+  const input = document.getElementById('db-image-input');
+  const link  = document.getElementById('db-image-link');
+  if (link)  link.addEventListener('click', () => input?.click());
+  if (input) {
+    input.addEventListener('change', async e => {
+      const files = [...(e.target.files || [])];
+      if (files.length) await uploadDescImages(files);
+      input.value = '';
+    });
+  }
+  if (zone) {
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', async e => {
+      e.preventDefault(); zone.classList.remove('dragover');
+      const files = [...(e.dataTransfer.files || [])].filter(f => f.type.startsWith('image/'));
+      if (files.length) await uploadDescImages(files);
+    });
+  }
+  buildDescCopyFields();
+}
+
+function buildDescCopyFields() {
+  const container = document.getElementById('db-copy-fields');
+  if (!container) return;
+  container.innerHTML = '';
+  DESC_COPY_FIELDS.forEach(({ key, label, rows, placeholder }) => {
+    const inputId = `dp-${key.replace(/_/g, '-')}`;
+    const section = document.createElement('div');
+    section.className = 'db-copy-field';
+    section.dataset.field = key;
+    section.innerHTML = `
+      <div class="db-copy-field-header">
+        <label class="db-copy-label" for="${inputId}">${esc(label)}</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="db-context-toggle btn-ghost btn-sm" type="button" data-field="${key}">Similar ▾</button>
+          <button class="db-gen-btn refine-btn" type="button" data-field="${key}">✨ Generate</button>
+        </div>
+      </div>
+      <textarea class="form-textarea db-copy-textarea" id="${inputId}" rows="${rows}" placeholder="${placeholder.replace(/"/g, '&quot;')}"></textarea>
+      <div class="db-context-panel hidden" data-field="${key}">
+        <div class="db-context-list"></div>
+      </div>
+      <div class="db-gen-panel hidden" data-field="${key}">
+        <div class="db-gen-panel-inner">
+          <textarea class="refine-direction" rows="2" placeholder="Optional direction… e.g. &quot;playful and witty, not too sentimental&quot;"></textarea>
+          <div class="refine-actions-row">
+            <button class="btn-primary db-gen-run-btn" type="button" data-field="${key}">Generate</button>
+            <button class="btn-ghost db-gen-cancel-btn" type="button" data-field="${key}">Cancel</button>
+          </div>
+          <div class="refine-draft-wrap hidden">
+            <div class="refine-draft-label">Draft</div>
+            <div class="refine-draft-text"></div>
+            <div class="refine-draft-actions">
+              <button class="btn-primary db-gen-accept-btn" type="button" data-field="${key}">Accept</button>
+              <button class="btn-secondary db-gen-retry-btn" type="button" data-field="${key}">Try Again</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    container.appendChild(section);
+  });
+
+  container.addEventListener('click', e => {
+    const field = e.target.dataset.field || e.target.closest('[data-field]')?.dataset.field;
+    if (!field) return;
+    if (e.target.classList.contains('db-context-toggle'))  { toggleDescContext(field); }
+    else if (e.target.classList.contains('db-gen-btn'))    { toggleDescGenPanel(field); }
+    else if (e.target.classList.contains('db-gen-cancel-btn')) {
+      getDescGenPanel(field)?.classList.add('hidden');
+      document.querySelector(`.db-gen-btn[data-field="${field}"]`)?.classList.remove('active');
+    }
+    else if (e.target.classList.contains('db-gen-run-btn') || e.target.classList.contains('db-gen-retry-btn')) { runDescGenerate(field); }
+    else if (e.target.classList.contains('db-gen-accept-btn')) { acceptDescDraft(field); }
+  });
+}
+
+function getDescGenPanel(field) {
+  return document.querySelector(`.db-gen-panel[data-field="${field}"]`);
+}
+
+function toggleDescGenPanel(field) {
+  const panel = getDescGenPanel(field);
+  const btn   = document.querySelector(`.db-gen-btn[data-field="${field}"]`);
+  if (!panel) return;
+  const opening = panel.classList.contains('hidden');
+  document.querySelectorAll('.db-gen-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.db-gen-btn').forEach(b => b.classList.remove('active'));
+  if (opening) {
+    panel.classList.remove('hidden');
+    btn?.classList.add('active');
+    panel.querySelector('.refine-direction')?.focus();
+  }
+}
+
+function toggleDescContext(field) {
+  const panel  = document.querySelector(`.db-context-panel[data-field="${field}"]`);
+  const toggle = document.querySelector(`.db-context-toggle[data-field="${field}"]`);
+  if (!panel) return;
+  const opening = panel.classList.contains('hidden');
+  if (opening) {
+    const occasion = document.getElementById('dp-occasion')?.value;
+    const format   = document.getElementById('dp-format')?.value;
+    const similar  = getSimilarDescProducts(occasion, format);
+    const listEl   = panel.querySelector('.db-context-list');
+    if (similar.length) {
+      listEl.innerHTML = similar.map(p =>
+        `<div class="db-context-item">
+          ${p.image_url ? `<img src="${esc(p.image_url)}" class="db-context-thumb zoomable" alt="${esc(p.name)}" />` : ''}
+          <div class="db-context-name">${esc(p.name)}</div>
+          <div class="db-context-sku">${esc(p.sku)}</div>
+        </div>`
+      ).join('');
+    } else {
+      listEl.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No similar products found — select an Occasion to see examples.</div>`;
+    }
+    panel.classList.remove('hidden');
+    if (toggle) toggle.textContent = 'Similar ▴';
+  } else {
+    panel.classList.add('hidden');
+    if (toggle) toggle.textContent = 'Similar ▾';
+  }
+}
+
+function getSimilarDescProducts(occasion, format) {
+  if (!occasion || !allProducts.length) return [];
+  const q = occasion.toLowerCase().replace(/['']/g, '');
+  return allProducts
+    .filter(p => p.name && p.name.toLowerCase().replace(/['']/g, '').includes(q))
+    .sort((a, b) => {
+      if (format) {
+        const aM = (a.name || '').toLowerCase().includes(format.toLowerCase().split(' ')[0]);
+        const bM = (b.name || '').toLowerCase().includes(format.toLowerCase().split(' ')[0]);
+        if (aM && !bM) return -1;
+        if (!aM && bM) return 1;
+      }
+      return 0;
+    })
+    .slice(0, 10);
+}
+
+async function runDescGenerate(field) {
+  if (!descEditorId) {
+    await saveDescPackage(true);
+    if (!descEditorId) { alert('Please save the package first.'); return; }
+  }
+  const panel     = getDescGenPanel(field);
+  const runBtn    = panel?.querySelector('.db-gen-run-btn');
+  const retryBtn  = panel?.querySelector('.db-gen-retry-btn');
+  const draftWrap = panel?.querySelector('.refine-draft-wrap');
+  const draftText = panel?.querySelector('.refine-draft-text');
+  const direction = panel?.querySelector('.refine-direction')?.value?.trim() || '';
+  if (!panel) return;
+  if (runBtn)   { runBtn.disabled = true;   runBtn.textContent   = 'Generating…'; }
+  if (retryBtn) { retryBtn.disabled = true; }
+  draftWrap?.classList.add('hidden');
+  try {
+    const res = await fetch(`${DESC_PACKAGES_API}/${descEditorId}/generate-field`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, direction }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Generation failed');
+    const data = await res.json();
+    if (draftText) draftText.textContent = data.text || '';
+    draftWrap?.classList.remove('hidden');
+    panel._draftText = data.text || '';
+  } catch (err) {
+    alert('Generation failed: ' + err.message);
+  } finally {
+    if (runBtn)   { runBtn.disabled = false;   runBtn.textContent   = 'Generate'; }
+    if (retryBtn) { retryBtn.disabled = false; }
+  }
+}
+
+function acceptDescDraft(field) {
+  const panel   = getDescGenPanel(field);
+  const text    = panel?._draftText || panel?.querySelector('.refine-draft-text')?.textContent || '';
+  if (!text) return;
+  const el = document.getElementById(`dp-${field.replace(/_/g, '-')}`);
+  if (el) el.value = text;
+  panel?.classList.add('hidden');
+  document.querySelector(`.db-gen-btn[data-field="${field}"]`)?.classList.remove('active');
+}
+
+async function loadDescPackages() {
+  try {
+    const res = await fetch(DESC_PACKAGES_API);
+    descPackages = await res.json();
+    renderDescCatalog();
+  } catch (err) { console.error('loadDescPackages error:', err); }
+}
+
+function getFilteredDescPackages() {
+  if (descStatusFilter === 'all') return descPackages;
+  return descPackages.filter(p => p.status === descStatusFilter);
+}
+
+function renderDescCatalog() {
+  const filtered = getFilteredDescPackages();
+  const total    = descPackages.length;
+  const badge    = document.getElementById('db-count-badge');
+  if (badge) badge.textContent = descStatusFilter === 'all'
+    ? `${total} package${total !== 1 ? 's' : ''}`
+    : `${filtered.length} of ${total} package${total !== 1 ? 's' : ''}`;
+
+  const emptyEl = document.getElementById('db-empty');
+  const listEl  = document.getElementById('db-list');
+  if (!filtered.length) { emptyEl?.classList.remove('hidden'); listEl?.classList.add('hidden'); return; }
+  emptyEl?.classList.add('hidden'); listEl?.classList.remove('hidden');
+  listEl.innerHTML = '';
+  filtered.forEach(pkg => {
+    const card   = document.createElement('div');
+    card.className = 'db-catalog-card';
+    const thumb  = pkg.images?.[0]
+      ? `<img src="${esc(pkg.images[0])}" class="db-card-thumb" alt="" />`
+      : `<div class="db-card-thumb db-card-thumb-empty">🖼</div>`;
+    const statusCls = pkg.status === 'ready' ? 'cstory-card-occasion cstory-card-status-ready' : 'cstory-card-occasion';
+    card.innerHTML = `
+      ${thumb}
+      <div class="db-card-body">
+        <div class="db-card-title">${esc(pkg.working_name || pkg.sku || 'Untitled Package')}</div>
+        <div class="db-card-meta">
+          ${pkg.occasion ? `<span class="cstory-card-occasion">${esc(pkg.occasion)}</span>` : ''}
+          ${pkg.format   ? `<span class="cstory-card-occasion">${esc(pkg.format)}</span>`   : ''}
+          <span class="${statusCls}">${pkg.status === 'ready' ? 'Ready' : 'Draft'}</span>
+        </div>
+        ${pkg.product_title ? `<div class="db-card-copy">"${esc(pkg.product_title)}"</div>` : ''}
+        ${pkg.sku ? `<div class="db-card-sku">${esc(pkg.sku)}</div>` : ''}
+      </div>`;
+    card.addEventListener('click', () => openDescEditor('edit', pkg.id));
+    listEl.appendChild(card);
+  });
+}
+
+function openDescEditor(mode, id = null) {
+  descEditorMode = mode;
+  descEditorId   = id;
+  // Reset panels
+  document.querySelectorAll('.db-gen-panel').forEach(p => {
+    p.classList.add('hidden'); p._draftText = '';
+    p.querySelector('.refine-draft-wrap')?.classList.add('hidden');
+    const d = p.querySelector('.refine-direction'); if (d) d.value = '';
+  });
+  document.querySelectorAll('.db-gen-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.db-context-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.db-context-toggle').forEach(t => { t.textContent = 'Similar ▾'; });
+
+  const allFields = ['dp-sku','dp-working-name','dp-occasion-group','dp-occasion','dp-format',
+    'dp-theme','dp-sub-theme','dp-sub-brand','dp-category','dp-sub-category',
+    'dp-recipient','dp-license','dp-product-config','dp-milestone','dp-notes'];
+
+  if (mode === 'edit' && id) {
+    const pkg = descPackages.find(p => p.id === id);
+    if (!pkg) return;
+    document.getElementById('db-editor-title').textContent = pkg.working_name || pkg.sku || 'Edit Package';
+    allFields.forEach(fid => { const el = document.getElementById(fid); if (el) el.value = pkg[fid.replace('dp-','').replace(/-/g,'_').replace('product_config','product_configuration')] || ''; });
+    // use explicit map for safety
+    setDescVal('dp-sku', pkg.sku); setDescVal('dp-working-name', pkg.working_name);
+    setDescVal('dp-occasion-group', pkg.occasion_group); setDescVal('dp-occasion', pkg.occasion);
+    setDescVal('dp-format', pkg.format); setDescVal('dp-theme', pkg.theme);
+    setDescVal('dp-sub-theme', pkg.sub_theme); setDescVal('dp-sub-brand', pkg.sub_brand);
+    setDescVal('dp-category', pkg.category); setDescVal('dp-sub-category', pkg.sub_category);
+    setDescVal('dp-recipient', pkg.recipient); setDescVal('dp-license', pkg.license);
+    setDescVal('dp-product-config', pkg.product_configuration); setDescVal('dp-milestone', pkg.milestone);
+    setDescVal('dp-notes', pkg.notes);
+    document.getElementById('db-editor-status').value = pkg.status || 'draft';
+    DESC_COPY_FIELDS.forEach(({ key }) => setDescVal(`dp-${key.replace(/_/g, '-')}`, pkg[key]));
+    renderDescImages(pkg.images || []);
+  } else {
+    document.getElementById('db-editor-title').textContent = 'New Description Package';
+    allFields.forEach(fid => { const el = document.getElementById(fid); if (el) el.value = ''; });
+    document.getElementById('db-editor-status').value = 'draft';
+    DESC_COPY_FIELDS.forEach(({ key }) => setDescVal(`dp-${key.replace(/_/g, '-')}`, ''));
+    renderDescImages([]);
+  }
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-desc-builder-editor').classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  currentView = 'desc-builder-editor';
+  window.scrollTo(0, 0);
+}
+
+function setDescVal(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val || '';
+}
+
+async function saveDescPackage(silent = false) {
+  const data = {
+    sku:                   document.getElementById('dp-sku')?.value?.trim() || '',
+    working_name:          document.getElementById('dp-working-name')?.value?.trim() || '',
+    occasion_group:        document.getElementById('dp-occasion-group')?.value || '',
+    occasion:              document.getElementById('dp-occasion')?.value || '',
+    format:                document.getElementById('dp-format')?.value || '',
+    theme:                 document.getElementById('dp-theme')?.value || '',
+    sub_theme:             document.getElementById('dp-sub-theme')?.value?.trim() || '',
+    sub_brand:             document.getElementById('dp-sub-brand')?.value || '',
+    category:              document.getElementById('dp-category')?.value || '',
+    sub_category:          document.getElementById('dp-sub-category')?.value || '',
+    recipient:             document.getElementById('dp-recipient')?.value?.trim() || '',
+    license:               document.getElementById('dp-license')?.value?.trim() || '',
+    product_configuration: document.getElementById('dp-product-config')?.value || '',
+    milestone:             document.getElementById('dp-milestone')?.value?.trim() || '',
+    notes:                 document.getElementById('dp-notes')?.value?.trim() || '',
+    status:                document.getElementById('db-editor-status')?.value || 'draft',
+    product_title:         document.getElementById('dp-product-title')?.value?.trim() || '',
+    summary_description:   document.getElementById('dp-summary-description')?.value?.trim() || '',
+    sentiment:             document.getElementById('dp-sentiment')?.value?.trim() || '',
+    occasions_text:        document.getElementById('dp-occasions-text')?.value?.trim() || '',
+    included:              document.getElementById('dp-included')?.value?.trim() || '',
+  };
+  const btn = document.getElementById('db-editor-save-btn');
+  if (btn && !silent) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    let saved;
+    if (descEditorMode === 'edit' && descEditorId) {
+      const res = await fetch(`${DESC_PACKAGES_API}/${descEditorId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      saved = await res.json();
+    } else {
+      const res = await fetch(DESC_PACKAGES_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Create failed');
+      saved = await res.json();
+      descEditorMode = 'edit';
+      descEditorId   = saved.id;
+      document.getElementById('db-editor-title').textContent = saved.working_name || saved.sku || 'Edit Package';
+    }
+    descPackages = descPackages.filter(p => p.id !== saved.id);
+    descPackages.unshift(saved);
+    renderDescCatalog();
+    if (!silent) goBack('desc-builder');
+  } catch (err) {
+    if (!silent) alert('Could not save package: ' + err.message);
+  } finally {
+    if (btn && !silent) { btn.disabled = false; btn.textContent = 'Save Package'; }
+  }
+}
+
+async function uploadDescImages(files) {
+  if (!descEditorId) {
+    await saveDescPackage(true);
+    if (!descEditorId) { alert('Please fill in at least a working name or SKU before uploading images.'); return; }
+  }
+  const existing = descPackages.find(p => p.id === descEditorId)?.images || [];
+  const slots = 5 - existing.length;
+  if (slots <= 0) { alert('Maximum 5 images already reached.'); return; }
+  for (const file of files.slice(0, slots)) {
+    try {
+      const fd = new FormData(); fd.append('image', file);
+      const res = await fetch(`${DESC_PACKAGES_API}/${descEditorId}/images`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      const updated = await res.json();
+      descPackages = descPackages.map(p => p.id === updated.id ? updated : p);
+      renderDescImages(updated.images || []);
+    } catch (err) { alert('Image upload failed: ' + err.message); }
+  }
+}
+
+function renderDescImages(images) {
+  const gallery     = document.getElementById('db-image-gallery');
+  const placeholder = document.getElementById('db-image-placeholder');
+  if (!gallery) return;
+  gallery.innerHTML = '';
+  if (!images.length) { placeholder?.classList.remove('hidden'); return; }
+  placeholder?.classList.add('hidden');
+  images.forEach((url, idx) => {
+    const item = document.createElement('div');
+    item.className = 'db-image-item';
+    item.innerHTML = `<img src="${esc(url)}" class="zoomable" alt="Product image ${idx + 1}" /><button class="img-remove-btn" title="Remove">✕</button>`;
+    item.querySelector('.img-remove-btn').addEventListener('click', async () => {
+      try {
+        const res = await fetch(`${DESC_PACKAGES_API}/${descEditorId}/images/${idx}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Remove failed');
+        const updated = await res.json();
+        descPackages = descPackages.map(p => p.id === updated.id ? updated : p);
+        renderDescImages(updated.images || []);
+      } catch (err) { alert('Could not remove: ' + err.message); }
+    });
+    gallery.appendChild(item);
   });
 }
 
