@@ -1516,7 +1516,9 @@ function bindSettings() {
   // Pull from Taxonomy button
   document.getElementById('cd-pull-formats-btn')?.addEventListener('click', async () => {
     const statusEl = document.getElementById('cd-pull-formats-status');
+    const btn = document.getElementById('cd-pull-formats-btn');
     if (statusEl) statusEl.textContent = 'Fetching…';
+    if (btn) btn.disabled = true;
     try {
       const resp = await fetch('/api/products?limit=2000');
       const products = await resp.json();
@@ -1524,13 +1526,30 @@ function bindSettings() {
         .map(p => p.format || p.product_format || '').filter(Boolean))].sort();
       if (formats.length) {
         const ta = document.getElementById('cd-s-product-formats');
-        if (ta) ta.value = formats.join('\n');
-        if (statusEl) statusEl.textContent = `✓ Loaded ${formats.length} formats`;
+        if (ta) {
+          ta.value = formats.join('\n');
+          // Scroll the textarea into view so it's obvious the list was filled
+          ta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          ta.style.outline = '2px solid var(--coral, #e07a5f)';
+          setTimeout(() => { ta.style.outline = ''; }, 1800);
+        }
+        if (statusEl) statusEl.textContent = 'Saving…';
+        // Auto-save immediately — no need to click Save Settings separately
+        const saveResp = await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cd_product_formats: formats.join('\n') }),
+        });
+        if (!saveResp.ok) throw new Error(`Save failed (${saveResp.status})`);
+        if (statusEl) statusEl.textContent = `✓ ${formats.length} formats saved`;
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
       } else {
         if (statusEl) statusEl.textContent = 'No formats found in product data';
       }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Error: ' + e.message;
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 
