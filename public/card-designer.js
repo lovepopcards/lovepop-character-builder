@@ -600,7 +600,6 @@
       setField('#cd-copy-edit-cover',        confirmedCopy.cover);
       setField('#cd-copy-edit-inside-left',  confirmedCopy.inside_left);
       setField('#cd-copy-edit-inside-right', confirmedCopy.inside_right);
-      setField('#cd-copy-edit-sculpture',    confirmedCopy.sculpture);
       setField('#cd-copy-edit-back',         confirmedCopy.back);
       // Only show if on copy module (switchModule below will handle toggling)
     }
@@ -666,7 +665,6 @@
       ['Cover',        copy.cover],
       ['Inside Left',  copy.inside_left],
       ['Inside Right', copy.inside_right],
-      ['Sculpture',    copy.sculpture],
       ['Back of Card', copy.back],
     ]
       .filter(([, v]) => v)
@@ -773,11 +771,12 @@
 
     // Copy module — left sidebar button is the only CTA (no bottom bar for copy)
     if (activeDesign?.is_blank_card) {
-      regenBtn.textContent = 'Blank card selected';
-      regenBtn.classList.add('cd-regen-btn--disabled');
-      if (regenHint) regenHint.textContent = 'Uncheck "Blank card" to generate copy options.';
+      // Blank card: nothing to generate — hide the button entirely
+      regenBtn.classList.add('hidden');
+      if (regenHint) regenHint.classList.add('hidden');
     } else {
-      regenBtn.classList.remove('cd-regen-btn--disabled');
+      regenBtn.classList.remove('hidden', 'cd-regen-btn--disabled');
+      if (regenHint) regenHint.classList.remove('hidden');
       const hasRounds = (activeDesign?.copy_rounds?.length || 0) > 0;
       regenBtn.textContent = hasRounds ? '✨ Regenerate copy' : '✨ Generate copy';
       if (regenHint) regenHint.textContent = hasRounds
@@ -824,7 +823,7 @@
       return;
     }
     const copy = activeDesign?.selected_copy;
-    if (!copy || (!copy.cover && !copy.inside_left && !copy.inside_right && !copy.sculpture)) {
+    if (!copy || (!copy.cover && !copy.inside_left && !copy.inside_right)) {
       el.innerHTML = '<em class="cd-brief-no-selection">No copy selected yet — go to Copy tab first.</em>';
       return;
     }
@@ -832,7 +831,6 @@
       ['Cover', copy.cover],
       ['Inside Left', copy.inside_left],
       ['Inside Right', copy.inside_right],
-      ['Sculpture', copy.sculpture],
     ].filter(([, v]) => v);
     el.innerHTML = fields.map(([lbl, val]) => `
       <div class="cd-brief-copy-field">
@@ -1436,7 +1434,6 @@
           ${card.cover       ? `<div><div class="cd-copy-field-lbl">Cover</div><div class="cd-copy-field-cover">${escHtml(card.cover)}</div></div>` : ''}
           ${card.inside_left ? `<div><div class="cd-copy-field-lbl">Inside Left</div><div class="cd-copy-field-il">${escHtml(card.inside_left)}</div></div>` : ''}
           ${card.inside_right? `<div><div class="cd-copy-field-lbl">Inside Right</div><div class="cd-copy-field-ir">${escHtml(card.inside_right)}</div></div>` : ''}
-          ${card.sculpture   ? `<div><div class="cd-copy-field-lbl">Sculpture</div><div class="cd-copy-field-sc">${escHtml(card.sculpture)}</div></div>` : ''}
         </div>
         <div class="cd-copy-card-footer">
           <input type="text" class="cd-copy-note-input${card.note ? ' has-note' : ''}" placeholder="Add a comment or direction…" value="${escAttr(card.note || '')}" />
@@ -1507,7 +1504,6 @@
     setField('#cd-copy-edit-cover',        card.cover);
     setField('#cd-copy-edit-inside-left',  card.inside_left);
     setField('#cd-copy-edit-inside-right', card.inside_right);
-    setField('#cd-copy-edit-sculpture',    card.sculpture);
     setField('#cd-copy-edit-back',         card.back);
 
     // Track which card was loaded
@@ -1529,7 +1525,6 @@
       cover:        getField('#cd-copy-edit-cover'),
       inside_left:  getField('#cd-copy-edit-inside-left'),
       inside_right: getField('#cd-copy-edit-inside-right'),
-      sculpture:    getField('#cd-copy-edit-sculpture'),
       back:         getField('#cd-copy-edit-back'),
     };
     const panel = qs('#cd-copy-editor-panel');
@@ -2111,7 +2106,6 @@
       `Cover: ${copy.cover || '—'}`,
       `Inside Left: ${copy.inside_left || '—'}`,
       `Inside Right: ${copy.inside_right || '—'}`,
-      `Sculpture: ${copy.sculpture || '—'}`,
       `Back: ${copy.back || '—'}`,
       ``,
       `CREATIVE DIRECTION`,

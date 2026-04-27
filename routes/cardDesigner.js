@@ -185,7 +185,6 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
     cover:        settings.cd_copy_instruction_cover        || db.DEFAULTS.cd_copy_instruction_cover,
     inside_left:  settings.cd_copy_instruction_inside_left  || db.DEFAULTS.cd_copy_instruction_inside_left,
     inside_right: settings.cd_copy_instruction_inside_right || db.DEFAULTS.cd_copy_instruction_inside_right,
-    sculpture:    settings.cd_copy_instruction_sculpture    || db.DEFAULTS.cd_copy_instruction_sculpture,
     back:         settings.cd_copy_instruction_back         || db.DEFAULTS.cd_copy_instruction_back,
   };
 
@@ -220,9 +219,8 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
       `- Cover: ${instructions.cover}`,
       `- Inside Left: ${instructions.inside_left}`,
       `- Inside Right: ${instructions.inside_right}`,
-      `- Sculpture: ${instructions.sculpture}`,
       `- Back of Card: ${instructions.back}`,
-      `\nRespond with valid JSON only:\n{\n  "cover": "...",\n  "inside_left": "...",\n  "inside_right": "...",\n  "sculpture": "...",\n  "back": "..."\n}`,
+      `\nRespond with valid JSON only:\n{\n  "cover": "...",\n  "inside_left": "...",\n  "inside_right": "...",\n  "back": "..."\n}`,
     );
 
     return lines.filter(Boolean).join('\n');
@@ -244,7 +242,6 @@ router.post('/designs/:id/generate-copy', async (req, res) => {
       cover:        parsed.cover        || '',
       inside_left:  parsed.inside_left  || '',
       inside_right: parsed.inside_right || '',
-      sculpture:    parsed.sculpture    || '',
       back:         parsed.back         || '',
     };
   };
