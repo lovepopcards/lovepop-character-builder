@@ -1612,11 +1612,12 @@
     document.querySelectorAll('.cd-fidelity-stop').forEach(s => {
       s.classList.toggle('active', s.dataset.fidelity === level);
     });
-    const descs = {
-      loose:    'Free-flowing exploration sketch.',
-      standard: 'Clean architectural sketch with clear fold lines.',
-      tight:    'Precise technical drawing with detailed dimensions.',
-    };
+    const isCoverSketch = activeDesign && lsGet(activeDesign.id, 'active_module', 'copy') === 'cover-sketch';
+    const labelEl = qs('#cd-brief-fidelity label');
+    if (labelEl) labelEl.textContent = isCoverSketch ? 'Illustration detail' : 'Sketch fidelity';
+    const descs = isCoverSketch
+      ? { loose: 'Rough gestural sketch — composition and shapes only.', standard: 'Clean illustration with good line work and tonal shading.', tight: 'Fully finished illustration with rich detail and polished line work.' }
+      : { loose: 'Free-flowing exploration sketch.', standard: 'Clean architectural sketch with clear fold lines.', tight: 'Precise technical drawing with detailed dimensions.' };
     const descEl = qs('#cd-fidelity-desc');
     if (descEl) descEl.textContent = descs[level] || '';
   }

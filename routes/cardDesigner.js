@@ -496,7 +496,8 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
   const copy          = design.selected_copy || {};
   const productTitle  = design.product_title || product.name || '';
   const basePrompt    = settings.cd_cover_sketch_system_prompt_base || settings.cd_cover_sketch_system_prompt || db.DEFAULTS.cd_cover_sketch_system_prompt_base || db.DEFAULTS.cd_cover_sketch_system_prompt || '';
-  const fidelityPart  = settings[`cd_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_sketch_fidelity_${fidelity}`] || '';
+  // Cover sketch uses its OWN fidelity settings (illustration quality) not the inside-sketch ones (engineering detail)
+  const fidelityPart  = settings[`cd_cover_sketch_fidelity_${fidelity}`] || db.DEFAULTS[`cd_cover_sketch_fidelity_${fidelity}`] || '';
 
   const sampleImages = (() => {
     try { return JSON.parse(settings.cd_cover_sketch_samples || '[]'); } catch { return []; }
@@ -531,7 +532,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       `OCCASION: ${Array.isArray(product.occasions) ? product.occasions.join(', ') : (product.occasion || 'General')}`,
       copy.cover ? `COVER COPY: "${copy.cover}"` : '',
       coverRefPart ? `\nCOVER REFERENCE: A reference image for the cover layout/style is provided. Use it to inform the composition and aesthetic — adapt creatively, do not replicate exactly.` : '',
-      `\nFORMAT: 5:7 portrait ratio (5 wide × 7 tall). Fill the full card face — do not add margins or borders outside the card boundary.`,
+      `\nFORMAT: 5:7 portrait ratio (5 wide × 7 tall). Fill the entire canvas edge-to-edge with illustration. NO card mockup, NO card shadow, NO fold lines, NO engineering annotations — pure flat illustration only.`,
       coverStyleData ? `\nCOVER STYLE REFERENCE — "${coverStyleData.name}": ${coverStyleData.description || ''}` : '',
       coverStyleData ? `IMPORTANT: The cover style reference images provided are for LAYOUT REFERENCE ONLY. Study the graphic composition, element arrangement, visual hierarchy, border/frame usage, typography placement, and white-space strategy. Do NOT reproduce the illustration subject matter, themes, color palette, or specific graphical content from these references. Apply only the structural and compositional logic.` : '',
       coverStyleData?.layout_approach ? `Layout approach: ${coverStyleData.layout_approach}` : '',
@@ -539,7 +540,7 @@ router.post('/designs/:id/cover-sketch/round', async (req, res) => {
       coverStyleData?.graphic_elements ? `Graphic elements: ${coverStyleData.graphic_elements}` : '',
       coverStyleData?.composition_notes ? `Composition: ${coverStyleData.composition_notes}` : '',
       coverStyleData?.typography_treatment ? `Typography treatment: ${coverStyleData.typography_treatment}` : '',
-      (parent_card_id || useSelectedCoverSketch) ? `\nITERATION MODE: You are provided a reference sketch to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and engineering approach, making the requested improvements.` : '',
+      (parent_card_id || useSelectedCoverSketch) ? `\nITERATION MODE: You are provided a reference illustration to build directly from. Evolve and refine it based on the refinement direction below. Keep the overall composition and illustrative approach, making the requested improvements. Do not add any engineering annotations or card structure diagrams.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
       sampleImages.length > 0 ? `\nStyle reference images provided (${sampleImages.length} sample image${sampleImages.length > 1 ? 's' : ''}).` : '',
     ];

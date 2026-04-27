@@ -1331,10 +1331,20 @@
 
               <div class="form-group" style="margin-top:20px">
                 <label class="form-label">Cover Sketch System Prompt</label>
-                <div class="form-hint" style="margin-bottom:8px">Instructions sent to Gemini when generating cover design sketches. Outputs at 5:7 portrait ratio.</div>
-                <textarea id="cd-s-cover-sketch-prompt" class="form-textarea" rows="5"></textarea>
+                <div class="form-hint" style="margin-bottom:8px">Instructions sent to Gemini when generating cover illustrations. The cover sketch is a <strong>flat graphic illustration</strong> — not an engineering diagram. The default prompt enforces this with explicit rules against fold lines, layer annotations, and card structure overlays.</div>
+                <textarea id="cd-s-cover-sketch-prompt" class="form-textarea" rows="8"></textarea>
                 <div class="form-hint" style="margin-top:8px;padding:8px 10px;background:var(--sand);border-radius:var(--radius-sm);border-left:3px solid var(--coral)">
                   <strong>Cover Style reference images</strong> — when a Cover Style is selected in the Card Builder, all of its reference images are sent to Gemini alongside this prompt. Make sure your prompt instructs the model to use those images for <em>layout and composition reference only</em> — not to reproduce the illustration subject matter, themes, or colors. The default prompt includes this instruction.
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top:20px">
+                <label class="form-label">Cover Sketch Fidelity Prompts</label>
+                <div class="form-hint" style="margin-bottom:10px">Controls the level of illustration detail. Unlike the Inside Sketch fidelity (which controls engineering detail), these describe <strong>illustration quality</strong> — line work, shading, and finish level.</div>
+                <div class="field-instructions-grid">
+                  <div class="field-instruction-row"><div class="field-instruction-label">Loose</div><textarea id="cd-s-cover-sketch-fidelity-loose" class="form-textarea" rows="2"></textarea></div>
+                  <div class="field-instruction-row"><div class="field-instruction-label">Standard</div><textarea id="cd-s-cover-sketch-fidelity-standard" class="form-textarea" rows="2"></textarea></div>
+                  <div class="field-instruction-row"><div class="field-instruction-label">Tight</div><textarea id="cd-s-cover-sketch-fidelity-tight" class="form-textarea" rows="2"></textarea></div>
                 </div>
               </div>
 

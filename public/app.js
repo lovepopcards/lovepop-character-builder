@@ -1872,6 +1872,9 @@ async function loadSettings() {
     setVal('cd-s-copy-back', s.cd_copy_instruction_back);
     setVal('cd-s-sketch-prompt', s.cd_sketch_system_prompt);
     setVal('cd-s-cover-sketch-prompt', s.cd_cover_sketch_system_prompt);
+    setVal('cd-s-cover-sketch-fidelity-loose',    s.cd_cover_sketch_fidelity_loose);
+    setVal('cd-s-cover-sketch-fidelity-standard', s.cd_cover_sketch_fidelity_standard);
+    setVal('cd-s-cover-sketch-fidelity-tight',    s.cd_cover_sketch_fidelity_tight);
     setVal('cd-s-product-formats', s.cd_product_formats);
 
     // Asset Library / Box settings (null-safe)
@@ -1929,6 +1932,9 @@ async function handleSettingsSave() {
       cd_sketch_system_prompt_base: getVal('cd-s-sketch-prompt'),
       cd_cover_sketch_system_prompt: getVal('cd-s-cover-sketch-prompt'),
       cd_cover_sketch_system_prompt_base: getVal('cd-s-cover-sketch-prompt'),
+      cd_cover_sketch_fidelity_loose:    getVal('cd-s-cover-sketch-fidelity-loose'),
+      cd_cover_sketch_fidelity_standard: getVal('cd-s-cover-sketch-fidelity-standard'),
+      cd_cover_sketch_fidelity_tight:    getVal('cd-s-cover-sketch-fidelity-tight'),
       cd_product_formats: getVal('cd-s-product-formats'),
       // Data tools
       snowflake_account:   getVal('s-sf-account'),
