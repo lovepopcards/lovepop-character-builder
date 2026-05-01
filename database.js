@@ -273,6 +273,26 @@ if (!existingCardDesignCols.includes('selected_cover_style_id')) db.exec(`ALTER 
 // Migrate old 'draft' status values to 'in-development'
 db.exec(`UPDATE card_designs SET status = 'in-development' WHERE status = 'draft'`);
 
+// ── CB2 Designs table ─────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS cb2_designs (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    name TEXT DEFAULT '',
+    product_title TEXT DEFAULT '',
+    creative_direction TEXT DEFAULT '',
+    inspiration_image TEXT DEFAULT '',
+    engineering_base_image TEXT DEFAULT '',
+    status TEXT DEFAULT 'in-development',
+    rounds TEXT DEFAULT '[]',
+    selected_concept_url TEXT DEFAULT '',
+    finalize_notes TEXT DEFAULT '',
+    finalize_comments TEXT DEFAULT '',
+    finalize_refs TEXT DEFAULT '[]',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -385,6 +405,9 @@ DO NOT include any greeting card images or greeting card shapes. It should only 
   cd_cover_sketch_fidelity_loose: `Quick gestural illustration — rough pencil strokes, loose hatching, focus on overall composition and major shapes. No fine detail required.`,
   cd_cover_sketch_fidelity_standard: `Clean, well-resolved illustration with confident line work, good tonal range, and clear compositional hierarchy. Detailed enough to read at full size.`,
   cd_cover_sketch_fidelity_tight: `Fully finished illustration with precise ink-like line work, rich crosshatching and tonal shading, fine detail in all elements, and a polished editorial quality ready for art direction review.`,
+
+  // Card Builder 2.0
+  cb2_system_prompt: `Create a Lovepop card based on the description and creative direction provided. Base the engineering off the card provided. Base the style of the cover off the card provided. Render a beautiful, full-color finished card concept showing both the cover illustration and the inside pop-up spread. Lovepop's signature warm, intricate, paper-art aesthetic.`,
 
   // Quote generator
   ai_quote_instructions: `You are a creative voice for Lovepop, a premium pop-up greeting card company. Generate an authentic, in-character quote for the character described below — the kind of thing they might say on a greeting card or in a brand story. The quote should be warm, specific, and feel genuinely like this character's voice. It should resonate emotionally and be shareable.
@@ -802,6 +825,46 @@ module.exports = {
   deleteCardDesign(id) {
     return db.prepare('DELETE FROM card_designs WHERE id = ?').run(id);
   },
+  // ── CB2 Designs ───────────────────────────────────────────────
+  _parseCb2Design(row) {
+    if (!row) return null;
+    return {
+      ...row,
+      rounds:        JSON.parse(row.rounds        || '[]'),
+      finalize_refs: JSON.parse(row.finalize_refs || '[]'),
+    };
+  },
+  getAllCb2Designs() {
+    return db.prepare('SELECT * FROM cb2_designs ORDER BY created_at DESC').all().map(r => this._parseCb2Design(r));
+  },
+  getCb2Design(id) {
+    return this._parseCb2Design(db.prepare('SELECT * FROM cb2_designs WHERE id = ?').get(id));
+  },
+  createCb2Design(data) {
+    const { name = '' } = data;
+    db.prepare(`INSERT INTO cb2_designs (name) VALUES (?)`).run(name);
+    return this._parseCb2Design(db.prepare('SELECT * FROM cb2_designs ORDER BY rowid DESC LIMIT 1').get());
+  },
+  updateCb2Design(id, data) {
+    const jsonFields = ['rounds', 'finalize_refs'];
+    const allowed = ['name', 'product_title', 'creative_direction', 'inspiration_image', 'engineering_base_image', 'status', 'rounds', 'selected_concept_url', 'finalize_notes', 'finalize_comments', 'finalize_refs'];
+    const fields = [], values = [];
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(jsonFields.includes(key) ? JSON.stringify(data[key]) : data[key]);
+      }
+    }
+    if (!fields.length) return this.getCb2Design(id);
+    fields.push(`updated_at = datetime('now')`);
+    values.push(id);
+    db.prepare(`UPDATE cb2_designs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    return this.getCb2Design(id);
+  },
+  deleteCb2Design(id) {
+    return db.prepare('DELETE FROM cb2_designs WHERE id = ?').run(id);
+  },
+
   getCharacterNamesMap() {
     return Object.fromEntries(db.prepare('SELECT id, name FROM characters').all().map(r => [String(r.id), r.name || '']));
   },

@@ -1116,6 +1116,7 @@
             <a class="settings-nav-item" href="#s-section-image-ai" data-section="s-section-image-ai">🖼 Headline Image Generator</a>
             <a class="settings-nav-item" href="#s-section-artstyle-ai" data-section="s-section-artstyle-ai">🎨 Art Style Generator</a>
             <a class="settings-nav-item" href="#s-section-cd-ai" data-section="s-section-cd-ai">🎴 Card Designer Generator</a>
+            <a class="settings-nav-item" href="#s-section-cb2-ai" data-section="s-section-cb2-ai">🃏 Card Builder 2.0</a>
           </div>
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">API Keys</div>
@@ -1390,6 +1391,24 @@
             </div>
           </div>
 
+          <!-- Card Builder 2.0 Settings -->
+          <div class="settings-section collapsed" id="s-section-cb2-ai">
+            <button class="settings-section-toggle" data-target="s-section-cb2-ai">
+              <span class="settings-section-toggle-title">🃏 Card Builder 2.0</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">AI prompt for Card Builder 2.0. This prompt guides how Gemini generates card concepts from your product title, creative direction, inspiration image, and engineering base.</p>
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Generation Prompt</label>
+                <textarea id="cb2-s-system-prompt" class="form-textarea" rows="6" placeholder="Create a Lovepop card based on the description and creative direction provided…"></textarea>
+                <div class="form-hint">This is the core instruction sent to Gemini alongside the product inputs. The uploaded engineering base and inspiration images are automatically included as references.</div>
+              </div>
+              <button class="btn-primary" id="cb2-s-save-btn" style="margin-top:12px">Save</button>
+              <span id="cb2-s-save-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+            </div>
+          </div>
+
           <div class="settings-group-divider">API Keys</div>
 
           <!-- Anthropic API Key -->
@@ -1559,6 +1578,15 @@
 
     <!-- ─── CARD DESIGNER VIEW ──────────────────────────────── -->
     <div id="view-card-designer" class="view cd-view">
+
+      <!-- ── Version tabs ──────────────────────────────────────── -->
+      <div class="cb-version-tabs" id="cb-version-tabs">
+        <button class="cb-version-tab active" data-version="1">Card Builder 1.0</button>
+        <button class="cb-version-tab" data-version="2">Card Builder 2.0</button>
+      </div>
+
+      <!-- ── CB1 Container ─────────────────────────────────────── -->
+      <div id="cb1-container">
 
       <!-- ── Dashboard ─────────────────────────────────────────── -->
       <div id="cd-dashboard">
@@ -1947,6 +1975,190 @@
 
   </div><!-- /cd-uni-layout -->
 </div><!-- /cd-workspace-view -->
+
+      </div><!-- /cb1-container -->
+
+      <!-- ══ CB2 Container ════════════════════════════════════════ -->
+      <div id="cb2-container" class="hidden">
+
+        <!-- CB2 Dashboard -->
+        <div id="cb2-dashboard">
+          <div class="view-toolbar">
+            <div class="toolbar-left">
+              <h1 class="view-title">Card Builder 2.0</h1>
+              <span id="cb2-dash-count" class="count-badge">0 designs</span>
+            </div>
+            <div class="toolbar-right">
+              <input type="text" id="cb2-dash-search" class="search-input" placeholder="Search designs…" autocomplete="off" />
+              <button class="btn-primary" id="cb2-new-btn">+ New Design</button>
+            </div>
+          </div>
+          <div id="cb2-dash-grid" class="cd-dash-grid">
+            <div class="cd-dash-empty">
+              <div class="cd-dash-empty-icon">🃏</div>
+              <div class="cd-dash-empty-title">No designs yet</div>
+              <div class="cd-dash-empty-sub">Create your first Card Builder 2.0 design to get started.</div>
+              <button class="btn-primary" id="cb2-empty-new-btn">+ New Design</button>
+            </div>
+          </div>
+        </div><!-- /cb2-dashboard -->
+
+        <!-- CB2 Workspace -->
+        <div id="cb2-workspace" class="hidden">
+          <div class="cd-uni-layout">
+
+            <!-- LEFT: Inputs -->
+            <aside class="cd-uni-aside">
+              <div class="cd-uni-aside-hdr">
+                <button class="cd-breadcrumb-back" id="cb2-back-btn-top">← Card Builder 2.0</button>
+                <input type="text" id="cb2-design-name" class="cd-brief-name" placeholder="Untitled Design" />
+                <div class="cd-brief-meta" id="cb2-brief-meta">Draft</div>
+              </div>
+              <div class="cd-uni-aside-body">
+
+                <div class="cd-brief-section">
+                  <label class="cd-brief-label">Product Title</label>
+                  <input type="text" id="cb2-product-title" class="cd-brief-input" placeholder="e.g. Birthday Sunflowers Pop-Up Card" autocomplete="off" />
+                </div>
+
+                <div class="cd-brief-section">
+                  <label class="cd-brief-label">Description &amp; Creative Direction</label>
+                  <textarea id="cb2-creative-direction" class="cd-brief-textarea" rows="5" placeholder="Describe the card concept, mood, imagery, color direction, occasion…"></textarea>
+                </div>
+
+                <div class="cd-brief-section">
+                  <label class="cd-brief-label">Inspiration <span style="font-weight:400;color:var(--text-muted)">(cover style reference)</span></label>
+                  <div class="cd-ref-zone" id="cb2-inspiration-zone" tabindex="0" title="Drop, paste, or click to upload">
+                    <div class="cd-ref-zone-empty" id="cb2-inspiration-empty">
+                      <div class="cd-ref-zone-icon">🖼</div>
+                      <div class="cd-ref-zone-hint">Drop, paste, or click to upload</div>
+                    </div>
+                    <div class="cd-ref-zone-preview hidden" id="cb2-inspiration-preview">
+                      <img id="cb2-inspiration-img" class="cd-ref-zone-thumb zoomable" src="" alt="Inspiration" title="Click to enlarge" />
+                      <button class="cd-ref-zone-clear" id="cb2-inspiration-clear" title="Remove">✕</button>
+                    </div>
+                    <input type="file" id="cb2-inspiration-input" accept="image/*" style="display:none" />
+                  </div>
+                </div>
+
+                <div class="cd-brief-section">
+                  <label class="cd-brief-label">Card Engineering Base <span style="font-weight:400;color:var(--text-muted)">(pop-up structure reference)</span></label>
+                  <div class="cd-ref-zone" id="cb2-engineering-zone" tabindex="0" title="Drop, paste, or click to upload">
+                    <div class="cd-ref-zone-empty" id="cb2-engineering-empty">
+                      <div class="cd-ref-zone-icon">⚙️</div>
+                      <div class="cd-ref-zone-hint">Drop, paste, or click to upload</div>
+                    </div>
+                    <div class="cd-ref-zone-preview hidden" id="cb2-engineering-preview">
+                      <img id="cb2-engineering-img" class="cd-ref-zone-thumb zoomable" src="" alt="Engineering base" title="Click to enlarge" />
+                      <button class="cd-ref-zone-clear" id="cb2-engineering-clear" title="Remove">✕</button>
+                    </div>
+                    <input type="file" id="cb2-engineering-input" accept="image/*" style="display:none" />
+                  </div>
+                </div>
+
+                <!-- Selected concept (shown after selection) -->
+                <div class="cd-brief-section hidden" id="cb2-brief-selected-concept">
+                  <label class="cd-brief-label">Selected Concept</label>
+                  <div id="cb2-brief-selected-concept-content" class="cd-brief-selected-copy-box"></div>
+                </div>
+
+              </div><!-- /cd-uni-aside-body -->
+
+              <div class="cd-uni-aside-footer">
+                <div class="cd-aside-nav">
+                  <button class="cd-back-btn" id="cb2-back-btn">← Card Builder 2.0</button>
+                  <button class="cd-next-step-btn" id="cb2-finalize-btn" style="display:none">Finalize →</button>
+                </div>
+              </div>
+            </aside><!-- /cd-uni-aside -->
+
+            <!-- RIGHT: Rounds + Finalize -->
+            <main class="cd-uni-main">
+
+              <!-- Track bar -->
+              <div class="cd-track-bar">
+                <div class="cd-track-tabs">
+                  <button class="cd-track-tab active" data-cb2module="concepts">
+                    <span class="cd-track-icon">✦</span> Concepts
+                  </button>
+                  <button class="cd-track-tab" data-cb2module="finalize">
+                    <span class="cd-track-icon">📋</span> Finalize
+                  </button>
+                </div>
+                <div class="cd-track-controls">
+                  <span class="cd-gen-label">Generate</span>
+                  <div class="cd-gen-count" id="cb2-gen-count">
+                    <button class="cd-gen-n active" data-count="3">3</button>
+                    <button class="cd-gen-n" data-count="6">6</button>
+                    <button class="cd-gen-n" data-count="9">9</button>
+                  </div>
+                </div>
+                <button class="cd-exit-btn" id="cb2-exit-btn" title="Back to Card Builder 2.0">✕</button>
+              </div>
+
+              <!-- Module content -->
+              <div class="cd-track-content">
+
+                <!-- Concepts module -->
+                <div id="cb2-module-concepts" class="cd-module">
+                  <div class="cd-rounds-empty" id="cb2-concepts-empty">
+                    <div class="cd-rounds-empty-icon">✦</div>
+                    <div class="cd-rounds-empty-title">No concepts yet</div>
+                    <div class="cd-rounds-empty-sub">Fill in your inputs and click Generate to create the first round of concepts.</div>
+                  </div>
+                  <div id="cb2-concept-rounds" class="cd-sketch-rounds"></div>
+                </div>
+
+                <!-- Finalize module -->
+                <div id="cb2-module-finalize" class="cd-module hidden">
+                  <div class="cd-finalize-wrap">
+                    <div class="cd-finalize-concept-preview" id="cb2-finalize-img-wrap">
+                      <div class="cd-finalize-no-concept">No concept selected yet — select a concept in the Concepts tab first.</div>
+                    </div>
+                    <div class="cd-finalize-fields">
+                      <div class="cd-finalize-field-group">
+                        <label class="cd-finalize-label">Design Notes</label>
+                        <textarea id="cb2-finalize-notes" class="cd-finalize-textarea" rows="5" placeholder="Overall design direction, special requirements…"></textarea>
+                      </div>
+                      <div class="cd-finalize-field-group">
+                        <label class="cd-finalize-label">Comments &amp; Feedback</label>
+                        <textarea id="cb2-finalize-comments" class="cd-finalize-textarea" rows="4" placeholder="Feedback from stakeholders, revision requests…"></textarea>
+                      </div>
+                      <div class="cd-finalize-field-group">
+                        <label class="cd-finalize-label">Additional Reference Images</label>
+                        <div class="cd-finalize-refs" id="cb2-finalize-refs">
+                          <div class="cd-finalize-ref-dropzone" id="cb2-finalize-ref-zone">
+                            <div class="cd-ref-zone-icon">📎</div>
+                            <div class="cd-ref-zone-hint">Drop or click to add reference images</div>
+                            <input type="file" id="cb2-finalize-ref-input" accept="image/*" multiple style="display:none" />
+                          </div>
+                          <div id="cb2-finalize-ref-grid" class="cd-finalize-ref-img-grid"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div><!-- /cd-track-content -->
+
+              <!-- Refine bar -->
+              <div class="cd-refine-bar" id="cb2-refine-bar">
+                <input type="text" id="cb2-refine-input" class="cd-refine-input" placeholder="Direction for next round…" autocomplete="off" />
+                <button class="cd-refine-btn" id="cb2-generate-btn">Generate Round 1 →</button>
+              </div>
+
+              <!-- Finalize action bar -->
+              <div class="cd-refine-bar hidden" id="cb2-finalize-bar">
+                <div style="font-size:13px;color:var(--text-muted);flex:1">Add notes and references, then export the design specification.</div>
+                <button class="cd-refine-btn cd-export-btn" id="cb2-export-spec-btn">⬇ Export Design Spec</button>
+              </div>
+
+            </main><!-- /cd-uni-main -->
+
+          </div><!-- /cd-uni-layout -->
+        </div><!-- /cb2-workspace -->
+
+      </div><!-- /cb2-container -->
 
     </div><!-- /view-card-designer -->
 

@@ -1877,6 +1877,7 @@ async function loadSettings() {
     setVal('cd-s-cover-sketch-fidelity-standard', s.cd_cover_sketch_fidelity_standard);
     setVal('cd-s-cover-sketch-fidelity-tight',    s.cd_cover_sketch_fidelity_tight);
     setVal('cd-s-product-formats', s.cd_product_formats);
+    setVal('cb2-s-system-prompt', s.cb2_system_prompt);
 
     // Asset Library / Box settings (null-safe)
     setVal('sf-box-client-id', s.box_client_id);
@@ -1893,6 +1894,24 @@ async function loadSettings() {
     const autoLabelEl = document.getElementById('sf-asset-auto-label');
     if (autoLabelEl) autoLabelEl.checked = s.asset_auto_label !== 'false';
   } catch (err) { console.error('Settings load error:', err); }
+
+  // Wire CB2 standalone save button each time settings loads
+  const cb2SaveBtn = document.getElementById('cb2-s-save-btn');
+  if (cb2SaveBtn) {
+    cb2SaveBtn.onclick = async () => {
+      const statusEl = document.getElementById('cb2-s-save-status');
+      cb2SaveBtn.disabled = true; cb2SaveBtn.textContent = 'Saving…';
+      try {
+        await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cb2_system_prompt: getVal('cb2-s-system-prompt') }) });
+        cb2SaveBtn.textContent = '✓ Saved';
+        if (statusEl) statusEl.textContent = '';
+        setTimeout(() => { cb2SaveBtn.textContent = 'Save'; cb2SaveBtn.disabled = false; }, 1500);
+      } catch (e) {
+        cb2SaveBtn.textContent = 'Save'; cb2SaveBtn.disabled = false;
+        if (statusEl) statusEl.textContent = 'Save failed';
+      }
+    };
+  }
 }
 
 async function handleSettingsSave() {

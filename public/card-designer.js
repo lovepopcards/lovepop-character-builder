@@ -49,6 +49,16 @@
       });
     });
 
+    // CB version tab switching (version tabs are shared between CB1 and CB2 modules)
+    document.querySelectorAll('.cb-version-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = btn.dataset.version;
+        document.querySelectorAll('.cb-version-tab').forEach(b => b.classList.toggle('active', b.dataset.version === v));
+        document.getElementById('cb1-container').classList.toggle('hidden', v !== '1');
+        document.getElementById('cb2-container').classList.toggle('hidden', v !== '2');
+      });
+    });
+
     bindUI();
     bindDashboardUI();
     initRouting();
@@ -221,6 +231,7 @@
   function showDashboard() {
     qs('#cd-dashboard')?.classList.remove('hidden');
     qs('#cd-workspace-view')?.classList.add('hidden');
+    qs('#cb-version-tabs')?.classList.remove('hidden');
     renderDashboard();
     if (window.location.pathname.startsWith('/card-designer/')) {
       history.pushState(null, '', '/card-designer');
@@ -230,6 +241,7 @@
   function showWorkspaceView() {
     qs('#cd-dashboard')?.classList.add('hidden');
     qs('#cd-workspace-view')?.classList.remove('hidden');
+    qs('#cb-version-tabs')?.classList.add('hidden');
     const targetPath = `/card-designer/${activeDesign?.id}`;
     if (window.location.pathname !== targetPath) {
       history.pushState({ cardId: activeDesign?.id }, '', targetPath);
@@ -2725,5 +2737,526 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// ── Card Builder 2.0 Module ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
+
+  const qs = id => document.getElementById(id);
+
+  // ── State ────────────────────────────────────────────────────────
+  let cb2Designs = [];
+  let cb2Active  = null;   // active design object
+  let cb2Search  = '';
+  let cb2GenCount = 3;
+  let cb2Module  = 'concepts'; // 'concepts' | 'finalize'
+
+  // ── API helpers ─────────────────────────────────────────────────
+  const api = {
+    get:    (url)       => fetch(url).then(r => r.ok ? r.json() : Promise.reject(r)),
+    post:   (url, data) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j))),
+    patch:  (url, data) => fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.ok ? r.json() : Promise.reject(r)),
+    del:    (url)       => fetch(url, { method: 'DELETE' }).then(r => r.ok ? r.json() : Promise.reject(r)),
+    upload: (url, file, field = 'image') => {
+      const fd = new FormData(); fd.append(field, file);
+      return fetch(url, { method: 'POST', body: fd }).then(r => r.ok ? r.json() : Promise.reject(r));
+    },
+  };
+
+  // ── Dashboard ────────────────────────────────────────────────────
+  function showCb2Dashboard() {
+    document.getElementById('cb2-dashboard').classList.remove('hidden');
+    document.getElementById('cb2-workspace').classList.add('hidden');
+    document.getElementById('cb-version-tabs')?.classList.remove('hidden');
+    loadCb2Designs();
+  }
+
+  function showCb2Workspace() {
+    document.getElementById('cb2-dashboard').classList.add('hidden');
+    document.getElementById('cb2-workspace').classList.remove('hidden');
+    document.getElementById('cb-version-tabs')?.classList.add('hidden');
+  }
+
+  async function loadCb2Designs() {
+    try {
+      const url = cb2Search ? `/api/card-designer/cb2/designs?q=${encodeURIComponent(cb2Search)}` : '/api/card-designer/cb2/designs';
+      cb2Designs = await api.get(url);
+      renderCb2Dashboard();
+    } catch (e) { console.error('[cb2] load designs error', e); }
+  }
+
+  function renderCb2Dashboard() {
+    const grid = qs('cb2-dash-grid');
+    const countEl = qs('cb2-dash-count');
+    if (countEl) countEl.textContent = `${cb2Designs.length} design${cb2Designs.length !== 1 ? 's' : ''}`;
+
+    if (!cb2Designs.length) {
+      grid.innerHTML = `<div class="cd-dash-empty"><div class="cd-dash-empty-icon">🃏</div><div class="cd-dash-empty-title">No designs yet</div><div class="cd-dash-empty-sub">Create your first Card Builder 2.0 design to get started.</div><button class="btn-primary" id="cb2-empty-new-btn">+ New Design</button></div>`;
+      qs('cb2-empty-new-btn')?.addEventListener('click', newCb2Design);
+      return;
+    }
+
+    grid.innerHTML = cb2Designs.map(d => {
+      const img = d.selected_concept_url || (d.rounds?.[d.rounds.length - 1]?.cards?.[0]?.url) || '';
+      const hasRounds = d.rounds?.length > 0;
+      const statusLabel = d.status === 'complete' ? 'Complete' : d.status === 'ready-for-review' ? 'Ready for review' : 'In development';
+      return `<div class="cd-dash-item" data-id="${d.id}" style="cursor:pointer">
+        <div class="cd-dash-thumb">${img ? `<img src="${img}" alt="" onerror="this.style.display='none'" />` : '<div class="cd-dash-thumb-empty">🃏</div>'}</div>
+        <div class="cd-dash-info">
+          <div class="cd-dash-name">${d.name || 'Untitled'}</div>
+          <div class="cd-dash-title">${d.product_title || ''}</div>
+          <div class="cd-dash-meta">${hasRounds ? d.rounds.length + ' round' + (d.rounds.length !== 1 ? 's' : '') : 'No rounds yet'} · ${statusLabel}</div>
+        </div>
+        <button class="cd-dash-delete" data-id="${d.id}" title="Delete design">🗑</button>
+      </div>`;
+    }).join('');
+
+    grid.querySelectorAll('.cd-dash-item').forEach(item => {
+      item.addEventListener('click', e => {
+        if (e.target.closest('.cd-dash-delete')) return;
+        openCb2Design(item.dataset.id);
+      });
+    });
+    grid.querySelectorAll('.cd-dash-delete').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm('Delete this design?')) return;
+        await api.del(`/api/card-designer/cb2/designs/${btn.dataset.id}`);
+        loadCb2Designs();
+      });
+    });
+  }
+
+  async function newCb2Design() {
+    const d = await api.post('/api/card-designer/cb2/designs', { name: 'Untitled Design' });
+    openCb2Design(d.id);
+  }
+
+  async function openCb2Design(id) {
+    cb2Active = await api.get(`/api/card-designer/cb2/designs/${id}`);
+    showCb2Workspace();
+    loadCb2WorkspaceUI();
+    switchCb2Module('concepts');
+  }
+
+  // ── Workspace UI ─────────────────────────────────────────────────
+  function loadCb2WorkspaceUI() {
+    const d = cb2Active;
+    if (!d) return;
+
+    // Brief fields
+    const nameEl = qs('cb2-design-name');
+    if (nameEl) nameEl.value = d.name || '';
+    const titleEl = qs('cb2-product-title');
+    if (titleEl) titleEl.value = d.product_title || '';
+    const dirEl = qs('cb2-creative-direction');
+    if (dirEl) dirEl.value = d.creative_direction || '';
+
+    // Status badge
+    const metaEl = qs('cb2-brief-meta');
+    if (metaEl) metaEl.textContent = d.status === 'complete' ? 'Complete' : d.status === 'ready-for-review' ? 'Ready for review' : 'In development';
+
+    // Inspiration image
+    renderCb2ImageZone('inspiration', d.inspiration_image);
+    // Engineering base
+    renderCb2ImageZone('engineering', d.engineering_base_image);
+
+    // Rounds
+    renderCb2Rounds();
+    updateCb2GenerateBtn();
+    renderCb2SelectedConcept();
+    updateCb2FinalizeView();
+  }
+
+  function renderCb2ImageZone(type, url) {
+    const empty   = qs(`cb2-${type}-empty`);
+    const preview = qs(`cb2-${type}-preview`);
+    const img     = qs(`cb2-${type}-img`);
+    if (!empty || !preview || !img) return;
+    if (url) {
+      img.src = url;
+      empty.classList.add('hidden');
+      preview.classList.remove('hidden');
+    } else {
+      empty.classList.remove('hidden');
+      preview.classList.add('hidden');
+    }
+  }
+
+  function switchCb2Module(mod) {
+    cb2Module = mod;
+    document.querySelectorAll('[data-cb2module]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.cb2module === mod);
+    });
+    qs('cb2-module-concepts').classList.toggle('hidden', mod !== 'concepts');
+    qs('cb2-module-finalize').classList.toggle('hidden', mod !== 'finalize');
+    qs('cb2-refine-bar').classList.toggle('hidden', mod !== 'concepts');
+    qs('cb2-finalize-bar').classList.toggle('hidden', mod !== 'finalize');
+    if (mod === 'finalize') updateCb2FinalizeView();
+  }
+
+  // ── Rounds rendering ─────────────────────────────────────────────
+  function renderCb2Rounds() {
+    const d = cb2Active;
+    const emptyEl = qs('cb2-concepts-empty');
+    const roundsEl = qs('cb2-concept-rounds');
+    if (!d || !roundsEl) return;
+
+    const rounds = d.rounds || [];
+    emptyEl?.classList.toggle('hidden', rounds.length > 0);
+
+    roundsEl.innerHTML = rounds.map((round, ri) => {
+      const isSelected = round.cards.some(c => c.url === d.selected_concept_url);
+      return `<div class="cd-sketch-round" id="cb2-round-${round.id}">
+        <div class="cd-sketch-round-hdr">
+          <span class="cd-sketch-round-label">Round ${round.index}</span>
+          ${round.refine_note ? `<span class="cd-sketch-round-note">"${round.refine_note}"</span>` : ''}
+        </div>
+        <div class="cd-sketch-cards">
+          ${round.cards.map((card, ci) => {
+            const sel = card.url === d.selected_concept_url;
+            return `<div class="cd-sketch-card ${sel ? 'cd-sketch-card--selected' : ''}" data-card-id="${card.id}" data-round-id="${round.id}">
+              <img src="${card.url}" alt="Concept ${ri+1}${String.fromCharCode(65+ci)}" class="cd-sketch-card-img zoomable" loading="lazy" onerror="this.closest('.cd-sketch-card').style.opacity='0.3'" />
+              <div class="cd-sketch-card-actions">
+                ${sel
+                  ? `<button class="cd-select-btn cd-select-btn--active" data-action="deselect" data-url="${card.url}">✓ Selected</button>`
+                  : `<button class="cd-select-btn" data-action="select" data-url="${card.url}">Select</button>`
+                }
+                <button class="cd-iterate-btn" data-action="iterate" data-card-id="${card.id}">Iterate →</button>
+              </div>
+              <input type="text" class="cd-sketch-card-note" placeholder="Add note…" value="${card.note || ''}" data-card-id="${card.id}" />
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    // Bind actions
+    roundsEl.querySelectorAll('[data-action="select"]').forEach(btn => {
+      btn.addEventListener('click', () => selectCb2Concept(btn.dataset.url));
+    });
+    roundsEl.querySelectorAll('[data-action="deselect"]').forEach(btn => {
+      btn.addEventListener('click', () => selectCb2Concept(''));
+    });
+    roundsEl.querySelectorAll('[data-action="iterate"]').forEach(btn => {
+      btn.addEventListener('click', () => iterateCb2Card(btn.dataset.cardId));
+    });
+    roundsEl.querySelectorAll('.cd-sketch-card-note').forEach(input => {
+      input.addEventListener('change', async () => {
+        if (!cb2Active) return;
+        await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}/card/${input.dataset.cardId}`, { note: input.value });
+      });
+    });
+
+    // Zoomable
+    roundsEl.querySelectorAll('.zoomable').forEach(img => {
+      img.addEventListener('click', () => {
+        const ov = document.createElement('div');
+        ov.className = 'cd-zoom-overlay';
+        ov.innerHTML = `<div class="cd-zoom-wrap"><img src="${img.src}" /><button class="cd-zoom-close">✕</button></div>`;
+        ov.addEventListener('click', e => { if (!e.target.closest('img')) ov.remove(); });
+        ov.querySelector('.cd-zoom-close').addEventListener('click', () => ov.remove());
+        document.body.appendChild(ov);
+      });
+    });
+
+    updateCb2GenerateBtn();
+  }
+
+  async function selectCb2Concept(url) {
+    if (!cb2Active) return;
+    cb2Active = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { selected_concept_url: url });
+    renderCb2Rounds();
+    renderCb2SelectedConcept();
+    updateCb2FinalizeView();
+    // Show finalize button when a concept is selected
+    const finBtn = qs('cb2-finalize-btn');
+    if (finBtn) finBtn.style.display = url ? '' : 'none';
+  }
+
+  function renderCb2SelectedConcept() {
+    const d = cb2Active;
+    const section = qs('cb2-brief-selected-concept');
+    const content = qs('cb2-brief-selected-concept-content');
+    if (!section || !content) return;
+    if (d?.selected_concept_url) {
+      section.classList.remove('hidden');
+      content.innerHTML = `<img src="${d.selected_concept_url}" style="width:100%;border-radius:6px;object-fit:cover" alt="Selected concept" />`;
+    } else {
+      section.classList.add('hidden');
+    }
+  }
+
+  // ── Generate ─────────────────────────────────────────────────────
+  let cb2Generating = false;
+  let cb2IterateCardId = null;
+
+  function updateCb2GenerateBtn() {
+    const d = cb2Active;
+    const btn = qs('cb2-generate-btn');
+    if (!btn) return;
+    const rounds = d?.rounds || [];
+    btn.textContent = rounds.length === 0 ? 'Generate Round 1 →' : `Generate Round ${rounds.length + 1} →`;
+  }
+
+  async function generateCb2Round(parentCardId = null) {
+    if (cb2Generating || !cb2Active) return;
+    cb2Generating = true;
+    const btn = qs('cb2-generate-btn');
+    const origText = btn?.textContent || 'Generate';
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+
+    const refineNote = qs('cb2-refine-input')?.value?.trim() || '';
+
+    try {
+      const { round, design } = await api.post(`/api/card-designer/cb2/designs/${cb2Active.id}/generate-round`, {
+        refine_note: refineNote,
+        count: cb2GenCount,
+        parent_card_id: parentCardId || null,
+      });
+      cb2Active = design;
+      if (qs('cb2-refine-input')) qs('cb2-refine-input').value = '';
+      cb2IterateCardId = null;
+      renderCb2Rounds();
+      // Scroll to the new round
+      const roundEl = document.getElementById(`cb2-round-${round.id}`);
+      if (roundEl) roundEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      const msg = e?.error || e?.message || String(e);
+      alert('Generation failed: ' + msg);
+    } finally {
+      cb2Generating = false;
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      updateCb2GenerateBtn();
+    }
+  }
+
+  function iterateCb2Card(cardId) {
+    cb2IterateCardId = cardId;
+    const refineEl = qs('cb2-refine-input');
+    if (refineEl) { refineEl.focus(); refineEl.placeholder = 'What should change from this card?'; }
+    generateCb2Round(cardId);
+  }
+
+  // ── Finalize ─────────────────────────────────────────────────────
+  async function saveCb2FinalizeNotes() {
+    if (!cb2Active) return;
+    await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, {
+      finalize_notes:    qs('cb2-finalize-notes')?.value    || '',
+      finalize_comments: qs('cb2-finalize-comments')?.value || '',
+    });
+  }
+
+  function updateCb2FinalizeView() {
+    const d = cb2Active;
+    const wrap = qs('cb2-finalize-img-wrap');
+    if (!wrap) return;
+    if (d?.selected_concept_url) {
+      wrap.innerHTML = `<img src="${d.selected_concept_url}" style="max-width:100%;max-height:420px;border-radius:8px;object-fit:contain" alt="Selected concept" />`;
+    } else {
+      wrap.innerHTML = `<div class="cd-finalize-no-concept">No concept selected yet — select a concept in the Concepts tab first.</div>`;
+    }
+    if (qs('cb2-finalize-notes')) qs('cb2-finalize-notes').value = d?.finalize_notes || '';
+    if (qs('cb2-finalize-comments')) qs('cb2-finalize-comments').value = d?.finalize_comments || '';
+    renderCb2FinalizeRefs();
+  }
+
+  function renderCb2FinalizeRefs() {
+    const d = cb2Active;
+    const grid = qs('cb2-finalize-ref-grid');
+    if (!grid) return;
+    const refs = d?.finalize_refs || [];
+    grid.innerHTML = refs.map((url, i) =>
+      `<div style="position:relative;display:inline-block">
+        <img src="${url}" title="Reference ${i+1}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)" />
+        <button onclick="cb2RemoveRef(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--text);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;line-height:18px;text-align:center">✕</button>
+      </div>`
+    ).join('');
+  }
+
+  window.cb2RemoveRef = async function (index) {
+    if (!cb2Active) return;
+    const refs = [...(cb2Active.finalize_refs || [])];
+    refs.splice(index, 1);
+    cb2Active = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { finalize_refs: refs });
+    renderCb2FinalizeRefs();
+  };
+
+  async function exportCb2Spec() {
+    const d = cb2Active;
+    if (!d) return;
+    await saveCb2FinalizeNotes();
+    const lines = [
+      `CARD BUILDER 2.0 — DESIGN SPECIFICATION`,
+      `========================================`,
+      `Design: ${d.name || 'Untitled'}`,
+      d.product_title ? `Product: ${d.product_title}` : '',
+      d.creative_direction ? `\nCreative Direction:\n${d.creative_direction}` : '',
+      d.selected_concept_url ? `\nSelected Concept: ${location.origin}${d.selected_concept_url}` : '',
+      d.finalize_notes ? `\nDesign Notes:\n${d.finalize_notes}` : '',
+      d.finalize_comments ? `\nComments & Feedback:\n${d.finalize_comments}` : '',
+      `\nGenerated: ${new Date().toLocaleDateString()}`,
+    ].filter(Boolean).join('\n');
+
+    const blob = new Blob([lines], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `cb2-spec-${(d.name || 'design').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.txt`;
+    a.click();
+  }
+
+  // ── Ref image upload ─────────────────────────────────────────────
+  async function uploadCb2RefImage(file) {
+    if (!cb2Active || !file) return;
+    const fd = new FormData(); fd.append('image', file);
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!r.ok) return;
+    const { url } = await r.json();
+    const refs = [...(cb2Active.finalize_refs || []), url];
+    cb2Active = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { finalize_refs: refs });
+    renderCb2FinalizeRefs();
+  }
+
+  // ── Bind UI ──────────────────────────────────────────────────────
+  function bindCb2UI() {
+    // Dashboard
+    qs('cb2-new-btn')?.addEventListener('click', newCb2Design);
+    qs('cb2-empty-new-btn')?.addEventListener('click', newCb2Design);
+    qs('cb2-dash-search')?.addEventListener('input', e => { cb2Search = e.target.value; renderCb2Dashboard(); });
+
+    // Back buttons
+    qs('cb2-back-btn')?.addEventListener('click', showCb2Dashboard);
+    qs('cb2-back-btn-top')?.addEventListener('click', showCb2Dashboard);
+    qs('cb2-exit-btn')?.addEventListener('click', showCb2Dashboard);
+
+    // Brief auto-save
+    qs('cb2-design-name')?.addEventListener('blur', saveCb2Meta);
+    qs('cb2-product-title')?.addEventListener('blur', saveCb2Meta);
+    qs('cb2-creative-direction')?.addEventListener('blur', saveCb2Meta);
+
+    // Module tabs
+    document.querySelectorAll('[data-cb2module]').forEach(btn => {
+      btn.addEventListener('click', () => switchCb2Module(btn.dataset.cb2module));
+    });
+
+    // Generate count
+    document.querySelectorAll('#cb2-gen-count .cd-gen-n').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#cb2-gen-count .cd-gen-n').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cb2GenCount = parseInt(btn.dataset.count, 10) || 3;
+      });
+    });
+
+    // Generate button
+    qs('cb2-generate-btn')?.addEventListener('click', () => generateCb2Round(null));
+    qs('cb2-refine-input')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generateCb2Round(null); }
+    });
+
+    // Finalize
+    qs('cb2-finalize-btn')?.addEventListener('click', () => switchCb2Module('finalize'));
+    qs('cb2-finalize-notes')?.addEventListener('blur', saveCb2FinalizeNotes);
+    qs('cb2-finalize-comments')?.addEventListener('blur', saveCb2FinalizeNotes);
+    qs('cb2-export-spec-btn')?.addEventListener('click', exportCb2Spec);
+
+    // Finalize ref image upload
+    const refZone = qs('cb2-finalize-ref-zone');
+    const refInput = qs('cb2-finalize-ref-input');
+    refZone?.addEventListener('click', () => refInput?.click());
+    refZone?.addEventListener('dragover', e => { e.preventDefault(); refZone.classList.add('dragover'); });
+    refZone?.addEventListener('dragleave', () => refZone.classList.remove('dragover'));
+    refZone?.addEventListener('drop', e => { e.preventDefault(); refZone.classList.remove('dragover'); [...(e.dataTransfer.files || [])].forEach(uploadCb2RefImage); });
+    refInput?.addEventListener('change', () => [...(refInput.files || [])].forEach(uploadCb2RefImage));
+
+    // Inspiration image upload zone
+    bindCb2UploadZone('inspiration', '/api/cb2/designs/%ID%/inspiration',
+      (updated) => { cb2Active = updated; renderCb2ImageZone('inspiration', cb2Active.inspiration_image); },
+      '/api/cb2/designs/%ID%/inspiration',
+      (updated) => { cb2Active = updated; renderCb2ImageZone('inspiration', ''); }
+    );
+
+    // Engineering base upload zone
+    bindCb2UploadZone('engineering', '/api/cb2/designs/%ID%/engineering-base',
+      (updated) => { cb2Active = updated; renderCb2ImageZone('engineering', cb2Active.engineering_base_image); },
+      '/api/cb2/designs/%ID%/engineering-base',
+      (updated) => { cb2Active = updated; renderCb2ImageZone('engineering', ''); }
+    );
+  }
+
+  function bindCb2UploadZone(type, uploadUrlTpl, onUpload, deleteUrlTpl, onDelete) {
+    const zone   = qs(`cb2-${type}-zone`);
+    const input  = qs(`cb2-${type}-input`);
+    const clearBtn = qs(`cb2-${type}-clear`);
+
+    const doUpload = async (file) => {
+      if (!cb2Active || !file) return;
+      const fd = new FormData(); fd.append('image', file);
+      const url = uploadUrlTpl.replace('%ID%', cb2Active.id);
+      const r = await fetch(url, { method: 'POST', body: fd });
+      if (!r.ok) return;
+      const { design } = await r.json();
+      onUpload(design);
+    };
+
+    zone?.addEventListener('click', () => input?.click());
+    zone?.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone?.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone?.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
+    input?.addEventListener('change', () => { if (input.files[0]) doUpload(input.files[0]); input.value = ''; });
+    clearBtn?.addEventListener('click', async () => {
+      if (!cb2Active) return;
+      const url = deleteUrlTpl.replace('%ID%', cb2Active.id);
+      const r = await fetch(url, { method: 'DELETE' });
+      if (!r.ok) return;
+      const { design } = await r.json();
+      onDelete(design);
+    });
+
+    // Paste support
+    zone?.addEventListener('paste', e => {
+      const file = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'))?.getAsFile();
+      if (file) doUpload(file);
+    });
+    zone?.setAttribute('tabindex', '0');
+  }
+
+  async function saveCb2Meta() {
+    if (!cb2Active) return;
+    await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, {
+      name:                qs('cb2-design-name')?.value     || '',
+      product_title:       qs('cb2-product-title')?.value   || '',
+      creative_direction:  qs('cb2-creative-direction')?.value || '',
+    });
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────
+  function cb2Init() {
+    bindCb2UI();
+    // When the outer Card Builder nav tab is clicked, if CB2 tab is active, load CB2 dashboard
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        if (tab.dataset.view === 'card-designer') {
+          const cb2Active = document.querySelector('.cb-version-tab[data-version="2"].active');
+          if (cb2Active) loadCb2Designs();
+        }
+      });
+    });
+    // When CB2 tab is clicked, load designs
+    document.querySelectorAll('.cb-version-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.version === '2') loadCb2Designs();
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', cb2Init);
+  } else {
+    cb2Init();
   }
 })();

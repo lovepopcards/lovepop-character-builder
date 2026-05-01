@@ -920,4 +920,201 @@ router.patch('/designs/:id/concept/card/:cardId', (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// ── Card Builder 2.0 routes ────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+
+// Helper: check CB2 concept/ref files
+function cb2FileExists(url) {
+  if (!url) return false;
+  const filename = path.basename(url);
+  const candidates = [
+    path.join(UPLOADS_DIR, filename),
+    path.join(UPLOADS_DIR, 'cb2-rounds', filename),
+    path.join(UPLOADS_DIR, 'cb2-inspiration', filename),
+    path.join(UPLOADS_DIR, 'cb2-engineering', filename),
+  ];
+  return candidates.some(p => fs.existsSync(p));
+}
+
+// CRUD
+router.get('/cb2/designs', (req, res) => {
+  try {
+    let list = db.getAllCb2Designs();
+    const { q } = req.query;
+    if (q) {
+      const lq = q.toLowerCase();
+      list = list.filter(d => (d.name || '').toLowerCase().includes(lq) || (d.product_title || '').toLowerCase().includes(lq));
+    }
+    // Inline scrub stale selected_concept_url
+    list = list.map(d => {
+      if (d.selected_concept_url && !cb2FileExists(d.selected_concept_url)) {
+        try { db.updateCb2Design(d.id, { selected_concept_url: '' }); } catch {}
+        return { ...d, selected_concept_url: '' };
+      }
+      return d;
+    });
+    res.json(list);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/cb2/designs', (req, res) => {
+  try { res.status(201).json(db.createCb2Design(req.body)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.get('/cb2/designs/:id', (req, res) => {
+  const d = db.getCb2Design(req.params.id);
+  if (!d) return res.status(404).json({ error: 'Not found' });
+  res.json(d);
+});
+
+router.put('/cb2/designs/:id', (req, res) => {
+  try { res.json(db.updateCb2Design(req.params.id, req.body)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.patch('/cb2/designs/:id', (req, res) => {
+  try { res.json(db.updateCb2Design(req.params.id, req.body)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/cb2/designs/:id', (req, res) => {
+  try { db.deleteCb2Design(req.params.id); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Generate a round of CB2 concepts
+router.post('/cb2/designs/:id/generate-round', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
+  if (!geminiKey) return res.status(400).json({ error: 'Gemini API key not configured.' });
+
+  const design = db.getCb2Design(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+
+  const settings = db.getAllSettings();
+  const model = settings.gemini_model || db.DEFAULTS.gemini_model;
+  const { refine_note = '', count = 3, parent_card_id = null } = req.body;
+  const systemPrompt = settings.cb2_system_prompt || db.DEFAULTS.cb2_system_prompt || '';
+
+  // Determine if we're anchoring to a selected or parent card
+  const useSelected = !parent_card_id && !!design.selected_concept_url && cb2FileExists(design.selected_concept_url);
+
+  const loadImg = (fullPath) => {
+    if (!fs.existsSync(fullPath)) return null;
+    try {
+      const buf = fs.readFileSync(fullPath);
+      const ext = path.extname(fullPath).slice(1).toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      return { inlineData: { mimeType, data: buf.toString('base64') } };
+    } catch { return null; }
+  };
+
+  // Load engineering base image (always provided as structural reference)
+  const engineeringPart = (() => {
+    if (!design.engineering_base_image) return null;
+    const filename = path.basename(design.engineering_base_image);
+    const fullPath = path.join(UPLOADS_DIR, 'cb2-engineering', filename);
+    return loadImg(fullPath);
+  })();
+
+  // Load inspiration image (style/cover reference)
+  const inspirationPart = (() => {
+    if (!design.inspiration_image) return null;
+    const filename = path.basename(design.inspiration_image);
+    const fullPath = path.join(UPLOADS_DIR, 'cb2-inspiration', filename);
+    return loadImg(fullPath);
+  })();
+
+  const buildPrompt = () => {
+    const lines = [
+      systemPrompt,
+      design.product_title ? `\nPRODUCT: ${design.product_title}` : '',
+      design.creative_direction ? `\nCREATIVE DIRECTION: ${design.creative_direction}` : '',
+      engineeringPart ? `\nENGINEERING REFERENCE: A card engineering base image is provided. Use it as the structural foundation — replicate the pop-up mechanism, fold structure, and card dimensions.` : '',
+      inspirationPart ? `\nSTYLE INSPIRATION: An inspiration image is provided. Use it to inform the cover illustration style, color palette, and aesthetic direction.` : '',
+      (parent_card_id || useSelected) ? `\nITERATION MODE: A previously generated card concept is provided as the primary reference. Evolve and refine it based on the direction below — preserve the overall composition and engineering approach while making the requested improvements.` : '',
+      refine_note ? `\nRefinement direction: ${refine_note}` : '',
+      !parent_card_id && !useSelected && design.rounds?.length > 0 ? `\nThis is round ${design.rounds.length + 1}. Explore a different creative interpretation while staying true to the brief.` : '',
+    ];
+    return lines.filter(Boolean).join('\n');
+  };
+
+  const buildRefParts = () => {
+    const parts = [];
+    // Engineering base first (structural canvas)
+    if (engineeringPart) parts.push(engineeringPart);
+    // Inspiration / cover style
+    if (inspirationPart) parts.push(inspirationPart);
+    // Iteration anchors
+    if (parent_card_id) {
+      // Explicit iterate — use only that card
+      let parentCard = null;
+      for (const r of design.rounds || []) {
+        parentCard = (r.cards || []).find(c => c.id === parent_card_id);
+        if (parentCard) break;
+      }
+      if (parentCard?.url) {
+        const filename = path.basename(parentCard.url);
+        const part = loadImg(path.join(UPLOADS_DIR, 'cb2-rounds', filename))
+                  || loadImg(path.join(UPLOADS_DIR, filename));
+        if (part) parts.push(part);
+      }
+    } else if (useSelected) {
+      const filename = path.basename(design.selected_concept_url);
+      const part = loadImg(path.join(UPLOADS_DIR, 'cb2-rounds', filename))
+                || loadImg(path.join(UPLOADS_DIR, filename));
+      if (part) parts.push(part);
+    } else {
+      // First round or exploring — no concept anchor needed
+    }
+    return parts;
+  };
+
+  const generateOne = async () => {
+    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), buildRefParts());
+    const buf = Buffer.from(base64, 'base64');
+    const filename = `cb2-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.png`;
+    const cb2RoundsDir = path.join(UPLOADS_DIR, 'cb2-rounds');
+    if (!fs.existsSync(cb2RoundsDir)) fs.mkdirSync(cb2RoundsDir, { recursive: true });
+    fs.writeFileSync(path.join(cb2RoundsDir, filename), buf);
+    return `/uploads/cb2-rounds/${filename}`;
+  };
+
+  try {
+    const n = Math.min(Math.max(1, parseInt(count, 10) || 3), 9);
+    const urls = await Promise.all(Array.from({ length: n }, () => generateOne()));
+    const newRound = {
+      id: crypto.randomBytes(8).toString('hex'),
+      index: (design.rounds?.length || 0) + 1,
+      created_at: new Date().toISOString(),
+      refine_note,
+      parent_card_id: parent_card_id || null,
+      cards: urls.map(url => ({ id: crypto.randomBytes(8).toString('hex'), url, note: '' })),
+    };
+    const updatedRounds = [...(design.rounds || []), newRound];
+    const updated = db.updateCb2Design(req.params.id, { rounds: updatedRounds });
+    res.json({ round: newRound, design: updated });
+  } catch (e) {
+    const msg = (e instanceof Error ? e.message : String(e)) || 'Unknown error';
+    console.error('[cb2/generate-round] error:', msg);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// Update CB2 card note
+router.patch('/cb2/designs/:id/card/:cardId', (req, res) => {
+  try {
+    const design = db.getCb2Design(req.params.id);
+    if (!design) return res.status(404).json({ error: 'Design not found' });
+    const { note } = req.body;
+    const rounds = (design.rounds || []).map(r => ({
+      ...r,
+      cards: r.cards.map(c => c.id === req.params.cardId ? { ...c, ...(note !== undefined ? { note } : {}) } : c),
+    }));
+    const updated = db.updateCb2Design(req.params.id, { rounds });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

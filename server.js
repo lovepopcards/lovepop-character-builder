@@ -132,6 +132,29 @@ const coverRefStorage = multer.diskStorage({
 });
 const uploadCoverRef = multer({ storage: coverRefStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
+// CB2 inspiration and engineering base upload dirs
+const CB2_INSPIRATION_DIR = path.join(UPLOADS_DIR, 'cb2-inspiration');
+if (!fs.existsSync(CB2_INSPIRATION_DIR)) fs.mkdirSync(CB2_INSPIRATION_DIR, { recursive: true });
+const cb2InspirationStorage = multer.diskStorage({
+  destination: CB2_INSPIRATION_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `insp-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadCb2Inspiration = multer({ storage: cb2InspirationStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
+const CB2_ENGINEERING_DIR = path.join(UPLOADS_DIR, 'cb2-engineering');
+if (!fs.existsSync(CB2_ENGINEERING_DIR)) fs.mkdirSync(CB2_ENGINEERING_DIR, { recursive: true });
+const cb2EngineeringStorage = multer.diskStorage({
+  destination: CB2_ENGINEERING_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `eng-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadCb2Engineering = multer({ storage: cb2EngineeringStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -1120,6 +1143,54 @@ app.delete('/api/card-designer/designs/:id/cover-ref', (req, res) => {
   }
   const updated = db.updateCardDesign(req.params.id, { cover_ref_image: null });
   res.json({ success: true, design: updated });
+});
+
+// ── CB2 per-design image uploads ──────────────────────────────
+app.post('/api/cb2/designs/:id/inspiration', uploadCb2Inspiration.single('image'), (req, res) => {
+  const design = db.getCb2Design(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  // Remove old inspiration image if present
+  if (design.inspiration_image) {
+    const old = path.join(CB2_INSPIRATION_DIR, path.basename(design.inspiration_image));
+    if (fs.existsSync(old)) { try { fs.unlinkSync(old); } catch {} }
+  }
+  const imgPath = `/uploads/cb2-inspiration/${req.file.filename}`;
+  const updated = db.updateCb2Design(req.params.id, { inspiration_image: imgPath });
+  res.json({ url: imgPath, design: updated });
+});
+
+app.delete('/api/cb2/designs/:id/inspiration', (req, res) => {
+  const design = db.getCb2Design(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (design.inspiration_image) {
+    const old = path.join(CB2_INSPIRATION_DIR, path.basename(design.inspiration_image));
+    if (fs.existsSync(old)) { try { fs.unlinkSync(old); } catch {} }
+  }
+  res.json({ success: true, design: db.updateCb2Design(req.params.id, { inspiration_image: '' }) });
+});
+
+app.post('/api/cb2/designs/:id/engineering-base', uploadCb2Engineering.single('image'), (req, res) => {
+  const design = db.getCb2Design(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  if (design.engineering_base_image) {
+    const old = path.join(CB2_ENGINEERING_DIR, path.basename(design.engineering_base_image));
+    if (fs.existsSync(old)) { try { fs.unlinkSync(old); } catch {} }
+  }
+  const imgPath = `/uploads/cb2-engineering/${req.file.filename}`;
+  const updated = db.updateCb2Design(req.params.id, { engineering_base_image: imgPath });
+  res.json({ url: imgPath, design: updated });
+});
+
+app.delete('/api/cb2/designs/:id/engineering-base', (req, res) => {
+  const design = db.getCb2Design(req.params.id);
+  if (!design) return res.status(404).json({ error: 'Design not found' });
+  if (design.engineering_base_image) {
+    const old = path.join(CB2_ENGINEERING_DIR, path.basename(design.engineering_base_image));
+    if (fs.existsSync(old)) { try { fs.unlinkSync(old); } catch {} }
+  }
+  res.json({ success: true, design: db.updateCb2Design(req.params.id, { engineering_base_image: '' }) });
 });
 
 // ── Art Style Reference Articulator ───────────────────────────
