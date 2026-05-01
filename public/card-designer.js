@@ -3018,17 +3018,7 @@
       });
     });
 
-    // Zoomable images — reuse CB1's zoom overlay pattern
-    roundsEl.querySelectorAll('.zoomable').forEach(img => {
-      img.addEventListener('click', () => {
-        const ov = document.createElement('div');
-        ov.className = 'cd-zoom-overlay';
-        ov.innerHTML = `<div class="cd-zoom-wrap"><img src="${img.src}" /><button class="cd-zoom-close">✕</button></div>`;
-        ov.addEventListener('click', e => { if (!e.target.closest('img')) ov.remove(); });
-        ov.querySelector('.cd-zoom-close').addEventListener('click', () => ov.remove());
-        document.body.appendChild(ov);
-      });
-    });
+    // Zoomable images are handled by the global lightbox in app.js (event delegation on document)
 
     updateCb2GenerateBtn();
   }
