@@ -2343,8 +2343,13 @@
 /* CB2 dashboard needs to scroll */
 #cb2-dashboard {
   flex: 1;
-  overflow-y: auto;
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* CB2 dashboard toolbar mirrors CB1 .view-toolbar */
+#cb2-dashboard .view-toolbar {
+  flex-shrink: 0;
 }
 
 /* ── CB2 zone optional / required badges ─────────────────── */

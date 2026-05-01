@@ -2785,9 +2785,83 @@
     } catch (e) { console.error('[cb2] load designs error', e); }
   }
 
+  function cb2TilePreviewImg(d) {
+    // Best available image: selected concept → most recent card in last round
+    const imgUrl = d.selected_concept_url
+      || (d.rounds?.length ? (d.rounds[d.rounds.length - 1]?.cards?.slice(-1)[0]?.url || '') : '');
+    if (imgUrl) {
+      const fallbackSvg = cb2TileSvg(d);
+      return `<img src="${imgUrl}" class="cd-tile-preview-img" alt="Design preview" loading="lazy"
+        onerror="this.outerHTML=decodeURIComponent(this.dataset.fallback)" data-fallback="${encodeURIComponent(fallbackSvg)}" />`;
+    }
+    return cb2TileSvg(d);
+  }
+
+  function cb2TileSvg(d) {
+    const hasRounds = d.rounds?.length > 0;
+    const hasSelected = !!d.selected_concept_url;
+    if (hasSelected || d.status === 'complete') {
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="cb2g${d.id.slice(0,6)}" x1="0" y1="0" x2="280" y2="160" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#1B2A4A"/><stop offset="100%" stop-color="#3D5A99"/>
+        </linearGradient></defs>
+        <rect width="280" height="160" fill="url(#cb2g${d.id.slice(0,6)})" rx="4"/>
+        <circle cx="140" cy="80" r="28" fill="white" opacity="0.12"/><text x="140" y="88" text-anchor="middle" font-size="22" fill="white" opacity="0.5">🃏</text>
+      </svg>`;
+    } else if (hasRounds) {
+      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="160" fill="#F7F4EF" rx="4"/>
+        <text x="140" y="88" text-anchor="middle" font-size="32" opacity="0.25">✦</text>
+        <text x="140" y="148" text-anchor="middle" font-size="9" fill="#1B2A4A" opacity="0.35" font-family="monospace">CONCEPTS IN PROGRESS</text>
+      </svg>`;
+    }
+    return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
+      <rect width="280" height="160" fill="#F2EDE6" rx="4"/>
+      <rect x="95" y="35" width="90" height="90" rx="5" fill="white" stroke="#DDD6CA" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="140" y="88" text-anchor="middle" font-size="20" opacity="0.3">🃏</text>
+    </svg>`;
+  }
+
+  function cb2TileHtml(d) {
+    const statusLabel = { 'in-development': 'In development', 'ready-for-review': 'Ready for review', complete: 'Complete' }[d.status] || d.status;
+    const statusClass = { 'in-development': 'cd-status-dev', 'ready-for-review': 'cd-status-review', complete: 'cd-status-complete' }[d.status] || 'cd-status-dev';
+    const hasSelected = !!d.selected_concept_url;
+    const hasRounds = d.rounds?.length > 0;
+    const roundsText = hasSelected ? 'Concept selected ✓'
+      : hasRounds ? `${d.rounds.length} round${d.rounds.length !== 1 ? 's' : ''} in progress`
+      : 'No rounds yet';
+    return `<div class="cd-card-tile" data-id="${d.id}">
+      <div class="cd-tile-preview">
+        ${cb2TilePreviewImg(d)}
+        <span class="cd-tile-status ${statusClass}">${statusLabel}</span>
+        <button class="cd-tile-delete-btn cb2-tile-delete" data-id="${d.id}" title="Delete design">✕</button>
+      </div>
+      <div class="cd-tile-body">
+        <div class="cd-tile-name">${d.name || 'Untitled Design'}</div>
+        ${d.product_title ? `<div class="cd-tile-sku" style="text-transform:none;letter-spacing:0;font-size:12px;color:var(--text-muted)">${d.product_title}</div>` : ''}
+        <div class="cd-tile-meta" style="margin-top:8px">
+          <span class="cd-tile-rounds">${roundsText}</span>
+          <span class="cd-tile-time">${cb2TimeAgo(d.updated_at || d.created_at)}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function cb2TimeAgo(ts) {
+    if (!ts) return '';
+    const diff = Date.now() - new Date(ts).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
   function renderCb2Dashboard() {
     const grid = qs('cb2-dash-grid');
     const countEl = qs('cb2-dash-count');
+    if (!grid) return;
     if (countEl) countEl.textContent = `${cb2Designs.length} design${cb2Designs.length !== 1 ? 's' : ''}`;
 
     if (!cb2Designs.length) {
@@ -2796,28 +2870,15 @@
       return;
     }
 
-    grid.innerHTML = cb2Designs.map(d => {
-      const img = d.selected_concept_url || (d.rounds?.[d.rounds.length - 1]?.cards?.[0]?.url) || '';
-      const hasRounds = d.rounds?.length > 0;
-      const statusLabel = d.status === 'complete' ? 'Complete' : d.status === 'ready-for-review' ? 'Ready for review' : 'In development';
-      return `<div class="cd-dash-item" data-id="${d.id}" style="cursor:pointer">
-        <div class="cd-dash-thumb">${img ? `<img src="${img}" alt="" onerror="this.style.display='none'" />` : '<div class="cd-dash-thumb-empty">🃏</div>'}</div>
-        <div class="cd-dash-info">
-          <div class="cd-dash-name">${d.name || 'Untitled'}</div>
-          <div class="cd-dash-title">${d.product_title || ''}</div>
-          <div class="cd-dash-meta">${hasRounds ? d.rounds.length + ' round' + (d.rounds.length !== 1 ? 's' : '') : 'No rounds yet'} · ${statusLabel}</div>
-        </div>
-        <button class="cd-dash-delete" data-id="${d.id}" title="Delete design">🗑</button>
-      </div>`;
-    }).join('');
+    grid.innerHTML = cb2Designs.map(cb2TileHtml).join('');
 
-    grid.querySelectorAll('.cd-dash-item').forEach(item => {
-      item.addEventListener('click', e => {
-        if (e.target.closest('.cd-dash-delete')) return;
-        openCb2Design(item.dataset.id);
+    grid.querySelectorAll('.cd-card-tile').forEach(tile => {
+      tile.addEventListener('click', e => {
+        if (e.target.closest('.cb2-tile-delete')) return;
+        openCb2Design(tile.dataset.id);
       });
     });
-    grid.querySelectorAll('.cd-dash-delete').forEach(btn => {
+    grid.querySelectorAll('.cb2-tile-delete').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
         if (!confirm('Delete this design?')) return;
