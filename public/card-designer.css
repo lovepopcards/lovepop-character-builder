@@ -2346,3 +2346,80 @@
   overflow-y: auto;
   padding: 0;
 }
+
+/* ── CB2 zone optional / required badges ─────────────────── */
+.cb2-optional-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8A9AB0);
+  background: var(--bg-secondary, #F5F3EF);
+  border: 1px solid var(--border, #E5DDD4);
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.cb2-required-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--coral, #E8604C);
+  background: #fff5f4;
+  border: 1px solid rgba(232,96,76,0.25);
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Optional zone — muted appearance */
+.cb2-zone-optional {
+  border-color: var(--border, #E5DDD4);
+  background: var(--bg-secondary, #F5F3EF);
+  opacity: 0.8;
+}
+.cb2-zone-optional:hover {
+  opacity: 1;
+  border-color: var(--text-muted, #8A9AB0);
+}
+
+/* Required zone — normal solid appearance (same as existing .cd-ref-zone) */
+.cb2-zone-required {
+  border-color: rgba(232,96,76,0.35);
+}
+.cb2-zone-required:hover {
+  border-color: var(--coral, #E8604C);
+}
+
+/* CB2 iterate button — same weight as select but secondary colour */
+.cd-sk-card .cb2-iterate-btn {
+  background: transparent;
+  color: var(--text-muted, #8A9AB0);
+  border: 1px solid var(--border, #E5DDD4);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+  flex: 0 0 auto;
+}
+.cd-sk-card .cb2-iterate-btn:hover {
+  background: var(--sand, #F0EAE0);
+  color: var(--navy, #1A2B3C);
+  border-color: var(--navy, #1A2B3C);
+}
+
+/* CB2 rounds list — same as sketch rounds */
+#cb2-concept-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}

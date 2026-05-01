@@ -257,12 +257,8 @@
     } catch (e) {
       designs = [];
     }
-    // Silently scrub any broken image references (files deleted after volume reset etc.)
-    // Runs fire-and-forget; a second loadDesigns call refreshes tiles after scrub completes
-    fetch('/api/card-designer/scrub-broken-images', { method: 'POST' })
-      .then(r => r.json())
-      .then(({ scrubbed }) => { if (scrubbed > 0) loadDesigns(); })
-      .catch(() => {});
+    // GET /designs already performs an inline scrub of stale selected_*_url fields on the server
+    // so no separate POST scrub call is needed here.
     renderDashboard();
     renderDesignList();
   }
@@ -2900,6 +2896,26 @@
   }
 
   // ── Rounds rendering ─────────────────────────────────────────────
+  function cb2CardHtml(card, roundIdx, cardIdx) {
+    const d = cb2Active;
+    const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
+    const sel = card.url === d?.selected_concept_url;
+    const note = (card.note || '').replace(/"/g, '&quot;');
+    const safeUrl = (card.url || '').replace(/"/g, '%22');
+    return `<div class="cd-sk-card cd-cb2-card${sel ? ' selected' : ''}" data-card-id="${card.id}" data-url="${safeUrl}">
+      <div class="cd-sk-card-label">${label}</div>
+      <img src="${card.url}" alt="Concept ${label}" class="cd-sk-card-img zoomable" loading="lazy"
+           title="Click to enlarge" onerror="this.closest('.cd-sk-card').style.opacity='0.3'" />
+      <div class="cd-sk-card-footer">
+        <button class="cd-sk-iterate-btn cb2-iterate-btn">↻ Iterate</button>
+        <button class="cd-sk-select-btn cb2-select-btn${sel ? ' selected' : ''}">
+          ${sel ? '✓ Selected' : 'Select'}
+        </button>
+      </div>
+      <input type="text" class="cd-sk-note-input cb2-note-input" placeholder="Add note…" value="${note}" data-card-id="${card.id}" style="margin:6px 8px 8px;width:calc(100% - 16px);box-sizing:border-box" />
+    </div>`;
+  }
+
   function renderCb2Rounds() {
     const d = cb2Active;
     const emptyEl = qs('cb2-concepts-empty');
@@ -2910,49 +2926,38 @@
     emptyEl?.classList.toggle('hidden', rounds.length > 0);
 
     roundsEl.innerHTML = rounds.map((round, ri) => {
-      const isSelected = round.cards.some(c => c.url === d.selected_concept_url);
-      return `<div class="cd-sketch-round" id="cb2-round-${round.id}">
-        <div class="cd-sketch-round-hdr">
-          <span class="cd-sketch-round-label">Round ${round.index}</span>
-          ${round.refine_note ? `<span class="cd-sketch-round-note">"${round.refine_note}"</span>` : ''}
+      return `<div class="cd-round" id="cb2-round-${round.id}">
+        <div class="cd-round-header">
+          <span class="cd-round-label">Round ${ri + 1}</span>
+          ${round.refine_note ? `<span class="cd-round-note">${round.refine_note}</span>` : ''}
         </div>
-        <div class="cd-sketch-cards">
-          ${round.cards.map((card, ci) => {
-            const sel = card.url === d.selected_concept_url;
-            return `<div class="cd-sketch-card ${sel ? 'cd-sketch-card--selected' : ''}" data-card-id="${card.id}" data-round-id="${round.id}">
-              <img src="${card.url}" alt="Concept ${ri+1}${String.fromCharCode(65+ci)}" class="cd-sketch-card-img zoomable" loading="lazy" onerror="this.closest('.cd-sketch-card').style.opacity='0.3'" />
-              <div class="cd-sketch-card-actions">
-                ${sel
-                  ? `<button class="cd-select-btn cd-select-btn--active" data-action="deselect" data-url="${card.url}">✓ Selected</button>`
-                  : `<button class="cd-select-btn" data-action="select" data-url="${card.url}">Select</button>`
-                }
-                <button class="cd-iterate-btn" data-action="iterate" data-card-id="${card.id}">Iterate →</button>
-              </div>
-              <input type="text" class="cd-sketch-card-note" placeholder="Add note…" value="${card.note || ''}" data-card-id="${card.id}" />
-            </div>`;
-          }).join('')}
+        <div class="cd-round-grid">
+          ${(round.cards || []).map((card, ci) => cb2CardHtml(card, ri, ci)).join('')}
         </div>
       </div>`;
     }).join('');
 
     // Bind actions
-    roundsEl.querySelectorAll('[data-action="select"]').forEach(btn => {
-      btn.addEventListener('click', () => selectCb2Concept(btn.dataset.url));
+    roundsEl.querySelectorAll('.cb2-select-btn').forEach(btn => {
+      const cardEl = btn.closest('.cd-sk-card');
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const url = cardEl?.dataset.url || '';
+        selectCb2Concept(btn.classList.contains('selected') ? '' : url);
+      });
     });
-    roundsEl.querySelectorAll('[data-action="deselect"]').forEach(btn => {
-      btn.addEventListener('click', () => selectCb2Concept(''));
+    roundsEl.querySelectorAll('.cb2-iterate-btn').forEach(btn => {
+      const cardId = btn.closest('.cd-sk-card')?.dataset.cardId;
+      btn.addEventListener('click', e => { e.stopPropagation(); if (cardId) iterateCb2Card(cardId); });
     });
-    roundsEl.querySelectorAll('[data-action="iterate"]').forEach(btn => {
-      btn.addEventListener('click', () => iterateCb2Card(btn.dataset.cardId));
-    });
-    roundsEl.querySelectorAll('.cd-sketch-card-note').forEach(input => {
+    roundsEl.querySelectorAll('.cb2-note-input').forEach(input => {
       input.addEventListener('change', async () => {
         if (!cb2Active) return;
         await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}/card/${input.dataset.cardId}`, { note: input.value });
       });
     });
 
-    // Zoomable
+    // Zoomable images — reuse CB1's zoom overlay pattern
     roundsEl.querySelectorAll('.zoomable').forEach(img => {
       img.addEventListener('click', () => {
         const ov = document.createElement('div');
@@ -3189,8 +3194,8 @@
   }
 
   function bindCb2UploadZone(type, uploadUrlTpl, onUpload, deleteUrlTpl, onDelete) {
-    const zone   = qs(`cb2-${type}-zone`);
-    const input  = qs(`cb2-${type}-input`);
+    const zone     = qs(`cb2-${type}-zone`);
+    const input    = qs(`cb2-${type}-input`);
     const clearBtn = qs(`cb2-${type}-clear`);
 
     const doUpload = async (file) => {
@@ -3208,7 +3213,8 @@
     zone?.addEventListener('dragleave', () => zone.classList.remove('dragover'));
     zone?.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); });
     input?.addEventListener('change', () => { if (input.files[0]) doUpload(input.files[0]); input.value = ''; });
-    clearBtn?.addEventListener('click', async () => {
+    clearBtn?.addEventListener('click', async e => {
+      e.stopPropagation();
       if (!cb2Active) return;
       const url = deleteUrlTpl.replace('%ID%', cb2Active.id);
       const r = await fetch(url, { method: 'DELETE' });
@@ -3217,12 +3223,20 @@
       onDelete(design);
     });
 
-    // Paste support
-    zone?.addEventListener('paste', e => {
-      const file = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'))?.getAsFile();
-      if (file) doUpload(file);
+    // Paste support: attach to document while hovering the zone (same pattern as CB1 ref zones)
+    let pasteHandler = null;
+    zone?.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); doUpload(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+      zone.classList.add('paste-ready');
     });
-    zone?.setAttribute('tabindex', '0');
+    zone?.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+      zone.classList.remove('paste-ready');
+    });
   }
 
   async function saveCb2Meta() {
