@@ -2838,6 +2838,11 @@
     const conceptUrls = lastRound?.cards?.map(c => c.url).filter(Boolean) || [];
     const showPeek = !hasSelected && conceptUrls.length > 0;
 
+    // Tile name: prefer explicit name, fall back to product_title
+    const displayName = (d.name && d.name !== 'Untitled Design') ? d.name : (d.product_title || d.name || 'Untitled Design');
+    // Only show subtitle when it carries different info than the display name
+    const showSku = d.product_title && d.product_title !== displayName;
+
     return `<div class="cd-card-tile" data-id="${d.id}">
       <div class="cd-tile-preview">
         ${cb2TilePreviewImg(d)}
@@ -2848,8 +2853,8 @@
         </button>` : ''}
       </div>
       <div class="cd-tile-body">
-        <div class="cd-tile-name">${d.name || 'Untitled Design'}</div>
-        ${d.product_title ? `<div class="cd-tile-sku">${d.product_title}</div>` : ''}
+        <div class="cd-tile-name">${displayName}</div>
+        ${showSku ? `<div class="cd-tile-sku">${d.product_title}</div>` : ''}
         <div class="cd-tile-meta" style="margin-top:8px">
           <span class="cd-tile-rounds">${roundsText}</span>
           <span class="cd-tile-time">${cb2TimeAgo(d.updated_at || d.created_at)}</span>
@@ -2966,7 +2971,7 @@
   }
 
   async function newCb2Design() {
-    const d = await api.post('/api/card-designer/cb2/designs', { name: 'Untitled Design' });
+    const d = await api.post('/api/card-designer/cb2/designs', { name: '' });
     openCb2Design(d.id);
   }
 
@@ -2983,9 +2988,9 @@
     const d = cb2Active;
     if (!d) return;
 
-    // Brief fields
+    // Brief fields — name falls back to product_title for designs that only have one set
     const nameEl = qs('cb2-design-name');
-    if (nameEl) nameEl.value = d.name || '';
+    if (nameEl) nameEl.value = (d.name && d.name !== 'Untitled Design') ? d.name : (d.product_title || d.name || '');
     const titleEl = qs('cb2-product-title');
     if (titleEl) titleEl.value = d.product_title || '';
     const dirEl = qs('cb2-creative-direction');
@@ -3393,10 +3398,18 @@
 
   async function saveCb2Meta() {
     if (!cb2Active) return;
+    const nameVal  = (qs('cb2-design-name')?.value  || '').trim();
+    const titleVal = (qs('cb2-product-title')?.value || '').trim();
+    // Keep the two fields in sync: name should always reflect the product title
+    // when name is blank or was never explicitly set beyond the default.
+    const effectiveName = nameVal && nameVal !== 'Untitled Design' ? nameVal : (titleVal || nameVal);
+    if (qs('cb2-design-name') && effectiveName !== nameVal) {
+      qs('cb2-design-name').value = effectiveName;
+    }
     await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, {
-      name:                qs('cb2-design-name')?.value     || '',
-      product_title:       qs('cb2-product-title')?.value   || '',
-      creative_direction:  qs('cb2-creative-direction')?.value || '',
+      name:               effectiveName,
+      product_title:      titleVal,
+      creative_direction: qs('cb2-creative-direction')?.value || '',
     });
   }
 
