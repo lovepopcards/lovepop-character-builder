@@ -2369,13 +2369,82 @@
   flex-shrink: 0;
 }
 
-/* CB2 grid — enough height for 160px preview + comfortable body */
+/* CB2 grid — tall enough to show full card images */
 #cb2-dash-grid {
-  grid-auto-rows: 270px;
+  grid-auto-rows: 360px;
 }
+/* CB2 preview zone is taller than CB1 */
+#cb2-dash-grid .cd-tile-preview { height: 270px; }
+#cb2-dash-grid .cd-tile-preview svg { height: 270px; }
 /* CB2 previews crop to fill (CB1 uses contain) */
 #cb2-dash-grid .cd-tile-preview-img {
+  height: 270px;
   object-fit: cover;
+}
+
+/* ── CB2 concept peek button ─────────────────────────────── */
+.cb2-peek-btn {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(27,42,74,0.12);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.cd-card-tile:hover .cb2-peek-btn { opacity: 1; }
+
+/* ── CB2 concept peek popover ────────────────────────────── */
+.cb2-peek-popover {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(27,42,74,0.2);
+  padding: 12px;
+  z-index: 9999;
+  display: none;
+  pointer-events: auto;
+}
+.cb2-peek-popover.visible { display: block; }
+.cb2-peek-popover-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+  margin-bottom: 10px;
+}
+.cb2-peek-popover-imgs {
+  display: flex;
+  gap: 8px;
+}
+.cb2-peek-popover-img {
+  width: 180px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.cb2-peek-popover-label {
+  font-size: 10px;
+  color: var(--gray);
+  text-align: center;
+  margin-top: 5px;
+  font-weight: 600;
 }
 /* CB2 product title — plain text, single line */
 #cb2-dash-grid .cd-tile-sku {

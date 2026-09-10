@@ -2803,24 +2803,24 @@
     const hasRounds = d.rounds?.length > 0;
     const hasSelected = !!d.selected_concept_url;
     if (hasSelected || d.status === 'complete') {
-      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="cb2g${d.id.slice(0,6)}" x1="0" y1="0" x2="280" y2="160" gradientUnits="userSpaceOnUse">
+      return `<svg width="100%" height="270" viewBox="0 0 280 270" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="cb2g${d.id.slice(0,6)}" x1="0" y1="0" x2="280" y2="270" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#1B2A4A"/><stop offset="100%" stop-color="#3D5A99"/>
         </linearGradient></defs>
-        <rect width="280" height="160" fill="url(#cb2g${d.id.slice(0,6)})" rx="4"/>
-        <circle cx="140" cy="80" r="28" fill="white" opacity="0.12"/><text x="140" y="88" text-anchor="middle" font-size="22" fill="white" opacity="0.5">🃏</text>
+        <rect width="280" height="270" fill="url(#cb2g${d.id.slice(0,6)})" rx="4"/>
+        <circle cx="140" cy="135" r="28" fill="white" opacity="0.12"/><text x="140" y="143" text-anchor="middle" font-size="22" fill="white" opacity="0.5">🃏</text>
       </svg>`;
     } else if (hasRounds) {
-      return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
-        <rect width="280" height="160" fill="#F7F4EF" rx="4"/>
-        <text x="140" y="88" text-anchor="middle" font-size="32" opacity="0.25">✦</text>
-        <text x="140" y="148" text-anchor="middle" font-size="9" fill="#1B2A4A" opacity="0.35" font-family="monospace">CONCEPTS IN PROGRESS</text>
+      return `<svg width="100%" height="270" viewBox="0 0 280 270" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="270" fill="#F7F4EF" rx="4"/>
+        <text x="140" y="143" text-anchor="middle" font-size="32" opacity="0.25">✦</text>
+        <text x="140" y="258" text-anchor="middle" font-size="9" fill="#1B2A4A" opacity="0.35" font-family="monospace">CONCEPTS IN PROGRESS</text>
       </svg>`;
     }
-    return `<svg width="100%" height="160" viewBox="0 0 280 160" xmlns="http://www.w3.org/2000/svg">
-      <rect width="280" height="160" fill="#F2EDE6" rx="4"/>
-      <rect x="95" y="35" width="90" height="90" rx="5" fill="white" stroke="#DDD6CA" stroke-width="1.5" stroke-dasharray="5 3"/>
-      <text x="140" y="88" text-anchor="middle" font-size="20" opacity="0.3">🃏</text>
+    return `<svg width="100%" height="270" viewBox="0 0 280 270" xmlns="http://www.w3.org/2000/svg">
+      <rect width="280" height="270" fill="#F2EDE6" rx="4"/>
+      <rect x="95" y="90" width="90" height="90" rx="5" fill="white" stroke="#DDD6CA" stroke-width="1.5" stroke-dasharray="5 3"/>
+      <text x="140" y="143" text-anchor="middle" font-size="20" opacity="0.3">🃏</text>
     </svg>`;
   }
 
@@ -2832,11 +2832,21 @@
     const roundsText = hasSelected ? 'Concept selected ✓'
       : hasRounds ? `${d.rounds.length} round${d.rounds.length !== 1 ? 's' : ''} in progress`
       : 'No rounds yet';
+
+    // Collect concept URLs from last round for peek button
+    const lastRound = hasRounds ? d.rounds[d.rounds.length - 1] : null;
+    const conceptUrls = lastRound?.cards?.map(c => c.url).filter(Boolean) || [];
+    const showPeek = !hasSelected && conceptUrls.length > 0;
+
     return `<div class="cd-card-tile" data-id="${d.id}">
       <div class="cd-tile-preview">
         ${cb2TilePreviewImg(d)}
         <span class="cd-tile-status ${statusClass}">${statusLabel}</span>
         <button class="cd-tile-delete-btn cb2-tile-delete" data-id="${d.id}" title="Delete design">✕</button>
+        ${showPeek ? `<button class="cb2-peek-btn" data-concepts="${encodeURIComponent(JSON.stringify(conceptUrls))}" title="Preview concepts">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M10 4C5.5 4 2 10 2 10s3.5 6 8 6 8-6 8-6-3.5-6-8-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+          ${conceptUrls.length} concept${conceptUrls.length !== 1 ? 's' : ''}
+        </button>` : ''}
       </div>
       <div class="cd-tile-body">
         <div class="cd-tile-name">${d.name || 'Untitled Design'}</div>
@@ -2876,7 +2886,7 @@
 
     grid.querySelectorAll('.cd-card-tile').forEach(tile => {
       tile.addEventListener('click', e => {
-        if (e.target.closest('.cb2-tile-delete')) return;
+        if (e.target.closest('.cb2-tile-delete') || e.target.closest('.cb2-peek-btn')) return;
         openCb2Design(tile.dataset.id);
       });
     });
@@ -2888,6 +2898,62 @@
         loadCb2Designs();
       });
     });
+    grid.querySelectorAll('.cb2-peek-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        try {
+          const urls = JSON.parse(decodeURIComponent(btn.dataset.concepts || '[]'));
+          showCb2Peek(btn, urls);
+        } catch (_) {}
+      });
+    });
+  }
+
+  function showCb2Peek(btn, urls) {
+    let pop = document.getElementById('cb2-peek-popover');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'cb2-peek-popover';
+      pop.className = 'cb2-peek-popover';
+      document.body.appendChild(pop);
+      document.addEventListener('click', e => {
+        if (!e.target.closest('#cb2-peek-popover') && !e.target.closest('.cb2-peek-btn')) {
+          pop.classList.remove('visible');
+        }
+      });
+    }
+
+    pop.innerHTML = `
+      <div class="cb2-peek-popover-header">Concepts</div>
+      <div class="cb2-peek-popover-imgs">
+        ${urls.map((url, i) => `<div>
+          <img src="${url}" class="cb2-peek-popover-img" alt="Concept ${i + 1}" />
+          <div class="cb2-peek-popover-label">Option ${i + 1}</div>
+        </div>`).join('')}
+      </div>`;
+
+    const tile = btn.closest('.cd-card-tile');
+    const rect = tile.getBoundingClientRect();
+    const imgW = 180;
+    const gap = 8;
+    const pad = 12;
+    const popW = urls.length * imgW + (urls.length - 1) * gap + pad * 2;
+
+    let left = rect.left;
+    if (left + popW > window.innerWidth - 12) left = window.innerWidth - popW - 12;
+    if (left < 12) left = 12;
+    pop.style.left = `${left}px`;
+    pop.style.width = `${popW}px`;
+
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow >= 280) {
+      pop.style.top = `${rect.bottom + 8}px`;
+      pop.style.bottom = '';
+    } else {
+      pop.style.top = `${rect.top - 280}px`;
+      pop.style.bottom = '';
+    }
+    pop.classList.add('visible');
   }
 
   async function newCb2Design() {
