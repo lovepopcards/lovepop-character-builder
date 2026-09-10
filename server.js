@@ -1849,31 +1849,31 @@ app.post('/api/engineering-base/generate', uploadMem.single('image'), async (req
 });
 
 app.get('/api/engineering-base/templates', (req, res) => {
-  const rows = db.prepare('SELECT * FROM engineering_base_templates ORDER BY created_at DESC').all();
-  res.json(rows);
+  res.json(db.getAllEngBaseTemplates());
 });
 
-app.post('/api/engineering-base/templates', express.json(), (req, res) => {
+app.post('/api/engineering-base/templates', (req, res) => {
   const { title, image_path } = req.body || {};
   if (!title || !image_path) return res.status(400).json({ error: 'title and image_path required.' });
-  const result = db.prepare(
-    'INSERT INTO engineering_base_templates (title, image_path) VALUES (?, ?)'
-  ).run(title.trim(), image_path);
-  const row = db.prepare('SELECT * FROM engineering_base_templates WHERE id = ?').get(result.lastInsertRowid);
-  res.json(row);
+  try {
+    const row = db.createEngBaseTemplate(title.trim(), image_path);
+    res.json(row);
+  } catch (err) {
+    console.error('[engineering-base] save error:', err.message);
+    res.status(500).json({ error: 'Save failed: ' + err.message });
+  }
 });
 
 app.delete('/api/engineering-base/templates/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM engineering_base_templates WHERE id = ?').get(req.params.id);
+  const row = db.getEngBaseTemplate(req.params.id);
   if (!row) return res.status(404).json({ error: 'Template not found.' });
-  // Delete the image file if it lives in our uploads dir
   const localPath = row.image_path.startsWith('/uploads/')
     ? path.join(ENG_BASE_DIR, path.basename(row.image_path))
     : null;
   if (localPath && fs.existsSync(localPath)) {
     try { fs.unlinkSync(localPath); } catch {}
   }
-  db.prepare('DELETE FROM engineering_base_templates WHERE id = ?').run(req.params.id);
+  db.deleteEngBaseTemplate(req.params.id);
   res.json({ ok: true });
 });
 

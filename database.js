@@ -956,4 +956,21 @@ module.exports = {
     db.prepare(`UPDATE description_packages SET images = ?, updated_at = datetime('now') WHERE id = ?`).run(JSON.stringify(images), id);
     return this.getDescriptionPackage(id);
   },
+
+  // ── Engineering Base Templates ────────────────────────────────
+  getAllEngBaseTemplates() {
+    return db.prepare('SELECT * FROM engineering_base_templates ORDER BY created_at DESC').all();
+  },
+  getEngBaseTemplate(id) {
+    return db.prepare('SELECT * FROM engineering_base_templates WHERE id = ?').get(id) || null;
+  },
+  createEngBaseTemplate(title, image_path) {
+    const result = db.prepare(
+      'INSERT INTO engineering_base_templates (title, image_path) VALUES (?, ?)'
+    ).run(title, image_path);
+    return this.getEngBaseTemplate(result.lastInsertRowid);
+  },
+  deleteEngBaseTemplate(id) {
+    return db.prepare('DELETE FROM engineering_base_templates WHERE id = ?').run(id);
+  },
 };
