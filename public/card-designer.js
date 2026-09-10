@@ -2750,6 +2750,7 @@
   let cb2Designs = [];
   let cb2Active  = null;   // active design object
   let cb2Search  = '';
+  let cb2Filter  = 'all';  // 'all' | 'favorited' | 'archived' | 'unsorted'
   let cb2GenCount = 3;
   let cb2Module  = 'concepts'; // 'concepts' | 'finalize'
 
@@ -2843,7 +2844,10 @@
     // Only show subtitle when it carries different info than the display name
     const showSku = d.product_title && d.product_title !== displayName;
 
-    return `<div class="cd-card-tile" data-id="${d.id}">
+    const isFav = !!d.is_favorited;
+    const isArch = !!d.is_archived;
+
+    return `<div class="cd-card-tile${isArch ? ' cb2-tile-archived' : ''}" data-id="${d.id}">
       <div class="cd-tile-preview">
         ${cb2TilePreviewImg(d)}
         <span class="cd-tile-status ${statusClass}">${statusLabel}</span>
@@ -2851,6 +2855,14 @@
         ${showPeek ? `<button class="cb2-peek-btn" data-concepts="${encodeURIComponent(JSON.stringify(conceptUrls))}" title="Preview concepts">
           <svg width="13" height="11" viewBox="0 0 20 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C5.5 1 2 8 2 8s3.5 7 8 7 8-7 8-7-3.5-7-8-7z" stroke="#1B2A4A" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="8" r="2.5" stroke="#1B2A4A" stroke-width="1.8"/></svg>
         </button>` : ''}
+        <div class="cb2-tile-actions">
+          <button class="cb2-tile-action-btn cb2-heart-btn${isFav ? ' active-heart' : ''}" data-id="${d.id}" title="${isFav ? 'Unfavorite' : 'Favorite'}">
+            <svg width="13" height="12" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S2 11 2 6a4 4 0 0 1 8-1h0a4 4 0 0 1 8 1c0 5-8 10-8 10z" stroke="${isFav ? '#fff' : '#1B2A4A'}" stroke-width="1.8" fill="${isFav ? '#fff' : 'none'}" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="cb2-tile-action-btn cb2-archive-btn${isArch ? ' active-archive' : ''}" data-id="${d.id}" title="${isArch ? 'Unarchive' : 'Archive'}">
+            <svg width="13" height="12" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="4" rx="1" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8" fill="${isArch ? '#fff' : 'none'}"/><path d="M3 6v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8"/><path d="M8 10h4" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+        </div>
       </div>
       <div class="cd-tile-body">
         <div class="cd-tile-name">${displayName}</div>
@@ -2878,7 +2890,15 @@
     const grid = qs('cb2-dash-grid');
     const countEl = qs('cb2-dash-count');
     if (!grid) return;
-    if (countEl) countEl.textContent = `${cb2Designs.length} design${cb2Designs.length !== 1 ? 's' : ''}`;
+
+    // Apply filter
+    let visible = cb2Designs;
+    if (cb2Filter === 'favorited') visible = cb2Designs.filter(d => d.is_favorited);
+    else if (cb2Filter === 'archived') visible = cb2Designs.filter(d => d.is_archived);
+    else if (cb2Filter === 'unsorted') visible = cb2Designs.filter(d => !d.is_favorited && !d.is_archived);
+    // 'all' shows everything including archived
+
+    if (countEl) countEl.textContent = `${visible.length} design${visible.length !== 1 ? 's' : ''}`;
 
     if (!cb2Designs.length) {
       grid.innerHTML = `<div class="cd-dash-empty"><div class="cd-dash-empty-icon">🃏</div><div class="cd-dash-empty-title">No designs yet</div><div class="cd-dash-empty-sub">Create your first Card Builder 2.0 design to get started.</div><button class="btn-primary" id="cb2-empty-new-btn">+ New Design</button></div>`;
@@ -2886,11 +2906,17 @@
       return;
     }
 
-    grid.innerHTML = cb2Designs.map(cb2TileHtml).join('');
+    if (!visible.length) {
+      const labels = { favorited: 'favorited', archived: 'archived', unsorted: 'unsorted' };
+      grid.innerHTML = `<div class="cd-dash-empty"><div class="cd-dash-empty-title">No ${labels[cb2Filter] || ''} designs</div></div>`;
+      return;
+    }
+
+    grid.innerHTML = visible.map(cb2TileHtml).join('');
 
     grid.querySelectorAll('.cd-card-tile').forEach(tile => {
       tile.addEventListener('click', e => {
-        if (e.target.closest('.cb2-tile-delete') || e.target.closest('.cb2-peek-btn')) return;
+        if (e.target.closest('.cb2-tile-delete') || e.target.closest('.cb2-peek-btn') || e.target.closest('.cb2-tile-actions')) return;
         openCb2Design(tile.dataset.id);
       });
     });
@@ -2900,6 +2926,28 @@
         if (!confirm('Delete this design?')) return;
         await api.del(`/api/card-designer/cb2/designs/${btn.dataset.id}`);
         loadCb2Designs();
+      });
+    });
+    grid.querySelectorAll('.cb2-heart-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const design = cb2Designs.find(d => d.id === btn.dataset.id);
+        if (!design) return;
+        const newVal = design.is_favorited ? 0 : 1;
+        await api.patch(`/api/card-designer/cb2/designs/${design.id}`, { is_favorited: newVal });
+        design.is_favorited = newVal;
+        renderCb2Dashboard();
+      });
+    });
+    grid.querySelectorAll('.cb2-archive-btn').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const design = cb2Designs.find(d => d.id === btn.dataset.id);
+        if (!design) return;
+        const newVal = design.is_archived ? 0 : 1;
+        await api.patch(`/api/card-designer/cb2/designs/${design.id}`, { is_archived: newVal });
+        design.is_archived = newVal;
+        renderCb2Dashboard();
       });
     });
     grid.querySelectorAll('.cb2-peek-btn').forEach(btn => {
@@ -3289,6 +3337,13 @@
     qs('cb2-new-btn')?.addEventListener('click', newCb2Design);
     qs('cb2-empty-new-btn')?.addEventListener('click', newCb2Design);
     qs('cb2-dash-search')?.addEventListener('input', e => { cb2Search = e.target.value; renderCb2Dashboard(); });
+    document.querySelectorAll('.cb2-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cb2Filter = btn.dataset.filter;
+        document.querySelectorAll('.cb2-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+        renderCb2Dashboard();
+      });
+    });
 
     // Back buttons
     qs('cb2-back-btn')?.addEventListener('click', showCb2Dashboard);

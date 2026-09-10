@@ -2369,6 +2369,68 @@
   flex-shrink: 0;
 }
 
+/* ── CB2 filter bar ─────────────────────────────────────── */
+.cb2-filter-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0 0 16px;
+}
+.cb2-filter-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.cb2-filter-btn:hover { background: var(--bg); color: var(--navy); }
+.cb2-filter-btn.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── CB2 tile heart / archive buttons ───────────────────── */
+.cb2-tile-actions {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 3;
+}
+.cd-card-tile:hover .cb2-tile-actions { opacity: 1; }
+.cb2-tile-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.88);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, transform 0.1s;
+  padding: 0;
+}
+.cb2-tile-action-btn:hover { transform: scale(1.12); }
+.cb2-tile-action-btn.active-heart { background: #ff4d6d; }
+.cb2-tile-action-btn.active-heart svg path { fill: #fff; stroke: #fff; }
+.cb2-tile-action-btn.active-archive { background: var(--navy); }
+.cb2-tile-action-btn.active-archive svg path { fill: #fff; stroke: none; }
+
+/* Archived tiles fade slightly */
+.cd-card-tile.cb2-tile-archived { opacity: 0.55; }
+.cd-card-tile.cb2-tile-archived:hover { opacity: 1; }
+
 /* CB2 grid — tall enough to show full card images */
 #cb2-dash-grid {
   grid-auto-rows: 360px;

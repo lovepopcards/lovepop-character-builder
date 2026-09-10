@@ -298,10 +298,16 @@ db.exec(`
     finalize_notes TEXT DEFAULT '',
     finalize_comments TEXT DEFAULT '',
     finalize_refs TEXT DEFAULT '[]',
+    is_favorited INTEGER DEFAULT 0,
+    is_archived INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )
 `);
+
+// Migrate existing cb2_designs rows (safe no-ops if columns already exist)
+try { db.exec(`ALTER TABLE cb2_designs ADD COLUMN is_favorited INTEGER DEFAULT 0`); } catch (_) {}
+try { db.exec(`ALTER TABLE cb2_designs ADD COLUMN is_archived INTEGER DEFAULT 0`); } catch (_) {}
 
 // ── Settings table ────────────────────────────────────────────
 db.exec(`
@@ -860,7 +866,7 @@ module.exports = {
   },
   updateCb2Design(id, data) {
     const jsonFields = ['rounds', 'finalize_refs'];
-    const allowed = ['name', 'product_title', 'creative_direction', 'inspiration_image', 'engineering_base_image', 'status', 'rounds', 'selected_concept_url', 'finalize_notes', 'finalize_comments', 'finalize_refs'];
+    const allowed = ['name', 'product_title', 'creative_direction', 'inspiration_image', 'engineering_base_image', 'status', 'rounds', 'selected_concept_url', 'finalize_notes', 'finalize_comments', 'finalize_refs', 'is_favorited', 'is_archived'];
     const fields = [], values = [];
     for (const key of allowed) {
       if (data[key] !== undefined) {
