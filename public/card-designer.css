@@ -2369,9 +2369,9 @@
   flex-shrink: 0;
 }
 
-/* CB2 grid — slightly shorter rows than CB1 (no progress track) */
+/* CB2 grid — enough height for 160px preview + comfortable body */
 #cb2-dash-grid {
-  grid-auto-rows: 240px;
+  grid-auto-rows: 270px;
 }
 /* CB2 previews crop to fill (CB1 uses contain) */
 #cb2-dash-grid .cd-tile-preview-img {
