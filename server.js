@@ -1848,8 +1848,38 @@ app.post('/api/engineering-base/generate', uploadMem.single('image'), async (req
   }
 });
 
+// Direct upload (no AI generation — saves file + creates record in one step)
+app.post('/api/engineering-base/templates/upload', uploadMem.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
+  const { title } = req.body || {};
+  if (!title || !title.trim()) return res.status(400).json({ error: 'title required.' });
+  try {
+    const ext = path.extname(req.file.originalname) || '.png';
+    const filename = `engbase-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    fs.writeFileSync(path.join(ENG_BASE_DIR, filename), req.file.buffer);
+    const row = db.createEngBaseTemplate(title.trim(), `/uploads/engineering-base/${filename}`);
+    res.json(row);
+  } catch (err) {
+    console.error('[engineering-base] upload error:', err.message);
+    res.status(500).json({ error: 'Upload failed: ' + err.message });
+  }
+});
+
 app.get('/api/engineering-base/templates', (req, res) => {
   res.json(db.getAllEngBaseTemplates());
+});
+
+app.put('/api/engineering-base/templates/:id', (req, res) => {
+  const { title } = req.body || {};
+  if (!title || !title.trim()) return res.status(400).json({ error: 'title required.' });
+  const existing = db.getEngBaseTemplate(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Template not found.' });
+  try {
+    const row = db.updateEngBaseTemplate(req.params.id, title.trim());
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: 'Rename failed: ' + err.message });
+  }
 });
 
 app.post('/api/engineering-base/templates', (req, res) => {

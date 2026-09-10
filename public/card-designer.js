@@ -2897,6 +2897,7 @@
 
   async function openCb2Design(id) {
     cb2Active = await api.get(`/api/card-designer/cb2/designs/${id}`);
+    window._cb2ActiveId = cb2Active.id;
     showCb2Workspace();
     loadCb2WorkspaceUI();
     switchCb2Module('concepts');
@@ -3366,6 +3367,7 @@
     bindUploadZone();
     bindGenerateBtn();
     bindSaveBtn();
+    bindDirectUpload();
     bindSettingsSave();
     loadLibrary();
     loadSettingsPrompt();
@@ -3522,6 +3524,90 @@
     });
   }
 
+  // ── Direct upload to library ───────────────────────────────
+  function bindDirectUpload() {
+    const zone    = qs('#ceb-direct-zone');
+    const input   = qs('#ceb-direct-input');
+    const empty   = qs('#ceb-direct-empty');
+    const preview = qs('#ceb-direct-preview');
+    const img     = qs('#ceb-direct-img');
+    const clearBtn = qs('#ceb-direct-clear');
+    const saveBtn = qs('#ceb-direct-save-btn');
+    const titleIn = qs('#ceb-direct-title');
+    if (!zone) return;
+
+    let file = null;
+
+    function setFile(f) {
+      if (!f || !f.type.startsWith('image/')) return;
+      file = f;
+      img.src = URL.createObjectURL(f);
+      empty.classList.add('hidden');
+      preview.classList.remove('hidden');
+      saveBtn.disabled = false;
+    }
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+    input.addEventListener('change', () => { if (input.files[0]) setFile(input.files[0]); });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+
+    let pasteHandler = null;
+    zone.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); setFile(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+      zone.classList.add('paste-ready');
+    });
+    zone.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+      zone.classList.remove('paste-ready');
+    });
+
+    clearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      file = null;
+      img.src = '';
+      input.value = '';
+      preview.classList.add('hidden');
+      empty.classList.remove('hidden');
+      saveBtn.disabled = true;
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const title = titleIn?.value.trim() || '';
+      if (!title) { titleIn?.focus(); return; }
+      if (!file) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      try {
+        const fd = new FormData();
+        fd.append('image', file);
+        fd.append('title', title);
+        const resp = await fetch('/api/engineering-base/templates/upload', { method: 'POST', body: fd });
+        if (!resp.ok) { const d = await resp.json(); throw new Error(d.error || 'Upload failed'); }
+        // Reset form
+        file = null;
+        img.src = '';
+        input.value = '';
+        if (titleIn) titleIn.value = '';
+        preview.classList.add('hidden');
+        empty.classList.remove('hidden');
+        saveBtn.disabled = true;
+        loadLibrary();
+      } catch (err) {
+        alert('Upload failed: ' + err.message);
+        saveBtn.disabled = false;
+      } finally {
+        saveBtn.textContent = 'Save to Library';
+      }
+    });
+  }
+
   // ── Template library ───────────────────────────────────────
   async function loadLibrary() {
     const grid  = qs('#ceb-library-grid');
@@ -3534,14 +3620,9 @@
       const templates = await resp.json();
 
       count.textContent = `${templates.length} template${templates.length === 1 ? '' : 's'}`;
-
-      // Remove existing cards but keep the empty state el
       grid.querySelectorAll('.ceb-template-card').forEach(el => el.remove());
 
-      if (!templates.length) {
-        empty.classList.remove('hidden');
-        return;
-      }
+      if (!templates.length) { empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
 
       templates.forEach(t => {
@@ -3553,18 +3634,57 @@
           </div>
           <div class="ceb-template-info">
             <div class="ceb-template-title" title="${t.title}">${t.title}</div>
+            <button class="ceb-template-edit" title="Rename" data-id="${t.id}">✎</button>
             <button class="ceb-template-delete" title="Delete template" data-id="${t.id}">✕</button>
           </div>
         `;
         card.querySelector('.ceb-template-delete').addEventListener('click', () => deleteTemplate(t.id));
+        card.querySelector('.ceb-template-edit').addEventListener('click', () => startRename(card, t));
         grid.appendChild(card);
       });
 
-      // Attach zoom to new images (if global zoomable handler exists)
       if (typeof window.bindZoomable === 'function') window.bindZoomable(grid);
     } catch (err) {
       console.error('[ceb] load library error:', err);
     }
+  }
+
+  function startRename(card, t) {
+    const infoRow = card.querySelector('.ceb-template-info');
+    const titleEl = card.querySelector('.ceb-template-title');
+    const editBtn = card.querySelector('.ceb-template-edit');
+    if (!titleEl) return;
+
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'ceb-template-title-input';
+    inp.value = t.title;
+    titleEl.replaceWith(inp);
+    editBtn.style.display = 'none';
+    inp.focus();
+    inp.select();
+
+    async function save() {
+      const newTitle = inp.value.trim();
+      if (!newTitle || newTitle === t.title) { loadLibrary(); return; }
+      try {
+        const resp = await fetch(`/api/engineering-base/templates/${t.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle }),
+        });
+        if (!resp.ok) throw new Error('Rename failed');
+      } catch (err) {
+        alert('Rename failed: ' + err.message);
+      }
+      loadLibrary();
+    }
+
+    inp.addEventListener('blur', save);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+      if (e.key === 'Escape') { inp.value = t.title; inp.blur(); }
+    });
   }
 
   async function deleteTemplate(id) {
@@ -3619,4 +3739,116 @@
   } else {
     loadSettingsPrompt();
   }
+})();
+
+/* ── Engineering Base Picker Modal (shared by CB1 and CB2) ──── */
+(function () {
+  'use strict';
+
+  let pickerCallback = null;
+
+  async function openEngBasePicker(onSelect) {
+    pickerCallback = onSelect;
+    const modal = document.getElementById('ceb-picker-modal');
+    const grid  = document.getElementById('ceb-picker-grid');
+    const empty = document.getElementById('ceb-picker-empty');
+    if (!modal || !grid) return;
+
+    // Clear previous tiles (keep empty state)
+    grid.querySelectorAll('.ceb-picker-tile').forEach(el => el.remove());
+
+    modal.classList.remove('hidden');
+
+    try {
+      const resp = await fetch('/api/engineering-base/templates');
+      const templates = await resp.json();
+
+      if (!templates.length) {
+        if (empty) empty.classList.remove('hidden');
+        return;
+      }
+      if (empty) empty.classList.add('hidden');
+
+      templates.forEach(t => {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'ceb-picker-tile';
+        tile.innerHTML = `
+          <img class="ceb-picker-tile-thumb" src="${t.image_path}" alt="${t.title}" />
+          <div class="ceb-picker-tile-name" title="${t.title}">${t.title}</div>
+        `;
+        tile.addEventListener('click', () => {
+          closePicker();
+          if (typeof pickerCallback === 'function') pickerCallback(t);
+        });
+        grid.appendChild(tile);
+      });
+    } catch (err) {
+      console.error('[ceb-picker] load error:', err);
+    }
+  }
+
+  function closePicker() {
+    const modal = document.getElementById('ceb-picker-modal');
+    if (modal) modal.classList.add('hidden');
+    pickerCallback = null;
+  }
+
+  // Wire close button and backdrop
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('ceb-picker-close')?.addEventListener('click', closePicker);
+    document.getElementById('ceb-picker-modal')?.addEventListener('click', e => {
+      if (e.target === document.getElementById('ceb-picker-modal')) closePicker();
+    });
+
+    // ── CB1: "or select from Engineering Library" ───────────
+    document.getElementById('cd-sculpture-ref-from-library')?.addEventListener('click', () => {
+      openEngBasePicker(async (template) => {
+        // CB1 puts the design id in the pathname: /card-designer/:id
+        const match = window.location.pathname.match(/\/card-designer\/([^/]+)/);
+        const designId = match ? match[1] : null;
+        if (!designId) { alert('No active design. Open a design first.'); return; }
+
+        const resp = await fetch(`/api/card-designer/designs/${designId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sketch_ref_image: template.image_path }),
+        });
+        if (!resp.ok) { alert('Could not apply template.'); return; }
+        const emptyEl   = document.getElementById('cd-sculpture-ref-empty');
+        const previewEl = document.getElementById('cd-sculpture-ref-preview');
+        const imgEl     = document.getElementById('cd-sculpture-ref-img');
+        if (emptyEl && previewEl && imgEl) {
+          imgEl.src = template.image_path;
+          emptyEl.classList.add('hidden');
+          previewEl.classList.remove('hidden');
+        }
+      });
+    });
+
+    // ── CB2: "or select from Engineering Library" ───────────
+    document.getElementById('cb2-engineering-from-library')?.addEventListener('click', () => {
+      openEngBasePicker(async (template) => {
+        const designId = window._cb2ActiveId || null;
+        if (!designId) { alert('No active CB2 design. Open a design first.'); return; }
+
+        const resp = await fetch(`/api/card-designer/cb2/designs/${designId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ engineering_base_image: template.image_path }),
+        });
+        if (!resp.ok) { alert('Could not apply template.'); return; }
+        const emptyEl   = document.getElementById('cb2-engineering-empty');
+        const previewEl = document.getElementById('cb2-engineering-preview');
+        const imgEl     = document.getElementById('cb2-engineering-img');
+        if (emptyEl && previewEl && imgEl) {
+          imgEl.src = template.image_path;
+          emptyEl.classList.add('hidden');
+          previewEl.classList.remove('hidden');
+        }
+      });
+    });
+  });
+
+  window.openEngBasePicker = openEngBasePicker;
 })();

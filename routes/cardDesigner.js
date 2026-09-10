@@ -306,8 +306,9 @@ router.post('/designs/:id/sketch/round', async (req, res) => {
   // Load per-design sculpture reference image (uploaded by user in sketch sidebar)
   const sculptureRefPart = (() => {
     if (!design.sketch_ref_image) return null;
-    const filename = path.basename(design.sketch_ref_image);
-    const fullPath = path.join(UPLOADS_DIR, 'sketch-refs', filename);
+    // Support both legacy sketch-refs/ paths and engineering-base/ library paths
+    const relativePath = design.sketch_ref_image.replace(/^\/uploads\//, '');
+    const fullPath = path.join(UPLOADS_DIR, relativePath);
     if (!fs.existsSync(fullPath)) return null;
     try {
       const buf = fs.readFileSync(fullPath);
@@ -1018,8 +1019,9 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
   // Load engineering base image (always provided as structural reference)
   const engineeringPart = (() => {
     if (!design.engineering_base_image) return null;
-    const filename = path.basename(design.engineering_base_image);
-    const fullPath = path.join(UPLOADS_DIR, 'cb2-engineering', filename);
+    // Support both legacy cb2-engineering/ paths and engineering-base/ library paths
+    const relativePath = design.engineering_base_image.replace(/^\/uploads\//, '');
+    const fullPath = path.join(UPLOADS_DIR, relativePath);
     return loadImg(fullPath);
   })();
 

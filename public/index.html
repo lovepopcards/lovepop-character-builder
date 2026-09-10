@@ -1778,6 +1778,7 @@
             </div>
             <input type="file" id="cd-sculpture-ref-input" accept="image/*" style="display:none" />
           </div>
+          <button type="button" class="ceb-select-from-library-link" id="cd-sculpture-ref-from-library">or select from Engineering Library</button>
         </div>
 
         <!-- Art style (concept tab only) -->
@@ -2080,6 +2081,7 @@
                     </div>
                     <input type="file" id="cb2-engineering-input" accept="image/*" style="display:none" />
                   </div>
+                  <button type="button" class="ceb-select-from-library-link" id="cb2-engineering-from-library">or select from Engineering Library</button>
                 </div>
 
                 <!-- Selected concept (shown after selection) -->
@@ -2238,6 +2240,28 @@
           </div>
 
         </div><!-- /ceb-generator -->
+
+        <!-- ── Direct Upload ─────────────────────────────────────── -->
+        <div class="ceb-direct-upload">
+          <div class="ceb-section-label">Upload Directly to Library</div>
+          <div class="ceb-direct-row">
+            <div class="cd-ref-zone ceb-direct-zone" id="ceb-direct-zone" tabindex="0" title="Drop, paste, or click to upload a white engineering template">
+              <div class="cd-ref-zone-empty" id="ceb-direct-empty">
+                <div class="cd-ref-zone-icon">⬜</div>
+                <div class="cd-ref-zone-hint">Drop, paste, or click to upload a white template</div>
+              </div>
+              <div class="cd-ref-zone-preview hidden" id="ceb-direct-preview">
+                <img id="ceb-direct-img" class="cd-ref-zone-thumb zoomable" src="" alt="Template" title="Click to enlarge" />
+                <button class="cd-ref-zone-clear" id="ceb-direct-clear" title="Remove">✕</button>
+              </div>
+              <input type="file" id="ceb-direct-input" accept="image/*" style="display:none" />
+            </div>
+            <div class="ceb-direct-fields">
+              <input type="text" id="ceb-direct-title" class="ceb-save-input" placeholder="Template title (e.g. Butterfly Pop-Up Base)" autocomplete="off" />
+              <button class="btn-primary" id="ceb-direct-save-btn" disabled>Save to Library</button>
+            </div>
+          </div>
+        </div>
 
         <!-- ── Template Library ──────────────────────────────────── -->
         <div class="ceb-library">
@@ -2759,6 +2783,21 @@
       <div class="cd-style-modal-footer">
         <button class="btn-secondary" id="cd-style-modal-cancel">Cancel</button>
         <button class="btn-primary" id="cd-style-modal-confirm">Use this style</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ENGINEERING BASE PICKER MODAL ══════════════════════════ -->
+  <div id="ceb-picker-modal" class="cd-style-modal-overlay hidden">
+    <div class="cd-style-modal-box ceb-picker-modal-box">
+      <div class="cd-style-modal-hdr">
+        <h2 class="cd-style-modal-title">Select Engineering Base Template</h2>
+        <button class="cd-style-modal-close" id="ceb-picker-close">✕</button>
+      </div>
+      <div class="cd-style-modal-body">
+        <div class="ceb-picker-grid" id="ceb-picker-grid">
+          <div class="ceb-picker-empty" id="ceb-picker-empty">No engineering base templates saved yet. Go to Card Engineering Base to create some.</div>
+        </div>
       </div>
     </div>
   </div>

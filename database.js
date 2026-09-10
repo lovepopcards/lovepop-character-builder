@@ -970,6 +970,10 @@ module.exports = {
     ).run(title, image_path);
     return this.getEngBaseTemplate(result.lastInsertRowid);
   },
+  updateEngBaseTemplate(id, title) {
+    db.prepare('UPDATE engineering_base_templates SET title = ? WHERE id = ?').run(title, id);
+    return this.getEngBaseTemplate(id);
+  },
   deleteEngBaseTemplate(id) {
     return db.prepare('DELETE FROM engineering_base_templates WHERE id = ?').run(id);
   },
