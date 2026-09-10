@@ -1921,6 +1921,12 @@ app.delete('/api/engineering-base/templates/:id', (req, res) => {
     try { fs.unlinkSync(localPath); } catch {}
   }
   db.deleteEngBaseTemplate(req.params.id);
+  // Clear engineering_base_image on any CB2 designs that referenced this file
+  if (row.image_path) {
+    db.getAllCb2Designs()
+      .filter(d => d.engineering_base_image === row.image_path)
+      .forEach(d => db.updateCb2Design(d.id, { engineering_base_image: '' }));
+  }
   res.json({ ok: true });
 });
 

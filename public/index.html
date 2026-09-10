@@ -2064,7 +2064,8 @@
                       <div class="cd-ref-zone-hint">Drop, paste, or click to add a style inspiration</div>
                     </div>
                     <div class="cd-ref-zone-preview hidden" id="cb2-inspiration-preview">
-                      <img id="cb2-inspiration-img" class="cd-ref-zone-thumb zoomable" src="" alt="Inspiration" title="Click to enlarge" />
+                      <img id="cb2-inspiration-img" class="cd-ref-zone-thumb zoomable" src="" alt="Inspiration" title="Click to enlarge"
+                        onerror="this.closest('.cd-ref-zone-preview').classList.add('hidden');this.closest('.cd-ref-zone').querySelector('.cd-ref-zone-empty').classList.remove('hidden')" />
                       <button class="cd-ref-zone-clear" id="cb2-inspiration-clear" title="Remove">✕</button>
                     </div>
                     <input type="file" id="cb2-inspiration-input" accept="image/*" style="display:none" />
@@ -2082,7 +2083,8 @@
                       <div class="cd-ref-zone-hint">Drop, paste, or click to upload</div>
                     </div>
                     <div class="cd-ref-zone-preview hidden" id="cb2-engineering-preview">
-                      <img id="cb2-engineering-img" class="cd-ref-zone-thumb zoomable" src="" alt="Engineering base" title="Click to enlarge" />
+                      <img id="cb2-engineering-img" class="cd-ref-zone-thumb zoomable" src="" alt="Engineering base" title="Click to enlarge"
+                        onerror="this.closest('.cd-ref-zone-preview').classList.add('hidden');this.closest('.cd-ref-zone').querySelector('.cd-ref-zone-empty').classList.remove('hidden')" />
                       <button class="cd-ref-zone-clear" id="cb2-engineering-clear" title="Remove">✕</button>
                     </div>
                     <input type="file" id="cb2-engineering-input" accept="image/*" style="display:none" />
