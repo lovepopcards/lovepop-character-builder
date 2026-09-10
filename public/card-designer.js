@@ -2753,6 +2753,7 @@
   let cb2Filter  = 'all';  // 'all' | 'favorited' | 'archived' | 'unsorted'
   let cb2GenCount = 3;
   let cb2Module  = 'concepts'; // 'concepts' | 'finalize'
+  let cb2RefineImages = []; // { blobUrl, serverUrl } — attached iteration reference images
 
   // ── API helpers ─────────────────────────────────────────────────
   const api = {
@@ -2961,6 +2962,89 @@
       btn.addEventListener('mouseleave', () => {
         getCb2PeekEl()._setHideTimer(hideCb2Peek, 150);
       });
+    });
+  }
+
+  // ── Refine bar image attachments ─────────────────────────────────
+  function renderCb2RefineAttachments() {
+    const strip = document.getElementById('cb2-refine-attach-strip');
+    if (!strip) return;
+    strip.classList.toggle('has-images', cb2RefineImages.length > 0);
+    strip.innerHTML = cb2RefineImages.map((img, i) => `
+      <div class="cb2-attach-thumb">
+        <img src="${img.blobUrl}" alt="Ref ${i + 1}" />
+        <button class="cb2-attach-thumb-remove" data-idx="${i}" title="Remove">✕</button>
+      </div>`).join('');
+    strip.querySelectorAll('.cb2-attach-thumb-remove').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (!isNaN(idx)) {
+          URL.revokeObjectURL(cb2RefineImages[idx]?.blobUrl);
+          cb2RefineImages.splice(idx, 1);
+          renderCb2RefineAttachments();
+        }
+      });
+    });
+  }
+
+  async function uploadCb2RefineImage(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const resp = await fetch('/api/cb2/refine-refs', { method: 'POST', body: fd });
+    if (!resp.ok) throw new Error('Upload failed');
+    return (await resp.json()).url;
+  }
+
+  function attachCb2RefineFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const blobUrl = URL.createObjectURL(file);
+    const entry = { blobUrl, serverUrl: null };
+    cb2RefineImages.push(entry);
+    renderCb2RefineAttachments();
+    // Upload in background; populate serverUrl when done
+    uploadCb2RefineImage(file)
+      .then(url => { entry.serverUrl = url; })
+      .catch(() => {
+        // Remove failed upload from list
+        const idx = cb2RefineImages.indexOf(entry);
+        if (idx !== -1) { cb2RefineImages.splice(idx, 1); renderCb2RefineAttachments(); }
+      });
+  }
+
+  function bindCb2RefineAttachments() {
+    const bar    = document.getElementById('cb2-refine-bar');
+    const btn    = document.getElementById('cb2-attach-img-btn');
+    const fileIn = document.getElementById('cb2-refine-file');
+    if (!bar || !btn || !fileIn) return;
+
+    // Click attach button → open file picker
+    btn.addEventListener('click', () => fileIn.click());
+    fileIn.addEventListener('change', () => {
+      Array.from(fileIn.files || []).forEach(attachCb2RefineFile);
+      fileIn.value = '';
+    });
+
+    // Paste image anywhere in the refine bar area
+    let pasteHandler = null;
+    bar.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); attachCb2RefineFile(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+    });
+    bar.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+    });
+
+    // Drag and drop onto the refine bar
+    bar.addEventListener('dragover', e => { e.preventDefault(); bar.classList.add('drag-over'); });
+    bar.addEventListener('dragleave', () => bar.classList.remove('drag-over'));
+    bar.addEventListener('drop', e => {
+      e.preventDefault();
+      bar.classList.remove('drag-over');
+      Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/')).forEach(attachCb2RefineFile);
     });
   }
 
@@ -3221,13 +3305,18 @@
     }
 
     try {
+      const serverUrls = cb2RefineImages.map(r => r.serverUrl).filter(Boolean);
       const { round, design } = await api.post(`/api/card-designer/cb2/designs/${cb2Active.id}/generate-round`, {
         refine_note: refineNote,
         count: cb2GenCount,
         parent_card_id: parentCardId || null,
+        refine_ref_images: serverUrls,
       });
       cb2Active = design;
       if (qs('cb2-refine-input')) qs('cb2-refine-input').value = '';
+      cb2RefineImages.forEach(r => URL.revokeObjectURL(r.blobUrl));
+      cb2RefineImages = [];
+      renderCb2RefineAttachments();
       cb2IterateCardId = null;
       renderCb2Rounds();
       // Scroll to the new round
@@ -3471,6 +3560,7 @@
   // ── Init ─────────────────────────────────────────────────────────
   function cb2Init() {
     bindCb2UI();
+    bindCb2RefineAttachments();
     // When the outer Card Builder nav tab is clicked, if CB2 tab is active, load CB2 dashboard
     document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', () => {

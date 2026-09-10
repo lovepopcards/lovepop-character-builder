@@ -159,6 +159,17 @@ const cb2EngineeringStorage = multer.diskStorage({
 });
 const uploadCb2Engineering = multer({ storage: cb2EngineeringStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
+const CB2_REFINE_REFS_DIR = path.join(UPLOADS_DIR, 'cb2-refine-refs');
+if (!fs.existsSync(CB2_REFINE_REFS_DIR)) fs.mkdirSync(CB2_REFINE_REFS_DIR, { recursive: true });
+const cb2RefineRefsStorage = multer.diskStorage({
+  destination: CB2_REFINE_REFS_DIR,
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `ref-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const uploadCb2RefineRef = multer({ storage: cb2RefineRefsStorage, limits: { fileSize: 20 * 1024 * 1024 } });
+
 app.use(express.json({ limit: '10mb' }));
 // Serve uploads from the persistent volume at /uploads/ (takes priority over public/uploads/)
 app.use('/uploads', express.static(UPLOADS_DIR));
@@ -1195,6 +1206,12 @@ app.delete('/api/cb2/designs/:id/engineering-base', (req, res) => {
     if (fs.existsSync(old)) { try { fs.unlinkSync(old); } catch {} }
   }
   res.json({ success: true, design: db.updateCb2Design(req.params.id, { engineering_base_image: '' }) });
+});
+
+// CB2 iteration reference image upload (temporary, per-round context images)
+app.post('/api/cb2/refine-refs', uploadCb2RefineRef.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ url: `/uploads/cb2-refine-refs/${req.file.filename}` });
 });
 
 // ── Art Style Reference Articulator ───────────────────────────

@@ -2176,9 +2176,16 @@
               </div><!-- /cd-track-content -->
 
               <!-- Refine bar -->
-              <div class="cd-refine-bar" id="cb2-refine-bar">
-                <input type="text" id="cb2-refine-input" class="cd-refine-input" placeholder="Direction for next round…" autocomplete="off" />
-                <button class="cd-refine-btn" id="cb2-generate-btn">Generate Round 1 →</button>
+              <div class="cd-refine-bar cb2-refine-bar-wrap" id="cb2-refine-bar">
+                <div class="cb2-refine-attach-strip" id="cb2-refine-attach-strip"></div>
+                <div class="cb2-refine-input-row">
+                  <button class="cb2-attach-img-btn" id="cb2-attach-img-btn" title="Attach reference image (or paste / drag)">
+                    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><circle cx="7" cy="9" r="1.5" fill="currentColor"/><path d="M2 14l4-4 3 3 3-4 6 5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                  </button>
+                  <input type="text" id="cb2-refine-input" class="cd-refine-input" placeholder="Direction for next round…" autocomplete="off" />
+                  <button class="cd-refine-btn" id="cb2-generate-btn">Generate Round 1 →</button>
+                </div>
+                <input type="file" id="cb2-refine-file" accept="image/*" multiple style="display:none" />
               </div>
 
               <!-- Finalize action bar -->

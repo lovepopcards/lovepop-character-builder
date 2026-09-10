@@ -1373,6 +1373,79 @@
 .cd-refine-btn:hover { background: var(--coral-hover, #d4503d); }
 .cd-refine-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── CB2 refine bar image attachment UI ─────────────────────── */
+.cb2-refine-bar-wrap {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+.cb2-refine-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.cb2-attach-img-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+.cb2-attach-img-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+.cb2-refine-attach-strip {
+  display: none;
+  flex-direction: row;
+  gap: 8px;
+  padding: 10px 16px 2px;
+  flex-wrap: wrap;
+}
+.cb2-refine-attach-strip.has-images { display: flex; }
+.cb2-attach-thumb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.cb2-attach-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cb2-attach-thumb-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+}
+.cb2-attach-thumb-remove:hover { background: rgba(220,50,50,0.85); }
+.cb2-refine-bar-wrap.drag-over { background: rgba(27,42,74,0.95); outline: 2px dashed rgba(255,255,255,0.3); outline-offset: -4px; }
+
 /* ── Right panel (legacy — kept for sketch promote flow) ─────── */
 .cd-right-panel {
   width: 300px;

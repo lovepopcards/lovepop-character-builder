@@ -1000,7 +1000,7 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
 
   const settings = db.getAllSettings();
   const model = settings.gemini_model || db.DEFAULTS.gemini_model;
-  const { refine_note = '', count = 3, parent_card_id = null } = req.body;
+  const { refine_note = '', count = 3, parent_card_id = null, refine_ref_images = [] } = req.body;
   const systemPrompt = settings.cb2_system_prompt || db.DEFAULTS.cb2_system_prompt || '';
 
   // Determine if we're anchoring to a selected or parent card
@@ -1042,6 +1042,7 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
       inspirationPart ? `\nSTYLE INSPIRATION: An inspiration image is provided. Use it to inform the cover illustration style, color palette, and aesthetic direction.` : '',
       (parent_card_id || useSelected) ? `\nITERATION MODE: A previously generated card concept is provided as the primary reference. Evolve and refine it based on the direction below — preserve the overall composition and engineering approach while making the requested improvements.` : '',
       refine_note ? `\nRefinement direction: ${refine_note}` : '',
+      Array.isArray(refine_ref_images) && refine_ref_images.length > 0 ? `\nDESIGNER REFERENCE IMAGE${refine_ref_images.length > 1 ? 'S' : ''}: ${refine_ref_images.length} additional reference image${refine_ref_images.length > 1 ? 's' : ''} provided by the designer. Use them to inform the requested direction — they may show a desired style, element, composition, or visual idea to incorporate.` : '',
       !parent_card_id && !useSelected && design.rounds?.length > 0 ? `\nThis is round ${design.rounds.length + 1}. Explore a different creative interpretation while staying true to the brief.` : '',
     ];
     return lines.filter(Boolean).join('\n');
@@ -1053,6 +1054,15 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
     if (engineeringPart) parts.push(engineeringPart);
     // Inspiration / cover style
     if (inspirationPart) parts.push(inspirationPart);
+    // Designer-provided iteration reference images
+    if (Array.isArray(refine_ref_images)) {
+      for (const refUrl of refine_ref_images) {
+        if (!refUrl) continue;
+        const relativePath = refUrl.replace(/^\/uploads\//, '');
+        const part = loadImg(path.join(UPLOADS_DIR, relativePath));
+        if (part) parts.push(part);
+      }
+    }
     // Iteration anchors
     if (parent_card_id) {
       // Explicit iterate — use only that card
