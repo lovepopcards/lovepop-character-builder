@@ -3406,9 +3406,19 @@
       if (file) setImage(file);
     });
 
-    zone.addEventListener('paste', e => {
-      const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'));
-      if (item) setImage(item.getAsFile());
+    // Paste: attach to document while hovering (same pattern as CB1/CB2 ref zones)
+    let pasteHandler = null;
+    zone.addEventListener('mouseenter', () => {
+      pasteHandler = e => {
+        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
+        if (item) { e.preventDefault(); setImage(item.getAsFile()); }
+      };
+      document.addEventListener('paste', pasteHandler);
+      zone.classList.add('paste-ready');
+    });
+    zone.addEventListener('mouseleave', () => {
+      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
+      zone.classList.remove('paste-ready');
     });
 
     clearBtn.addEventListener('click', e => {
