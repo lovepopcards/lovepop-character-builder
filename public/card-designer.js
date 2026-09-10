@@ -2844,8 +2844,7 @@
         <span class="cd-tile-status ${statusClass}">${statusLabel}</span>
         <button class="cd-tile-delete-btn cb2-tile-delete" data-id="${d.id}" title="Delete design">✕</button>
         ${showPeek ? `<button class="cb2-peek-btn" data-concepts="${encodeURIComponent(JSON.stringify(conceptUrls))}" title="Preview concepts">
-          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><path d="M10 4C5.5 4 2 10 2 10s3.5 6 8 6 8-6 8-6-3.5-6-8-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
-          ${conceptUrls.length} concept${conceptUrls.length !== 1 ? 's' : ''}
+          <svg width="13" height="11" viewBox="0 0 20 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1C5.5 1 2 8 2 8s3.5 7 8 7 8-7 8-7-3.5-7-8-7z" stroke="#1B2A4A" stroke-width="1.8" stroke-linejoin="round"/><circle cx="10" cy="8" r="2.5" stroke="#1B2A4A" stroke-width="1.8"/></svg>
         </button>` : ''}
       </div>
       <div class="cd-tile-body">
@@ -2899,44 +2898,55 @@
       });
     });
     grid.querySelectorAll('.cb2-peek-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
+      btn.addEventListener('mouseenter', () => {
+        getCb2PeekEl()._clearHideTimer();
         try {
           const urls = JSON.parse(decodeURIComponent(btn.dataset.concepts || '[]'));
           showCb2Peek(btn, urls);
         } catch (_) {}
       });
+      btn.addEventListener('mouseleave', () => {
+        getCb2PeekEl()._setHideTimer(hideCb2Peek, 150);
+      });
     });
   }
 
-  function showCb2Peek(btn, urls) {
+  function getCb2PeekEl() {
     let pop = document.getElementById('cb2-peek-popover');
     if (!pop) {
       pop = document.createElement('div');
       pop.id = 'cb2-peek-popover';
       pop.className = 'cb2-peek-popover';
       document.body.appendChild(pop);
-      document.addEventListener('click', e => {
-        if (!e.target.closest('#cb2-peek-popover') && !e.target.closest('.cb2-peek-btn')) {
-          pop.classList.remove('visible');
-        }
-      });
+      let hideTimer = null;
+      pop.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      pop.addEventListener('mouseleave', () => { hideTimer = setTimeout(hideCb2Peek, 80); });
+      // store timer ref on element so mouseenter on btn can clear it
+      pop._setHideTimer = (fn, ms) => { hideTimer = setTimeout(fn, ms); };
+      pop._clearHideTimer = () => clearTimeout(hideTimer);
     }
+    return pop;
+  }
 
-    pop.innerHTML = `
-      <div class="cb2-peek-popover-header">Concepts</div>
-      <div class="cb2-peek-popover-imgs">
-        ${urls.map((url, i) => `<div>
-          <img src="${url}" class="cb2-peek-popover-img" alt="Concept ${i + 1}" />
-          <div class="cb2-peek-popover-label">Option ${i + 1}</div>
-        </div>`).join('')}
-      </div>`;
+  function hideCb2Peek() {
+    document.getElementById('cb2-peek-popover')?.classList.remove('visible');
+  }
+
+  function showCb2Peek(btn, urls) {
+    const pop = getCb2PeekEl();
+
+    pop.innerHTML = `<div class="cb2-peek-popover-imgs">
+      ${urls.map((url, i) => `<div>
+        <img src="${url}" class="cb2-peek-popover-img" alt="Concept ${i + 1}" />
+        <div class="cb2-peek-popover-label">Option ${i + 1}</div>
+      </div>`).join('')}
+    </div>`;
 
     const tile = btn.closest('.cd-card-tile');
     const rect = tile.getBoundingClientRect();
     const imgW = 180;
     const gap = 8;
-    const pad = 12;
+    const pad = 10;
     const popW = urls.length * imgW + (urls.length - 1) * gap + pad * 2;
 
     let left = rect.left;
@@ -2945,13 +2955,12 @@
     pop.style.left = `${left}px`;
     pop.style.width = `${popW}px`;
 
+    const popH = 180 + 28; // img + label
     const spaceBelow = window.innerHeight - rect.bottom;
-    if (spaceBelow >= 280) {
+    if (spaceBelow >= popH + 16) {
       pop.style.top = `${rect.bottom + 8}px`;
-      pop.style.bottom = '';
     } else {
-      pop.style.top = `${rect.top - 280}px`;
-      pop.style.bottom = '';
+      pop.style.top = `${rect.top - popH - 8}px`;
     }
     pop.classList.add('visible');
   }

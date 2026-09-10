@@ -2382,27 +2382,25 @@
   object-fit: cover;
 }
 
-/* ── CB2 concept peek button ─────────────────────────────── */
+/* ── CB2 concept peek button (tiny eye icon, bottom-left of preview) */
 .cb2-peek-btn {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
-  background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(27,42,74,0.12);
-  border-radius: 6px;
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--navy);
-  cursor: pointer;
+  bottom: 7px;
+  left: 7px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255,255,255,0.88);
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  cursor: default;
   opacity: 0;
   transition: opacity 0.15s;
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 5px;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
 }
 .cd-card-tile:hover .cb2-peek-btn { opacity: 1; }
 
@@ -2413,20 +2411,12 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(27,42,74,0.2);
-  padding: 12px;
+  padding: 10px;
   z-index: 9999;
   display: none;
   pointer-events: auto;
 }
 .cb2-peek-popover.visible { display: block; }
-.cb2-peek-popover-header {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--gray);
-  margin-bottom: 10px;
-}
 .cb2-peek-popover-imgs {
   display: flex;
   gap: 8px;
