@@ -49,13 +49,15 @@
       });
     });
 
-    // CB version tab switching (version tabs are shared between CB1 and CB2 modules)
+    // CB version tab switching
     document.querySelectorAll('.cb-version-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         const v = btn.dataset.version;
         document.querySelectorAll('.cb-version-tab').forEach(b => b.classList.toggle('active', b.dataset.version === v));
         document.getElementById('cb1-container').classList.toggle('hidden', v !== '1');
         document.getElementById('cb2-container').classList.toggle('hidden', v !== '2');
+        document.getElementById('ceb-container').classList.toggle('hidden', v !== '3');
+        if (v === '3' && typeof window.cebInit === 'function') window.cebInit();
       });
     });
 
@@ -3346,5 +3348,265 @@
     document.addEventListener('DOMContentLoaded', cb2Init);
   } else {
     cb2Init();
+  }
+})();
+
+/* ── Card Engineering Base Module ──────────────────────────── */
+(function () {
+  'use strict';
+
+  let pendingImageUrl = null; // URL of the last generated image (before saving)
+  let initialized = false;
+
+  function qs(sel) { return document.querySelector(sel); }
+
+  function cebInit() {
+    if (initialized) { loadLibrary(); return; }
+    initialized = true;
+    bindUploadZone();
+    bindGenerateBtn();
+    bindSaveBtn();
+    bindSettingsSave();
+    loadLibrary();
+    loadSettingsPrompt();
+  }
+
+  // ── Upload zone ────────────────────────────────────────────
+  function bindUploadZone() {
+    const zone    = qs('#ceb-upload-zone');
+    const input   = qs('#ceb-upload-input');
+    const empty   = qs('#ceb-upload-empty');
+    const preview = qs('#ceb-upload-preview');
+    const img     = qs('#ceb-upload-img');
+    const clearBtn = qs('#ceb-upload-clear');
+    const genBtn  = qs('#ceb-generate-btn');
+
+    if (!zone) return;
+
+    function setImage(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      const url = URL.createObjectURL(file);
+      img.src = url;
+      img._file = file;
+      empty.classList.add('hidden');
+      preview.classList.remove('hidden');
+      genBtn.disabled = false;
+    }
+
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+    input.addEventListener('change', () => { if (input.files[0]) setImage(input.files[0]); });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) setImage(file);
+    });
+
+    zone.addEventListener('paste', e => {
+      const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'));
+      if (item) setImage(item.getAsFile());
+    });
+
+    clearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      img.src = '';
+      img._file = null;
+      input.value = '';
+      preview.classList.add('hidden');
+      empty.classList.remove('hidden');
+      genBtn.disabled = true;
+      setResult(null);
+    });
+  }
+
+  // ── Generate ───────────────────────────────────────────────
+  function bindGenerateBtn() {
+    const btn = qs('#ceb-generate-btn');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const img = qs('#ceb-upload-img');
+      if (!img || !img._file) return;
+
+      showSpinner(true);
+
+      const formData = new FormData();
+      formData.append('image', img._file);
+
+      try {
+        const resp = await fetch('/api/engineering-base/generate', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Generation failed');
+        pendingImageUrl = data.image_url;
+        setResult(data.image_url);
+      } catch (err) {
+        alert('Engineering base generation failed: ' + err.message);
+      } finally {
+        showSpinner(false);
+      }
+    });
+  }
+
+  function showSpinner(show) {
+    const spinner = qs('#ceb-spinner');
+    const empty   = qs('#ceb-result-empty');
+    const content = qs('#ceb-result-content');
+    const btn     = qs('#ceb-generate-btn');
+    if (!spinner) return;
+    spinner.classList.toggle('hidden', !show);
+    if (show) {
+      empty.classList.add('hidden');
+      content.classList.add('hidden');
+    }
+    btn.disabled = show;
+  }
+
+  function setResult(url) {
+    const empty   = qs('#ceb-result-empty');
+    const content = qs('#ceb-result-content');
+    const img     = qs('#ceb-result-img');
+    if (!url) {
+      content.classList.add('hidden');
+      empty.classList.remove('hidden');
+      pendingImageUrl = null;
+      return;
+    }
+    img.src = url;
+    empty.classList.add('hidden');
+    content.classList.remove('hidden');
+  }
+
+  // ── Save to library ────────────────────────────────────────
+  function bindSaveBtn() {
+    const btn   = qs('#ceb-save-btn');
+    const input = qs('#ceb-save-title');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const title = input ? input.value.trim() : '';
+      if (!title) { input && input.focus(); return; }
+      if (!pendingImageUrl) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const resp = await fetch('/api/engineering-base/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, image_path: pendingImageUrl }),
+        });
+        if (!resp.ok) { const d = await resp.json(); throw new Error(d.error || 'Save failed'); }
+        if (input) input.value = '';
+        loadLibrary();
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save to Library';
+      }
+    });
+  }
+
+  // ── Template library ───────────────────────────────────────
+  async function loadLibrary() {
+    const grid  = qs('#ceb-library-grid');
+    const empty = qs('#ceb-library-empty');
+    const count = qs('#ceb-library-count');
+    if (!grid) return;
+
+    try {
+      const resp = await fetch('/api/engineering-base/templates');
+      const templates = await resp.json();
+
+      count.textContent = `${templates.length} template${templates.length === 1 ? '' : 's'}`;
+
+      // Remove existing cards but keep the empty state el
+      grid.querySelectorAll('.ceb-template-card').forEach(el => el.remove());
+
+      if (!templates.length) {
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      templates.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'ceb-template-card';
+        card.innerHTML = `
+          <div class="ceb-template-thumb-wrap">
+            <img class="ceb-template-thumb zoomable" src="${t.image_path}" alt="${t.title}" title="Click to enlarge" />
+          </div>
+          <div class="ceb-template-info">
+            <div class="ceb-template-title" title="${t.title}">${t.title}</div>
+            <button class="ceb-template-delete" title="Delete template" data-id="${t.id}">✕</button>
+          </div>
+        `;
+        card.querySelector('.ceb-template-delete').addEventListener('click', () => deleteTemplate(t.id));
+        grid.appendChild(card);
+      });
+
+      // Attach zoom to new images (if global zoomable handler exists)
+      if (typeof window.bindZoomable === 'function') window.bindZoomable(grid);
+    } catch (err) {
+      console.error('[ceb] load library error:', err);
+    }
+  }
+
+  async function deleteTemplate(id) {
+    if (!confirm('Delete this engineering base template?')) return;
+    try {
+      await fetch(`/api/engineering-base/templates/${id}`, { method: 'DELETE' });
+      loadLibrary();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  }
+
+  // ── Settings prompt ────────────────────────────────────────
+  async function loadSettingsPrompt() {
+    try {
+      const resp = await fetch('/api/settings');
+      const data = await resp.json();
+      const ta = qs('#ceb-s-prompt');
+      if (ta && data.engineering_base_prompt) ta.value = data.engineering_base_prompt;
+    } catch {}
+  }
+
+  function bindSettingsSave() {
+    const btn    = qs('#ceb-s-save-btn');
+    const status = qs('#ceb-s-save-status');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const prompt = qs('#ceb-s-prompt')?.value || '';
+      btn.disabled = true;
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ engineering_base_prompt: prompt }),
+        });
+        if (!resp.ok) throw new Error('Save failed');
+        if (status) { status.textContent = 'Saved'; setTimeout(() => { status.textContent = ''; }, 2000); }
+      } catch (err) {
+        if (status) { status.textContent = 'Error saving'; }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  // Expose cebInit so the version tab switch can call it
+  window.cebInit = cebInit;
+
+  // Load settings prompt on page load (so Settings page is populated even without visiting the tab)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadSettingsPrompt);
+  } else {
+    loadSettingsPrompt();
   }
 })();

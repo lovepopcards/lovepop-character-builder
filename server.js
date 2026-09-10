@@ -43,6 +43,10 @@ if (!fs.existsSync(SKETCH_TEMPLATE_DIR)) fs.mkdirSync(SKETCH_TEMPLATE_DIR, { rec
 const CONCEPT_TEMPLATE_DIR = path.join(UPLOADS_DIR, 'concept-template');
 if (!fs.existsSync(CONCEPT_TEMPLATE_DIR)) fs.mkdirSync(CONCEPT_TEMPLATE_DIR, { recursive: true });
 
+// Engineering base template images
+const ENG_BASE_DIR = path.join(UPLOADS_DIR, 'engineering-base');
+if (!fs.existsSync(ENG_BASE_DIR)) fs.mkdirSync(ENG_BASE_DIR, { recursive: true });
+
 const diskStorage = multer.diskStorage({
   destination: UPLOADS_DIR,
   filename: (req, file, cb) => {
@@ -1791,6 +1795,86 @@ app.get('/api/debug/db-path', (req, res) => {
     exists: fs.existsSync(dbPath),
     env_DB_PATH: process.env.DB_PATH || '(not set)',
   });
+});
+
+// ── Engineering Base Generator ────────────────────────────────
+app.post('/api/engineering-base/generate', uploadMem.single('image'), async (req, res) => {
+  const openaiKey = process.env.OPENAI_API_KEY || db.getSetting('openai_api_key');
+  if (!openaiKey) return res.status(400).json({ error: 'OpenAI API key not configured.' });
+  if (!req.file)  return res.status(400).json({ error: 'No image uploaded.' });
+
+  const settings = db.getAllSettings();
+  const prompt = settings.engineering_base_prompt || db.DEFAULTS.engineering_base_prompt;
+
+  let pngBuf;
+  try {
+    pngBuf = await sharp(req.file.buffer)
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toBuffer();
+  } catch (e) {
+    return res.status(400).json({ error: 'Could not process uploaded image: ' + e.message });
+  }
+
+  try {
+    const form = new FormData();
+    form.append('model', 'gpt-image-1');
+    form.append('prompt', prompt);
+    form.append('n', '1');
+    form.append('size', '1024x1024');
+    form.append('quality', 'high');
+    form.append('image[]', new Blob([pngBuf], { type: 'image/png' }), 'card.png');
+
+    const genResp = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiKey}` },
+      body: form,
+    });
+
+    if (!genResp.ok) {
+      const errBody = await genResp.json().catch(() => ({}));
+      throw new Error(errBody.error?.message || `gpt-image-1 responded ${genResp.status}`);
+    }
+
+    const genData = await genResp.json();
+    const b64 = genData.data[0].b64_json;
+    const imgBuf = Buffer.from(b64, 'base64');
+    const filename = `engbase-${Date.now()}-${Math.random().toString(36).slice(2)}.png`;
+    fs.writeFileSync(path.join(ENG_BASE_DIR, filename), imgBuf);
+    res.json({ image_url: `/uploads/engineering-base/${filename}` });
+  } catch (err) {
+    console.error('[engineering-base] generation error:', err.message);
+    res.status(500).json({ error: 'Engineering base generation failed: ' + err.message });
+  }
+});
+
+app.get('/api/engineering-base/templates', (req, res) => {
+  const rows = db.prepare('SELECT * FROM engineering_base_templates ORDER BY created_at DESC').all();
+  res.json(rows);
+});
+
+app.post('/api/engineering-base/templates', express.json(), (req, res) => {
+  const { title, image_path } = req.body || {};
+  if (!title || !image_path) return res.status(400).json({ error: 'title and image_path required.' });
+  const result = db.prepare(
+    'INSERT INTO engineering_base_templates (title, image_path) VALUES (?, ?)'
+  ).run(title.trim(), image_path);
+  const row = db.prepare('SELECT * FROM engineering_base_templates WHERE id = ?').get(result.lastInsertRowid);
+  res.json(row);
+});
+
+app.delete('/api/engineering-base/templates/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM engineering_base_templates WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Template not found.' });
+  // Delete the image file if it lives in our uploads dir
+  const localPath = row.image_path.startsWith('/uploads/')
+    ? path.join(ENG_BASE_DIR, path.basename(row.image_path))
+    : null;
+  if (localPath && fs.existsSync(localPath)) {
+    try { fs.unlinkSync(localPath); } catch {}
+  }
+  db.prepare('DELETE FROM engineering_base_templates WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 // Asset Library routes

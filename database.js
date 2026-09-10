@@ -182,6 +182,16 @@ db.exec(`
 `);
 
 
+// ── Engineering Base Templates table ─────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS engineering_base_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT DEFAULT '',
+    image_path TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // ── Description Packages table ────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS description_packages (
@@ -405,6 +415,9 @@ DO NOT include any greeting card images or greeting card shapes. It should only 
   cd_cover_sketch_fidelity_loose: `Quick gestural illustration — rough pencil strokes, loose hatching, focus on overall composition and major shapes. No fine detail required.`,
   cd_cover_sketch_fidelity_standard: `Clean, well-resolved illustration with confident line work, good tonal range, and clear compositional hierarchy. Detailed enough to read at full size.`,
   cd_cover_sketch_fidelity_tight: `Fully finished illustration with precise ink-like line work, rich crosshatching and tonal shading, fine detail in all elements, and a polished editorial quality ready for art direction review.`,
+
+  // Card Engineering Base
+  engineering_base_prompt: `Transform this 3D pop-up greeting card photograph into a purely white engineering template. Remove all color, decorative illustration, and printed artwork. Render only the sculptural paper engineering structure — the 3D pop-up layers, fold mechanisms, tab connections, slot joints, and architectural form of the sculpture — in clean white tones with subtle shadows to show depth and dimension. The result must be a pristine white paper sculpture on a white background, with no text, no callouts, no annotations, no color fills, and no decorative elements. Preserve the exact 3D engineering structure so it can serve as a reusable base template for new card designs.`,
 
   // Card Builder 2.0
   cb2_system_prompt: `Create a Lovepop card based on the description and creative direction provided. Base the engineering off the card provided. Base the style of the cover off the card provided. Render a beautiful, full-color finished card concept showing both the cover illustration and the inside pop-up spread. Lovepop's signature warm, intricate, paper-art aesthetic.`,

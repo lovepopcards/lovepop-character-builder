@@ -1117,6 +1117,7 @@
             <a class="settings-nav-item" href="#s-section-artstyle-ai" data-section="s-section-artstyle-ai">🎨 Art Style Generator</a>
             <a class="settings-nav-item" href="#s-section-cd-ai" data-section="s-section-cd-ai">🎴 Card Designer Generator</a>
             <a class="settings-nav-item" href="#s-section-cb2-ai" data-section="s-section-cb2-ai">🃏 Card Builder 2.0</a>
+            <a class="settings-nav-item" href="#s-section-ceb-ai" data-section="s-section-ceb-ai">⚙️ Card Engineering Base</a>
           </div>
           <div class="settings-nav-group">
             <div class="settings-nav-group-label">API Keys</div>
@@ -1409,6 +1410,24 @@
             </div>
           </div>
 
+          <!-- Card Engineering Base Settings -->
+          <div class="settings-section collapsed" id="s-section-ceb-ai">
+            <button class="settings-section-toggle" data-target="s-section-ceb-ai">
+              <span class="settings-section-toggle-title">⚙️ Card Engineering Base</span>
+              <span class="settings-section-chevron">▾</span>
+            </button>
+            <div class="settings-section-body">
+              <p class="settings-card-desc">Prompt used when generating a white engineering template from a 3D card photo. Sent to OpenAI gpt-image-1 alongside your uploaded card image.</p>
+              <div class="form-group" style="margin-top:18px">
+                <label class="form-label">Engineering Base Generation Prompt</label>
+                <textarea id="ceb-s-prompt" class="form-textarea" rows="8" placeholder="Transform this 3D pop-up greeting card photograph into a purely white engineering template…"></textarea>
+                <div class="form-hint">This prompt guides gpt-image-1 to strip color and illustration from your card photo and render just the white paper engineering structure.</div>
+              </div>
+              <button class="btn-primary" id="ceb-s-save-btn" style="margin-top:12px">Save</button>
+              <span id="ceb-s-save-status" style="font-size:12px;color:var(--text-muted);margin-left:10px"></span>
+            </div>
+          </div>
+
           <div class="settings-group-divider">API Keys</div>
 
           <!-- Anthropic API Key -->
@@ -1583,6 +1602,7 @@
       <div class="cb-version-tabs" id="cb-version-tabs">
         <button class="cb-version-tab active" data-version="1">Card Builder 1.0</button>
         <button class="cb-version-tab" data-version="2">Card Builder 2.0</button>
+        <button class="cb-version-tab" data-version="3">Card Engineering Base</button>
       </div>
 
       <!-- ── CB1 Container ─────────────────────────────────────── -->
@@ -2165,6 +2185,75 @@
         </div><!-- /cb2-workspace -->
 
       </div><!-- /cb2-container -->
+
+      <!-- ══ Card Engineering Base Container ══════════════════════ -->
+      <div id="ceb-container" class="hidden">
+
+        <div class="view-toolbar">
+          <div class="toolbar-left">
+            <h1 class="view-title">Card Engineering Base</h1>
+            <span class="ceb-desc" style="font-size:13px;color:var(--text-muted);margin-left:12px">Upload a 3D card photo to generate a white engineering template</span>
+          </div>
+        </div>
+
+        <!-- ── Generator ────────────────────────────────────────── -->
+        <div class="ceb-generator">
+
+          <!-- Upload + controls -->
+          <div class="ceb-input-panel">
+            <div class="ceb-section-label">Upload Card Photo</div>
+            <div class="cd-ref-zone ceb-upload-zone" id="ceb-upload-zone" tabindex="0" title="Drop, paste, or click to upload a 3D card photo">
+              <div class="cd-ref-zone-empty" id="ceb-upload-empty">
+                <div class="cd-ref-zone-icon">📷</div>
+                <div class="cd-ref-zone-hint">Drop, paste, or click to upload a 3D card photo</div>
+              </div>
+              <div class="cd-ref-zone-preview hidden" id="ceb-upload-preview">
+                <img id="ceb-upload-img" class="cd-ref-zone-thumb zoomable" src="" alt="Card photo" title="Click to enlarge" />
+                <button class="cd-ref-zone-clear" id="ceb-upload-clear" title="Remove">✕</button>
+              </div>
+              <input type="file" id="ceb-upload-input" accept="image/*" style="display:none" />
+            </div>
+            <button class="btn-primary ceb-generate-btn" id="ceb-generate-btn" disabled>Generate Engineering Base</button>
+            <div class="ceb-generate-hint">Uses OpenAI gpt-image-1 to create a white engineering template from your card photo.</div>
+          </div>
+
+          <!-- Result -->
+          <div class="ceb-result-panel" id="ceb-result-panel">
+            <div class="ceb-section-label">Generated Template</div>
+            <div class="ceb-result-empty" id="ceb-result-empty">
+              <div class="ceb-result-empty-icon">⬜</div>
+              <div>Upload a card photo and click Generate to create a white engineering template.</div>
+            </div>
+            <div class="ceb-result-content hidden" id="ceb-result-content">
+              <img id="ceb-result-img" class="ceb-result-img zoomable" src="" alt="Engineering template" title="Click to enlarge" />
+              <div class="ceb-save-row">
+                <input type="text" id="ceb-save-title" class="ceb-save-input" placeholder="Template title (e.g. Butterfly Pop-Up Base)" autocomplete="off" />
+                <button class="btn-primary" id="ceb-save-btn">Save to Library</button>
+              </div>
+            </div>
+            <div class="ceb-spinner hidden" id="ceb-spinner">
+              <div class="ceb-spinner-ring"></div>
+              <div class="ceb-spinner-label">Generating white engineering template…</div>
+            </div>
+          </div>
+
+        </div><!-- /ceb-generator -->
+
+        <!-- ── Template Library ──────────────────────────────────── -->
+        <div class="ceb-library">
+          <div class="ceb-library-header">
+            <div class="ceb-section-label">Template Library</div>
+            <span id="ceb-library-count" class="count-badge">0 templates</span>
+          </div>
+          <div id="ceb-library-grid" class="ceb-library-grid">
+            <div class="ceb-library-empty" id="ceb-library-empty">
+              <div class="ceb-result-empty-icon">📚</div>
+              <div>No templates saved yet. Generate and save a template to build your library.</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /ceb-container -->
 
     </div><!-- /view-card-designer -->
 
