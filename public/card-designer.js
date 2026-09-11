@@ -3521,6 +3521,20 @@
       '/api/cb2/designs/%ID%/engineering-base',
       (updated) => { cb2Active = updated; renderCb2ImageZone('engineering', ''); }
     );
+
+    // Engineering Library picker (must live here so cb2Active, api, renderCb2ImageZone are in scope)
+    document.getElementById('cb2-engineering-from-library')?.addEventListener('click', () => {
+      window.openEngBasePicker(async (template) => {
+        if (!cb2Active) { alert('No active CB2 design. Open a design first.'); return; }
+        try {
+          const updated = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { engineering_base_image: template.image_path });
+          cb2Active = updated;
+          renderCb2ImageZone('engineering', cb2Active.engineering_base_image);
+        } catch (e) {
+          alert('Could not apply template.');
+        }
+      });
+    });
   }
 
   function bindCb2UploadZone(type, uploadUrlTpl, onUpload, deleteUrlTpl, onDelete) {
@@ -4088,19 +4102,6 @@
       });
     });
 
-    // ── CB2: "or select from Engineering Library" ───────────
-    document.getElementById('cb2-engineering-from-library')?.addEventListener('click', () => {
-      openEngBasePicker(async (template) => {
-        if (!cb2Active) { alert('No active CB2 design. Open a design first.'); return; }
-        try {
-          const updated = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { engineering_base_image: template.image_path });
-          cb2Active = updated;
-          renderCb2ImageZone('engineering', cb2Active.engineering_base_image);
-        } catch (e) {
-          alert('Could not apply template.');
-        }
-      });
-    });
   });
 
   window.openEngBasePicker = openEngBasePicker;
