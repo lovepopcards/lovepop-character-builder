@@ -22,7 +22,6 @@ async function openaiGenerateImage(apiKey, model, prompt, refBuffers = []) {
     form.set('prompt', prompt);
     form.set('n', '1');
     form.set('size', '1024x1024');
-    form.set('response_format', 'b64_json');
     form.set('input_fidelity', 'low'); // reference only, not source to replicate
     for (const { buf, mimeType } of refBuffers.slice(0, 16)) {
       const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
@@ -37,7 +36,7 @@ async function openaiGenerateImage(apiKey, model, prompt, refBuffers = []) {
     resp = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024', response_format: 'b64_json' }),
+      body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024' }),
     });
   }
   if (!resp.ok) {
