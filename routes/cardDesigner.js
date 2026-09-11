@@ -39,6 +39,13 @@ async function openaiGenerateImage(apiKey, model, prompt, refBuffers = []) {
       body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024' }),
     });
   }
+  // Retry once on transient 5xx (e.g. Cloudflare 520)
+  if (!resp.ok && resp.status >= 500) {
+    await new Promise(r => setTimeout(r, 2000));
+    resp = refBuffers.length > 0
+      ? await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}` }, body: form })
+      : await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024' }) });
+  }
   if (!resp.ok) {
     const errBody = await resp.text().catch(() => '');
     let errMsg = `OpenAI API error ${resp.status}`;

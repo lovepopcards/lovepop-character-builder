@@ -4054,8 +4054,9 @@
           <div class="ceb-picker-tile-name" title="${t.title}">${t.title}</div>
         `;
         tile.addEventListener('click', () => {
+          const cb = pickerCallback;
           closePicker();
-          if (typeof pickerCallback === 'function') pickerCallback(t);
+          if (typeof cb === 'function') cb(t);
         });
         grid.appendChild(tile);
       });
