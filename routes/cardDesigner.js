@@ -22,7 +22,6 @@ async function openaiGenerateImage(apiKey, model, prompt, refBuffers = []) {
     form.set('prompt', prompt);
     form.set('n', '1');
     form.set('size', '1024x1024');
-    form.set('input_fidelity', 'low'); // reference only, not source to replicate
     for (const { buf, mimeType } of refBuffers.slice(0, 16)) {
       const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
       form.append('image[]', new Blob([buf], { type: mimeType }), `ref.${ext}`);
