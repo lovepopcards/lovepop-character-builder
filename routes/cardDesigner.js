@@ -1067,11 +1067,19 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
 
   // Load engineering base image (always provided as structural reference)
   const engineeringPart = (() => {
-    if (!design.engineering_base_image) return null;
-    // Support both legacy cb2-engineering/ paths and engineering-base/ library paths
+    if (!design.engineering_base_image) {
+      console.log('[cb2/generate] No engineering_base_image set for design', req.params.id);
+      return null;
+    }
     const relativePath = design.engineering_base_image.replace(/^\/uploads\//, '');
     const fullPath = path.join(UPLOADS_DIR, relativePath);
-    return loadImg(fullPath);
+    const part = loadImg(fullPath);
+    if (part) {
+      console.log('[cb2/generate] Engineering base loaded:', fullPath);
+    } else {
+      console.warn('[cb2/generate] Engineering base path set but file missing:', fullPath);
+    }
+    return part;
   })();
 
   // Load inspiration image (style/cover reference)
