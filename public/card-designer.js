@@ -2858,7 +2858,7 @@
         </button>` : ''}
         <div class="cb2-tile-actions">
           <button class="cb2-tile-action-btn cb2-heart-btn${isFav ? ' active-heart' : ''}" data-id="${d.id}" title="${isFav ? 'Unfavorite' : 'Favorite'}">
-            <svg width="13" height="12" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 16S2 11 2 6a4 4 0 0 1 8-1h0a4 4 0 0 1 8 1c0 5-8 10-8 10z" stroke="${isFav ? '#fff' : '#1B2A4A'}" stroke-width="1.8" fill="${isFav ? '#fff' : 'none'}" stroke-linejoin="round"/></svg>
+            <svg width="14" height="13" viewBox="0 0 24 22" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 20.5C12 20.5 2 14 2 7a5 5 0 0 1 10 0 5 5 0 0 1 10 0c0 7-10 13.5-10 13.5z" stroke="${isFav ? '#fff' : '#1B2A4A'}" stroke-width="1.8" fill="${isFav ? '#fff' : 'none'}" stroke-linejoin="round"/></svg>
           </button>
           <button class="cb2-tile-action-btn cb2-archive-btn${isArch ? ' active-archive' : ''}" data-id="${d.id}" title="${isArch ? 'Unarchive' : 'Archive'}">
             <svg width="13" height="12" viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="16" height="4" rx="1" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8" fill="${isArch ? '#fff' : 'none'}"/><path d="M3 6v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8"/><path d="M8 10h4" stroke="${isArch ? '#fff' : '#1B2A4A'}" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -2869,7 +2869,7 @@
         <div class="cd-tile-name">${displayName}</div>
         ${showSku ? `<div class="cd-tile-sku">${d.product_title}</div>` : ''}
         <div class="cd-tile-meta" style="margin-top:8px">
-          <span class="cd-tile-rounds">${roundsText}</span>
+          <span class="cd-tile-rounds${hasSelected ? ' is-selected' : ''}">${roundsText}</span>
           <span class="cd-tile-time">${cb2TimeAgo(d.updated_at || d.created_at)}</span>
         </div>
       </div>
@@ -3172,14 +3172,24 @@
   }
 
   // ── Rounds rendering ─────────────────────────────────────────────
+  const CB2_MODEL_LABELS = {
+    'gemini': 'Gemini',
+    'gpt-image-2.5-flare': 'GPT Flare',
+    'gpt-image-2.5-sunburst': 'GPT Sunburst',
+  };
+
   function cb2CardHtml(card, roundIdx, cardIdx) {
     const d = cb2Active;
     const label = `${roundIdx + 1}${String.fromCharCode(65 + cardIdx)}`;
     const sel = card.url === d?.selected_concept_url;
     const note = (card.note || '').replace(/"/g, '&quot;');
     const safeUrl = (card.url || '').replace(/"/g, '%22');
+    const modelKey = card.model || 'gemini';
+    const modelLabel = CB2_MODEL_LABELS[modelKey] || modelKey;
+    const modelBadge = card.model ? `<span class="cb2-model-badge cb2-model-${modelKey.replace(/[^a-z0-9]/g, '-')}">${modelLabel}</span>` : '';
     return `<div class="cd-sk-card cd-cb2-card${sel ? ' selected' : ''}" data-card-id="${card.id}" data-url="${safeUrl}">
       <div class="cd-sk-card-label">${label}</div>
+      ${modelBadge}
       <img src="${card.url}" alt="Concept ${label}" class="cd-sk-card-img zoomable" loading="lazy"
            title="Click to enlarge" onerror="this.closest('.cd-sk-card').style.opacity='0.3'" />
       <div class="cd-sk-card-footer">
@@ -3265,6 +3275,7 @@
   // ── Generate ─────────────────────────────────────────────────────
   let cb2Generating = false;
   let cb2IterateCardId = null;
+  let cb2SelectedModels = ['gemini'];
 
   function updateCb2GenerateBtn() {
     const d = cb2Active;
@@ -3293,10 +3304,11 @@
     if (roundsEl) {
       skeleton = document.createElement('div');
       skeleton.className = 'cd-round cd-round-skeleton';
+      const skeletonCount = cb2GenCount * cb2SelectedModels.length;
       skeleton.innerHTML = `
         <div class="cd-round-header"><span class="cd-round-label">Round ${roundNum}</span></div>
         <div class="cd-round-grid">
-          ${Array.from({ length: cb2GenCount }, () =>
+          ${Array.from({ length: skeletonCount }, () =>
             '<div class="cd-sk-card cd-sk-card-skeleton"><div class="cd-sk-card-img-placeholder"></div></div>'
           ).join('')}
         </div>`;
@@ -3311,6 +3323,7 @@
         count: cb2GenCount,
         parent_card_id: parentCardId || null,
         refine_ref_images: serverUrls,
+        models: cb2SelectedModels,
       });
       cb2Active = design;
       if (qs('cb2-refine-input')) qs('cb2-refine-input').value = '';
@@ -3455,6 +3468,22 @@
         document.querySelectorAll('#cb2-gen-count .cd-gen-n').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         cb2GenCount = parseInt(btn.dataset.count, 10) || 3;
+      });
+    });
+
+    // Model picker (multi-select toggle)
+    document.querySelectorAll('#cb2-model-picker .cb2-model-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const m = btn.dataset.model;
+        const isActive = btn.classList.contains('active');
+        if (isActive && cb2SelectedModels.length === 1) return; // keep at least one
+        if (isActive) {
+          cb2SelectedModels = cb2SelectedModels.filter(x => x !== m);
+          btn.classList.remove('active');
+        } else {
+          cb2SelectedModels = [...cb2SelectedModels, m];
+          btn.classList.add('active');
+        }
       });
     });
 

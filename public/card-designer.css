@@ -924,6 +924,52 @@
 }
 .cd-gen-n.active { background: #fff; color: var(--navy, #1A2B3C); }
 
+/* CB2 model picker */
+.cb2-model-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--sand-mid, #D9CFC4);
+  margin: 0 2px;
+}
+.cb2-model-picker {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.cb2-model-btn {
+  background: transparent;
+  border: 1.5px solid var(--sand-mid, #D9CFC4);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  padding: 3px 9px;
+  cursor: pointer;
+  color: var(--gray, #8A9AB0);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+.cb2-model-btn:hover { border-color: var(--navy, #1A2B3C); color: var(--navy, #1A2B3C); }
+.cb2-model-btn.active { background: var(--navy, #1A2B3C); border-color: var(--navy, #1A2B3C); color: #fff; }
+
+/* Model badge on concept cards */
+.cb2-model-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.02em;
+  z-index: 2;
+  pointer-events: none;
+}
+.cb2-model-badge.cb2-model-gemini { background: rgba(66,133,244,0.15); color: #1a56c4; }
+.cb2-model-badge.cb2-model-gpt-image-2-5-flare { background: rgba(234,108,34,0.15); color: #b84c00; }
+.cb2-model-badge.cb2-model-gpt-image-2-5-sunburst { background: rgba(130,60,200,0.15); color: #6c1ea8; }
+
 .cd-exit-btn {
   width: 28px;
   height: 28px;
@@ -2474,35 +2520,49 @@
   bottom: 7px;
   right: 7px;
   display: flex;
-  gap: 5px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  gap: 7px;
+  opacity: 1;
   z-index: 3;
 }
-.cd-card-tile:hover .cb2-tile-actions { opacity: 1; }
 .cb2-tile-action-btn {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,255,255,0.88);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.22);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s, transform 0.1s;
+  transition: background 0.15s, transform 0.12s, box-shadow 0.12s;
   padding: 0;
 }
-.cb2-tile-action-btn:hover { transform: scale(1.12); }
-.cb2-tile-action-btn.active-heart { background: #ff4d6d; }
-.cb2-tile-action-btn.active-heart svg path { fill: #fff; stroke: #fff; }
-.cb2-tile-action-btn.active-archive { background: var(--navy); }
-.cb2-tile-action-btn.active-archive svg path { fill: #fff; stroke: none; }
+.cb2-tile-action-btn:hover { transform: scale(1.14); box-shadow: 0 3px 10px rgba(0,0,0,0.28); }
+
+/* Heart — filled red when favorited */
+.cb2-heart-btn svg path { fill: none; stroke: rgba(27,42,74,0.45); stroke-width: 1.6; transition: fill 0.15s, stroke 0.15s; }
+.cb2-heart-btn.active-heart { background: #ff4d6d; box-shadow: 0 2px 8px rgba(255,77,109,0.45); }
+.cb2-heart-btn.active-heart svg path { fill: #fff; stroke: #fff; }
+.cb2-heart-btn:not(.active-heart):hover { background: #fff0f3; }
+.cb2-heart-btn:not(.active-heart):hover svg path { stroke: #ff4d6d; }
+
+/* Archive button */
+.cb2-archive-btn svg { opacity: 0.45; }
+.cb2-archive-btn.active-archive { background: var(--navy); }
+.cb2-archive-btn.active-archive svg { opacity: 1; }
+.cb2-archive-btn.active-archive svg path, .cb2-archive-btn.active-archive svg rect { stroke: #fff; }
+.cb2-archive-btn.active-archive svg path:last-child { stroke: #fff; }
 
 /* Archived tiles fade slightly */
-.cd-card-tile.cb2-tile-archived { opacity: 0.55; }
+.cd-card-tile.cb2-tile-archived { opacity: 0.5; }
 .cd-card-tile.cb2-tile-archived:hover { opacity: 1; }
+
+/* Concept selected — green */
+.cd-tile-rounds.is-selected {
+  color: var(--green, #2D9E5F);
+  font-weight: 600;
+}
 
 /* CB2 grid — tall enough to show full card images */
 #cb2-dash-grid {

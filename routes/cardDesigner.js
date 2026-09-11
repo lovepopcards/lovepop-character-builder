@@ -11,6 +11,48 @@ const UPLOADS_DIR = DATA_DIR
   ? path.join(DATA_DIR, 'uploads')
   : path.join(__dirname, '..', 'public', 'uploads');
 
+// ── OpenAI helper ─────────────────────────────────────────────
+// refBuffers: array of { buf: Buffer, mimeType: string }
+async function openaiGenerateImage(apiKey, model, prompt, refBuffers = []) {
+  let resp;
+  if (refBuffers.length > 0) {
+    // Use edits endpoint so reference images are passed to the model
+    const form = new FormData();
+    form.set('model', model);
+    form.set('prompt', prompt);
+    form.set('n', '1');
+    form.set('size', '1024x1024');
+    form.set('response_format', 'b64_json');
+    form.set('input_fidelity', 'low'); // reference only, not source to replicate
+    for (const { buf, mimeType } of refBuffers.slice(0, 16)) {
+      const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+      form.append('image[]', new Blob([buf], { type: mimeType }), `ref.${ext}`);
+    }
+    resp = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: form,
+    });
+  } else {
+    resp = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt, n: 1, size: '1024x1024', response_format: 'b64_json' }),
+    });
+  }
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => '');
+    let errMsg = `OpenAI API error ${resp.status}`;
+    try { const j = JSON.parse(errBody); errMsg = j.error?.message || errMsg; } catch {}
+    console.error('[openai] API error', resp.status, errMsg, errBody.slice(0, 300));
+    throw new Error(errMsg);
+  }
+  const data = await resp.json();
+  const b64 = data.data?.[0]?.b64_json;
+  if (!b64) throw new Error('OpenAI returned no image data');
+  return b64;
+}
+
 // ── Gemini helper ─────────────────────────────────────────────
 async function geminiGenerateImage(apiKey, model, prompt, refParts = []) {
   const parts = [...refParts, { text: prompt }];
@@ -992,15 +1034,23 @@ router.delete('/cb2/designs/:id', (req, res) => {
 
 // Generate a round of CB2 concepts
 router.post('/cb2/designs/:id/generate-round', async (req, res) => {
-  const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
-  if (!geminiKey) return res.status(400).json({ error: 'Gemini API key not configured.' });
-
   const design = db.getCb2Design(req.params.id);
   if (!design) return res.status(404).json({ error: 'Design not found' });
 
   const settings = db.getAllSettings();
-  const model = settings.gemini_model || db.DEFAULTS.gemini_model;
-  const { refine_note = '', count = 3, parent_card_id = null, refine_ref_images = [] } = req.body;
+  const { refine_note = '', count = 3, parent_card_id = null, refine_ref_images = [], models = ['gemini'] } = req.body;
+
+  // Validate requested models and check required keys
+  const selectedModels = Array.isArray(models) && models.length > 0 ? models : ['gemini'];
+  const needsGemini = selectedModels.includes('gemini');
+  const needsOpenAI = selectedModels.some(m => m !== 'gemini');
+
+  const geminiKey = process.env.GEMINI_API_KEY || db.getSetting('gemini_api_key');
+  const openaiKey = process.env.OPENAI_API_KEY || db.getSetting('openai_api_key');
+  if (needsGemini && !geminiKey) return res.status(400).json({ error: 'Gemini API key not configured.' });
+  if (needsOpenAI && !openaiKey) return res.status(400).json({ error: 'OpenAI API key not configured. Add it in Settings → OpenAI API Key.' });
+
+  const geminiModel = settings.gemini_model || db.DEFAULTS.gemini_model;
   const systemPrompt = settings.cb2_system_prompt || db.DEFAULTS.cb2_system_prompt || '';
 
   // Determine if we're anchoring to a selected or parent card
@@ -1088,8 +1138,7 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
     return parts;
   };
 
-  const generateOne = async () => {
-    const base64 = await geminiGenerateImage(geminiKey, model, buildPrompt(), buildRefParts());
+  const saveImage = (base64) => {
     const buf = Buffer.from(base64, 'base64');
     const filename = `cb2-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.png`;
     const cb2RoundsDir = path.join(UPLOADS_DIR, 'cb2-rounds');
@@ -1098,16 +1147,36 @@ router.post('/cb2/designs/:id/generate-round', async (req, res) => {
     return `/uploads/cb2-rounds/${filename}`;
   };
 
+  const generateOneWithModel = async (modelName) => {
+    if (modelName === 'gemini') {
+      const base64 = await geminiGenerateImage(geminiKey, geminiModel, buildPrompt(), buildRefParts());
+      return { url: saveImage(base64), model: 'gemini' };
+    } else {
+      // Convert Gemini inline-data parts to plain Buffers for the OpenAI edits endpoint
+      const refBuffers = buildRefParts()
+        .filter(p => p?.inlineData)
+        .map(p => ({ buf: Buffer.from(p.inlineData.data, 'base64'), mimeType: p.inlineData.mimeType }));
+      const base64 = await openaiGenerateImage(openaiKey, modelName, buildPrompt(), refBuffers);
+      return { url: saveImage(base64), model: modelName };
+    }
+  };
+
   try {
     const n = Math.min(Math.max(1, parseInt(count, 10) || 3), 9);
-    const urls = await Promise.all(Array.from({ length: n }, () => generateOne()));
+    // Generate n images per selected model, all in parallel
+    const allResults = await Promise.all(
+      selectedModels.flatMap(modelName =>
+        Array.from({ length: n }, () => generateOneWithModel(modelName))
+      )
+    );
     const newRound = {
       id: crypto.randomBytes(8).toString('hex'),
       index: (design.rounds?.length || 0) + 1,
       created_at: new Date().toISOString(),
       refine_note,
       parent_card_id: parent_card_id || null,
-      cards: urls.map(url => ({ id: crypto.randomBytes(8).toString('hex'), url, note: '' })),
+      models: selectedModels,
+      cards: allResults.map(({ url, model }) => ({ id: crypto.randomBytes(8).toString('hex'), url, model, note: '' })),
     };
     const updatedRounds = [...(design.rounds || []), newRound];
     const updated = db.updateCb2Design(req.params.id, { rounds: updatedRounds });
