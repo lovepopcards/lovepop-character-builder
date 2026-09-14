@@ -3132,6 +3132,12 @@
     const metaEl = qs('cb2-brief-meta');
     if (metaEl) metaEl.textContent = d.status === 'complete' ? 'Complete' : d.status === 'ready-for-review' ? 'Ready for review' : 'In development';
 
+    // Workspace heart / archive buttons
+    const wsHeart = document.getElementById('cb2-ws-heart-btn');
+    const wsArchive = document.getElementById('cb2-ws-archive-btn');
+    if (wsHeart) wsHeart.classList.toggle('active-heart', !!d.is_favorited);
+    if (wsArchive) wsArchive.classList.toggle('active-archive', !!d.is_archived);
+
     // Inspiration image
     renderCb2ImageZone('inspiration', d.inspiration_image);
     // Engineering base
@@ -3451,6 +3457,22 @@
     qs('cb2-back-btn')?.addEventListener('click', showCb2Dashboard);
     qs('cb2-back-btn-top')?.addEventListener('click', showCb2Dashboard);
     qs('cb2-exit-btn')?.addEventListener('click', showCb2Dashboard);
+
+    // Workspace heart / archive buttons
+    document.getElementById('cb2-ws-heart-btn')?.addEventListener('click', async () => {
+      if (!cb2Active) return;
+      const newVal = cb2Active.is_favorited ? 0 : 1;
+      cb2Active = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { is_favorited: newVal });
+      const btn = document.getElementById('cb2-ws-heart-btn');
+      if (btn) btn.classList.toggle('active-heart', !!cb2Active.is_favorited);
+    });
+    document.getElementById('cb2-ws-archive-btn')?.addEventListener('click', async () => {
+      if (!cb2Active) return;
+      const newVal = cb2Active.is_archived ? 0 : 1;
+      cb2Active = await api.patch(`/api/card-designer/cb2/designs/${cb2Active.id}`, { is_archived: newVal });
+      const btn = document.getElementById('cb2-ws-archive-btn');
+      if (btn) btn.classList.toggle('active-archive', !!cb2Active.is_archived);
+    });
 
     // Brief auto-save
     qs('cb2-design-name')?.addEventListener('blur', saveCb2Meta);

@@ -467,6 +467,15 @@
   margin-top: 3px;
 }
 
+.cb2-ws-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+.cb2-ws-header-row .cd-brief-meta { margin-top: 0; flex: 1; }
+.cb2-ws-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
 .cd-uni-aside-body {
   flex: 1;
   overflow-y: auto;
