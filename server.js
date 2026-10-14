@@ -184,6 +184,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // ── Characters API ────────────────────────────────────────────
+app.get('/health', (req, res) => res.json({ ok: true }));
+
 app.get('/api/characters', (req, res) => res.json(db.getAllCharacters()));
 app.get('/api/characters/:id', (req, res) => {
   const row = db.getCharacter(req.params.id);
@@ -1948,4 +1950,13 @@ app.listen(PORT, () => {
   console.log(`Uploads directory: ${UPLOADS_DIR}`);
   console.log(`Uploads dir exists: ${fs.existsSync(UPLOADS_DIR)}`);
   console.log(`/data directory exists: ${fs.existsSync('/data')}`);
+
+  // Keep Railway container warm — ping self every 10 minutes to prevent cold starts
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    const selfUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`;
+    setInterval(() => {
+      fetch(selfUrl, { method: 'GET' }).catch(() => {});
+    }, 10 * 60 * 1000);
+    console.log(`Keep-alive ping scheduled → ${selfUrl}`);
+  }
 });
