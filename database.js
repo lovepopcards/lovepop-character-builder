@@ -856,6 +856,32 @@ module.exports = {
   getAllCb2Designs() {
     return db.prepare('SELECT * FROM cb2_designs ORDER BY created_at DESC').all().map(r => this._parseCb2Design(r));
   },
+  getAllCb2DesignsSummary(search = '') {
+    // Lightweight list for dashboard tiles — skips full rounds JSON parsing
+    const rows = search
+      ? db.prepare(`SELECT id, name, product_title, status, is_favorited, is_archived, selected_concept_url, rounds, created_at, updated_at FROM cb2_designs WHERE name LIKE ? OR product_title LIKE ? ORDER BY created_at DESC`).all(`%${search}%`, `%${search}%`)
+      : db.prepare(`SELECT id, name, product_title, status, is_favorited, is_archived, selected_concept_url, rounds, created_at, updated_at FROM cb2_designs ORDER BY created_at DESC`).all();
+    return rows.map(r => {
+      let thumbnail = r.selected_concept_url || '';
+      let rounds_count = 0;
+      if (!thumbnail || true) {
+        try {
+          const rounds = JSON.parse(r.rounds || '[]');
+          rounds_count = rounds.length;
+          if (!thumbnail && rounds_count > 0) {
+            const last = rounds[rounds_count - 1];
+            thumbnail = last?.cards?.slice(-1)[0]?.url || '';
+          }
+        } catch {}
+      }
+      return {
+        id: r.id, name: r.name, product_title: r.product_title,
+        status: r.status, is_favorited: r.is_favorited, is_archived: r.is_archived,
+        selected_concept_url: r.selected_concept_url, thumbnail, rounds_count,
+        created_at: r.created_at, updated_at: r.updated_at,
+      };
+    });
+  },
   getCb2Design(id) {
     return this._parseCb2Design(db.prepare('SELECT * FROM cb2_designs WHERE id = ?').get(id));
   },

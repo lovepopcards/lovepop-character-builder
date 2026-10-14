@@ -2790,9 +2790,8 @@
   }
 
   function cb2TilePreviewImg(d) {
-    // Best available image: selected concept → most recent card in last round
-    const imgUrl = d.selected_concept_url
-      || (d.rounds?.length ? (d.rounds[d.rounds.length - 1]?.cards?.slice(-1)[0]?.url || '') : '');
+    // Summary API provides a pre-computed thumbnail field
+    const imgUrl = d.thumbnail || d.selected_concept_url || '';
     if (imgUrl) {
       const fallbackSvg = cb2TileSvg(d);
       return `<img src="${imgUrl}" class="cd-tile-preview-img" alt="Design preview" loading="lazy"
@@ -2802,7 +2801,7 @@
   }
 
   function cb2TileSvg(d) {
-    const hasRounds = d.rounds?.length > 0;
+    const hasRounds = (d.rounds_count ?? d.rounds?.length ?? 0) > 0;
     const hasSelected = !!d.selected_concept_url;
     if (hasSelected || d.status === 'complete') {
       return `<svg width="100%" height="270" viewBox="0 0 280 270" xmlns="http://www.w3.org/2000/svg">
@@ -2830,15 +2829,15 @@
     const statusLabel = { 'in-development': 'In development', 'ready-for-review': 'Ready for review', complete: 'Complete' }[d.status] || d.status;
     const statusClass = { 'in-development': 'cd-status-dev', 'ready-for-review': 'cd-status-review', complete: 'cd-status-complete' }[d.status] || 'cd-status-dev';
     const hasSelected = !!d.selected_concept_url;
-    const hasRounds = d.rounds?.length > 0;
+    const roundsCount = d.rounds_count ?? d.rounds?.length ?? 0;
+    const hasRounds = roundsCount > 0;
     const roundsText = hasSelected ? 'Concept selected ✓'
-      : hasRounds ? `${d.rounds.length} round${d.rounds.length !== 1 ? 's' : ''} in progress`
+      : hasRounds ? `${roundsCount} round${roundsCount !== 1 ? 's' : ''} in progress`
       : 'No rounds yet';
 
-    // Collect concept URLs from last round for peek button
-    const lastRound = hasRounds ? d.rounds[d.rounds.length - 1] : null;
-    const conceptUrls = lastRound?.cards?.map(c => c.url).filter(Boolean) || [];
-    const showPeek = !hasSelected && conceptUrls.length > 0;
+    // Peek button not available in summary — only shown when full rounds data is present
+    const conceptUrls = [];
+    const showPeek = false;
 
     // Tile name: prefer explicit name, fall back to product_title
     const displayName = (d.name && d.name !== 'Untitled Design') ? d.name : (d.product_title || d.name || 'Untitled Design');

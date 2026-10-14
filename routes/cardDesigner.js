@@ -990,12 +990,8 @@ function cb2FileExists(url) {
 // CRUD
 router.get('/cb2/designs', (req, res) => {
   try {
-    let list = db.getAllCb2Designs();
     const { q } = req.query;
-    if (q) {
-      const lq = q.toLowerCase();
-      list = list.filter(d => (d.name || '').toLowerCase().includes(lq) || (d.product_title || '').toLowerCase().includes(lq));
-    }
+    const list = db.getAllCb2DesignsSummary(q || '');
 
     // Respond immediately — don't block on filesystem checks
     res.json(list);
