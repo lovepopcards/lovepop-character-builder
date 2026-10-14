@@ -2998,25 +2998,50 @@
   flex-shrink: 0;
 }
 
-.ceb-direct-row {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
-.ceb-direct-zone {
-  width: 200px;
-  flex-shrink: 0;
-  height: 130px;
-}
-
-.ceb-direct-fields {
-  flex: 1;
+/* Batch drop zone */
+.ceb-batch-zone {
+  border: 2px dashed var(--border, #E4DDD4);
+  border-radius: 10px;
+  padding: 22px 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 4px;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
 }
+.ceb-batch-zone:hover, .ceb-batch-zone.drag-over {
+  border-color: var(--terracotta, #C4604A);
+  background: rgba(196,96,74,0.04);
+}
+.ceb-batch-icon { font-size: 26px; line-height: 1; }
+.ceb-batch-hint { font-size: 13px; color: var(--gray, #8A9AB0); }
+.ceb-batch-hint-small { font-size: 11px; }
+.ceb-batch-browse-btn {
+  background: none; border: none; padding: 0;
+  color: var(--terracotta, #C4604A); cursor: pointer; font-size: 11px;
+  text-decoration: underline;
+}
+
+/* Batch queue rows */
+.ceb-batch-queue { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.ceb-batch-queue.hidden { display: none; }
+.ceb-bq-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #E4DDD4);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.ceb-bq-row.ceb-bq-done { opacity: 0.55; }
+.ceb-bq-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.ceb-bq-title { flex: 1; }
+.ceb-bq-status { font-size: 11px; color: var(--gray, #8A9AB0); white-space: nowrap; flex-shrink: 0; }
+.ceb-bq-ok { color: #2D9E5F; font-weight: 600; }
+.ceb-bq-err { color: #C4604A; }
 
 /* Select from library link (under CB1/CB2 upload zones) */
 .ceb-select-from-library-link {

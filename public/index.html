@@ -2276,23 +2276,13 @@
         <!-- ── Direct Upload ─────────────────────────────────────── -->
         <div class="ceb-direct-upload">
           <div class="ceb-section-label">Upload Directly to Library</div>
-          <div class="ceb-direct-row">
-            <div class="cd-ref-zone ceb-direct-zone" id="ceb-direct-zone" tabindex="0" title="Drop, paste, or click to upload a white engineering template">
-              <div class="cd-ref-zone-empty" id="ceb-direct-empty">
-                <div class="cd-ref-zone-icon">⬜</div>
-                <div class="cd-ref-zone-hint">Drop, paste, or click to upload a white template</div>
-              </div>
-              <div class="cd-ref-zone-preview hidden" id="ceb-direct-preview">
-                <img id="ceb-direct-img" class="cd-ref-zone-thumb zoomable" src="" alt="Template" title="Click to enlarge" />
-                <button class="cd-ref-zone-clear" id="ceb-direct-clear" title="Remove">✕</button>
-              </div>
-              <input type="file" id="ceb-direct-input" accept="image/*" style="display:none" />
-            </div>
-            <div class="ceb-direct-fields">
-              <input type="text" id="ceb-direct-title" class="ceb-save-input" placeholder="Template title (e.g. Butterfly Pop-Up Base)" autocomplete="off" />
-              <button class="btn-primary" id="ceb-direct-save-btn" disabled>Save to Library</button>
-            </div>
+          <div class="ceb-batch-zone" id="ceb-batch-zone" tabindex="0" title="Drop multiple images to upload them all at once">
+            <div class="ceb-batch-icon">⬜</div>
+            <div class="ceb-batch-hint">Drop one or more white templates — uploads instantly using filename as title</div>
+            <div class="ceb-batch-hint ceb-batch-hint-small">or <button class="ceb-batch-browse-btn" id="ceb-batch-browse">click to browse</button></div>
+            <input type="file" id="ceb-batch-input" accept="image/*" multiple style="display:none" />
           </div>
+          <div id="ceb-batch-queue" class="ceb-batch-queue hidden"></div>
         </div>
 
         <!-- ── Template Library ──────────────────────────────────── -->

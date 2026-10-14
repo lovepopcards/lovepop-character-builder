@@ -3822,88 +3822,60 @@
     });
   }
 
-  // ── Direct upload to library ───────────────────────────────
+  // ── Batch upload to library ───────────────────────────────
   function bindDirectUpload() {
-    const zone    = qs('#ceb-direct-zone');
-    const input   = qs('#ceb-direct-input');
-    const empty   = qs('#ceb-direct-empty');
-    const preview = qs('#ceb-direct-preview');
-    const img     = qs('#ceb-direct-img');
-    const clearBtn = qs('#ceb-direct-clear');
-    const saveBtn = qs('#ceb-direct-save-btn');
-    const titleIn = qs('#ceb-direct-title');
+    const zone  = qs('#ceb-batch-zone');
+    const input = qs('#ceb-batch-input');
+    const queue = qs('#ceb-batch-queue');
     if (!zone) return;
 
-    let file = null;
-
-    function setFile(f) {
-      if (!f || !f.type.startsWith('image/')) return;
-      file = f;
-      img.src = URL.createObjectURL(f);
-      empty.classList.add('hidden');
-      preview.classList.remove('hidden');
-      saveBtn.disabled = false;
+    function titleFromFile(f) {
+      return f.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
     }
 
-    zone.addEventListener('click', () => input.click());
-    zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
-    input.addEventListener('change', () => { if (input.files[0]) setFile(input.files[0]); });
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
-
-    let pasteHandler = null;
-    zone.addEventListener('mouseenter', () => {
-      pasteHandler = e => {
-        const item = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith('image/'));
-        if (item) { e.preventDefault(); setFile(item.getAsFile()); }
-      };
-      document.addEventListener('paste', pasteHandler);
-      zone.classList.add('paste-ready');
-    });
-    zone.addEventListener('mouseleave', () => {
-      if (pasteHandler) { document.removeEventListener('paste', pasteHandler); pasteHandler = null; }
-      zone.classList.remove('paste-ready');
-    });
-
-    clearBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      file = null;
-      img.src = '';
-      input.value = '';
-      preview.classList.add('hidden');
-      empty.classList.remove('hidden');
-      saveBtn.disabled = true;
-    });
-
-    saveBtn.addEventListener('click', async () => {
-      const title = titleIn?.value.trim() || '';
-      if (!title) { titleIn?.focus(); return; }
-      if (!file) return;
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving…';
+    async function uploadFile(file, rowEl) {
+      const statusEl = rowEl.querySelector('.ceb-bq-status');
+      statusEl.textContent = 'Uploading…';
       try {
         const fd = new FormData();
         fd.append('image', file);
-        fd.append('title', title);
+        fd.append('title', rowEl.querySelector('.ceb-bq-title').value.trim() || titleFromFile(file));
         const resp = await fetch('/api/engineering-base/templates/upload', { method: 'POST', body: fd });
-        if (!resp.ok) { const d = await resp.json(); throw new Error(d.error || 'Upload failed'); }
-        // Reset form
-        file = null;
-        img.src = '';
-        input.value = '';
-        if (titleIn) titleIn.value = '';
-        preview.classList.add('hidden');
-        empty.classList.remove('hidden');
-        saveBtn.disabled = true;
-        loadLibrary();
+        if (!resp.ok) { const d = await resp.json().catch(() => ({})); throw new Error(d.error || 'Failed'); }
+        statusEl.textContent = '✓ Saved';
+        statusEl.classList.add('ceb-bq-ok');
+        rowEl.classList.add('ceb-bq-done');
       } catch (err) {
-        alert('Upload failed: ' + err.message);
-        saveBtn.disabled = false;
-      } finally {
-        saveBtn.textContent = 'Save to Library';
+        statusEl.textContent = '✗ ' + err.message;
+        statusEl.classList.add('ceb-bq-err');
       }
-    });
+    }
+
+    function addFiles(files) {
+      const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (!imageFiles.length) return;
+      queue.classList.remove('hidden');
+      imageFiles.forEach(f => {
+        const row = document.createElement('div');
+        row.className = 'ceb-bq-row';
+        row.innerHTML = `
+          <img class="ceb-bq-thumb" src="${URL.createObjectURL(f)}" alt="" />
+          <input class="ceb-bq-title ceb-save-input" type="text" value="${titleFromFile(f)}" placeholder="Title" />
+          <span class="ceb-bq-status">Queued</span>
+        `;
+        queue.appendChild(row);
+        uploadFile(f, row).then(() => loadLibrary());
+      });
+      input.value = '';
+    }
+
+    qs('#ceb-batch-browse')?.addEventListener('click', e => { e.stopPropagation(); input.click(); });
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+    input.addEventListener('change', () => addFiles(input.files));
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); addFiles(e.dataTransfer.files); });
   }
 
   // ── Template library ───────────────────────────────────────
