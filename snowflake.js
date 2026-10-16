@@ -21,11 +21,11 @@ function getConnOpts() {
   const schema   = pick('SNOWFLAKE_SCHEMA',     'snowflake_schema', 'PUBLIC');
   const role     = pick('SNOWFLAKE_ROLE',       'snowflake_role');
 
-  // Key-pair login (what Lovepop's read-only service user uses) when SNOWFLAKE_PRIVATE_KEY is set;
+  // Key-pair login (what Lovepop's read-only service user uses) when SNOWFLAKE_PRIVATE_KEY(_B64) is set;
   // otherwise the original password login.
   const privateKey = getPrivateKeyPem();
   if (!account || !username || (!password && !privateKey)) {
-    throw new Error('Snowflake credentials not configured (account, username, and a password or SNOWFLAKE_PRIVATE_KEY required)');
+    throw new Error('Snowflake credentials not configured (account, username, and a password or SNOWFLAKE_PRIVATE_KEY_B64 / SNOWFLAKE_PRIVATE_KEY required)');
   }
   const opts = privateKey
     ? { account, username, authenticator: 'SNOWFLAKE_JWT', privateKey, warehouse, database, schema }
@@ -34,11 +34,13 @@ function getConnOpts() {
   return opts;
 }
 
-// The unencrypted PKCS8 PEM snowflake-sdk expects, from SNOWFLAKE_PRIVATE_KEY (real newlines or the
-// literal "\n" used to keep it on one line in Railway variables), decrypted with
-// SNOWFLAKE_PRIVATE_KEY_PASSPHRASE when the key is encrypted. null when unset.
+// The unencrypted PKCS8 PEM snowflake-sdk expects, from SNOWFLAKE_PRIVATE_KEY_B64 (base64 of the PEM,
+// one line — the convention dash-app's lib/snowflake-auth.js uses) or SNOWFLAKE_PRIVATE_KEY (raw PEM;
+// literal "\n" unescaped), decrypted with SNOWFLAKE_PRIVATE_KEY_PASSPHRASE when the key is encrypted.
+// null when neither is set.
 function getPrivateKeyPem() {
-  const raw = process.env.SNOWFLAKE_PRIVATE_KEY;
+  const b64 = (process.env.SNOWFLAKE_PRIVATE_KEY_B64 || '').trim();
+  const raw = b64 ? Buffer.from(b64, 'base64').toString('utf8') : process.env.SNOWFLAKE_PRIVATE_KEY;
   if (!raw) return null;
   const pem = raw.replace(/\\n/g, '\n');
   const passphrase = process.env.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE || undefined;
