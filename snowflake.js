@@ -1,5 +1,6 @@
 /* snowflake.js — Snowflake connection + sales cache refresh
    ============================================================ */
+const crypto = require('crypto');
 const db = require('./database');
 
 let snowflake;
@@ -20,12 +21,29 @@ function getConnOpts() {
   const schema   = pick('SNOWFLAKE_SCHEMA',     'snowflake_schema', 'PUBLIC');
   const role     = pick('SNOWFLAKE_ROLE',       'snowflake_role');
 
-  if (!account || !username || !password) {
-    throw new Error('Snowflake credentials not configured (account, username, password required)');
+  // Key-pair login (what Lovepop's read-only service user uses) when SNOWFLAKE_PRIVATE_KEY is set;
+  // otherwise the original password login.
+  const privateKey = getPrivateKeyPem();
+  if (!account || !username || (!password && !privateKey)) {
+    throw new Error('Snowflake credentials not configured (account, username, and a password or SNOWFLAKE_PRIVATE_KEY required)');
   }
-  const opts = { account, username, password, warehouse, database, schema };
+  const opts = privateKey
+    ? { account, username, authenticator: 'SNOWFLAKE_JWT', privateKey, warehouse, database, schema }
+    : { account, username, password, warehouse, database, schema };
   if (role) opts.role = role;
   return opts;
+}
+
+// The unencrypted PKCS8 PEM snowflake-sdk expects, from SNOWFLAKE_PRIVATE_KEY (real newlines or the
+// literal "\n" used to keep it on one line in Railway variables), decrypted with
+// SNOWFLAKE_PRIVATE_KEY_PASSPHRASE when the key is encrypted. null when unset.
+function getPrivateKeyPem() {
+  const raw = process.env.SNOWFLAKE_PRIVATE_KEY;
+  if (!raw) return null;
+  const pem = raw.replace(/\\n/g, '\n');
+  const passphrase = process.env.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE || undefined;
+  const key = crypto.createPrivateKey(passphrase ? { key: pem, format: 'pem', passphrase } : { key: pem, format: 'pem' });
+  return key.export({ format: 'pem', type: 'pkcs8' });
 }
 
 // ── Execute a SQL query, return rows ─────────────────────────

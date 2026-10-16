@@ -4,6 +4,7 @@ const multer = require('multer');
 const fs = require('fs');
 const sharp = require('sharp');
 const db = require('./database');
+const { fetchProductCatalog } = require('./product-catalog');
 const { anthropicMessages } = require('./utils/anthropic');
 const assetLibraryRouter = require('./routes/assetLibrary');
 const cardDesignerRouter = require('./routes/cardDesigner');
@@ -1678,7 +1679,7 @@ Return valid JSON with exactly these fields: name, description, layout_approach,
   }
 });
 
-// ── Product Library Proxy ─────────────────────────────────────
+// ── Product Library (Snowflake) ───────────────────────────────
 let _productCache = null;
 let _productCacheTs = 0;
 const PRODUCT_CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -1705,15 +1706,10 @@ app.get('/api/products', async (req, res) => {
     if (_productCache && (now - _productCacheTs) < PRODUCT_CACHE_TTL) {
       return res.json(_productCache);
     }
-    const upstream = await fetch('https://lovepop-merch-tool-production.up.railway.app/api/products');
-    if (!upstream.ok) throw new Error(`Upstream responded ${upstream.status}`);
-    const upstreamRaw = await upstream.json();
-    // Support both plain array and { products: [...] } response shapes
-    const upstreamData = Array.isArray(upstreamRaw) ? upstreamRaw
-                       : Array.isArray(upstreamRaw?.products) ? upstreamRaw.products
-                       : null;
-    if (!upstreamData) throw new Error('Upstream returned unexpected product data format');
-    _productCache = upstreamData;
+    // Built from Snowflake (product-catalog.js). It used to be proxied from the merch tool's
+    // Railway service, which was cut off on 2026-10-16.
+    const { query } = require('./snowflake');
+    _productCache = await fetchProductCatalog(query);
     _productCacheTs = now;
 
     // Persist the fresh cache to the database so it survives server restarts
@@ -1722,7 +1718,7 @@ app.get('/api/products', async (req, res) => {
       db.setSetting('products_cache_ts', String(_productCacheTs));
     } catch (e) { console.warn('[products] could not persist cache to DB:', e.message); }
 
-    // Populate sales cache from merch tool revenue data (revenue: { t12m, units })
+    // Populate sales cache from the catalog's revenue (revenue: { t12m, units })
     try {
       const salesRows = _productCache
         .filter(p => p.revenue && (p.revenue.t12m || p.revenue.units))
@@ -1734,13 +1730,13 @@ app.get('/api/products', async (req, res) => {
         }));
       if (salesRows.length) {
         db.upsertSalesCache(salesRows);
-        console.log(`[products] populated sales cache with ${salesRows.length} SKUs from merch tool`);
+        console.log(`[products] populated sales cache with ${salesRows.length} SKUs from the Snowflake catalog`);
       }
     } catch (e) { console.warn('[products] sales cache populate error:', e.message); }
 
     res.json(_productCache);
   } catch (err) {
-    console.error('Products proxy error:', err.message);
+    console.error('Product library error:', err.message);
     if (_productCache) return res.json(_productCache); // serve stale/DB-restored cache on upstream error
     res.status(502).json({ error: 'Could not load product library: ' + err.message });
   }
